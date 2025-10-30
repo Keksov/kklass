@@ -1,0 +1,6 @@
+# Compiled class files
+.ckk/
+*.ckk.sh
+
+# Test artifacts
+test_system.kk
