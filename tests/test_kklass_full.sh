@@ -16,6 +16,39 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
+# Parse command line arguments
+VERBOSITY="error"
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --verbosity|--verbosity=*)
+            if [[ $1 == --verbosity=* ]]; then
+                VERBOSITY="${1#*=}"
+            else
+                VERBOSITY="$2"
+                shift
+            fi
+            ;;
+        -v)
+            VERBOSITY="$2"
+            shift
+            ;;
+        *)
+            echo "Unknown option: $1"
+            exit 1
+            ;;
+    esac
+    shift
+done
+
+# Validate verbosity
+if [[ "$VERBOSITY" != "info" && "$VERBOSITY" != "error" ]]; then
+    echo "Error: verbosity must be 'info' or 'error'"
+    exit 1
+fi
+
+# Set kklass verbosity based on our verbosity
+export VERBOSE_KKLASS="$VERBOSITY"
+
 # Test counters
 TESTS_TOTAL=0
 TESTS_PASSED=0
@@ -23,12 +56,16 @@ TESTS_FAILED=0
 
 # Test result functions
 test_start() {
-    echo -e "${BLUE}[TEST]${NC} $1"
+    if [[ "$VERBOSITY" == "info" ]]; then
+        echo -e "${BLUE}[TEST]${NC} $1"
+    fi
     TESTS_TOTAL=$((TESTS_TOTAL + 1))
 }
 
 test_pass() {
-    echo -e "${GREEN}[PASS]${NC} $1"
+    if [[ "$VERBOSITY" == "info" ]]; then
+        echo -e "${GREEN}[PASS]${NC} $1"
+    fi
     TESTS_PASSED=$((TESTS_PASSED + 1))
 }
 
@@ -38,15 +75,19 @@ test_fail() {
 }
 
 test_info() {
-    echo -e "${YELLOW}[INFO]${NC} $1"
+    if [[ "$VERBOSITY" == "info" ]]; then
+        echo -e "${YELLOW}[INFO]${NC} $1"
+    fi
 }
 
 test_section() {
-    echo ""
-    echo -e "${CYAN}========================================${NC}"
-    echo -e "${CYAN}$1${NC}"
-    echo -e "${CYAN}========================================${NC}"
-    echo ""
+    if [[ "$VERBOSITY" == "info" ]]; then
+        echo ""
+        echo -e "${CYAN}========================================${NC}"
+        echo -e "${CYAN}$1${NC}"
+        echo -e "${CYAN}========================================${NC}"
+        echo ""
+    fi
 }
 
 # Cleanup function
@@ -55,7 +96,7 @@ cleanup() {
     for cleanup_func in $(declare -F | grep -E '\.delete$' | sed 's/ declare -f //' | head -20); do
         instance_name=$(echo "$cleanup_func" | sed 's/\.delete$//')
         if declare -F | grep -q "^declare -f $instance_name\."; then
-            test_info "Cleaning up $instance_name"
+            if [[ "${VERBOSITY:-1}" == "info" ]]; then echo "Cleaning up $instance_name"; fi
             $instance_name.delete 2>/dev/null || true
         fi
     done
@@ -67,15 +108,18 @@ cleanup() {
 
 # Set up cleanup trap
 trap cleanup EXIT
+trap 'echo "Error occurred at line $LINENO: $BASH_COMMAND"' ERR
 
 # Source the class system
 source "$KKLASS_DIR/kklass.sh"
 
-echo ""
-echo -e "${CYAN}========================================${NC}"
-echo -e "${CYAN}Comprehensive Kklass Test Suite${NC}"
-echo -e "${CYAN}========================================${NC}"
-echo ""
+if [[ "$VERBOSITY" == "info" ]]; then
+    echo ""
+    echo -e "${CYAN}========================================${NC}"
+    echo -e "${CYAN}Comprehensive Kklass Test Suite${NC}"
+    echo -e "${CYAN}========================================${NC}"
+    echo ""
+fi
 
 # =============================================================================
 # SECTION 1: CORE FUNCTIONALITY TESTS (27 tests)
@@ -1148,19 +1192,28 @@ cleanup
 # =============================================================================
 # FINAL RESULTS
 # =============================================================================
-echo ""
-echo -e "${CYAN}========================================${NC}"
-echo -e "${CYAN}Test Results Summary${NC}"
-echo -e "${CYAN}========================================${NC}"
-echo "Total tests: $TESTS_TOTAL"
-echo -e "Passed: ${GREEN}$TESTS_PASSED${NC}"
-echo -e "Failed: ${RED}$TESTS_FAILED${NC}"
-echo ""
+total=$(cat <<-EOT
+Total tests: $TESTS_TOTAL
+Passed: ${GREEN}$TESTS_PASSED${NC}
+Failed: ${RED}$TESTS_FAILED${NC}
+EOT
+)
 
-if [[ $TESTS_FAILED -eq 0 ]]; then
-    echo -e "${GREEN}✓ All tests passed!${NC}"
-    exit 0
+if [[ "${VERBOSITY:-1}" == "info" ]]; then 
+    echo ""
+    echo -e "${CYAN}========================================${NC}"
+    echo -e "${CYAN}Test Results Summary${NC}"
+    echo -e "${CYAN}========================================${NC}"
+    echo -e "$total"
+
+    if [[ $TESTS_FAILED -eq 0 ]]; then
+        echo -e "${GREEN}✓ All tests passed!${NC}"
+        exit 0
+    else
+        echo -e "${RED}✗ Some tests failed.${NC}"
+        exit 1
+    fi
 else
-    echo -e "${RED}✗ Some tests failed.${NC}"
-    exit 1
+    echo -e $total
 fi
+

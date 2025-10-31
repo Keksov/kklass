@@ -473,7 +473,7 @@ INSTANCE_TPL
         fi
     }"
 
-    echo "$class_name class created"
+    if [[ "${VERBOSE_KKLASS:-1}" == "debug" ]]; then echo "$class_name class created"; fi
 }
 
 export -f defineClass

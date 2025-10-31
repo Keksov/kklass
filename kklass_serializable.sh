@@ -111,7 +111,8 @@ addSerializable() {
     # This is a hack: we rebuild the constructor with updated method lists
     _regenerateConstructor "$class_name"
     
-    echo "Serialization methods added to $class_name (format: $format)"
+    if [[ "${VERBOSE_KKLASS:-1}" == "debug" ]]; then echo "Serialization methods added to $class_name (format: $format)"; fi
+    
 }
 
 # Internal: Add string-based serialization
