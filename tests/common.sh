@@ -15,6 +15,11 @@ NC='\033[0m' # No Color
 
 # Parse command line arguments
 parse_args() {
+    # If VERBOSITY is already set (e.g., from runner), use it and set kklass verbosity
+    if [[ -n "$VERBOSITY" ]]; then
+        export VERBOSE_KKLASS="$VERBOSITY"
+        return
+    fi
     VERBOSITY="error"
     TEST_PREFIX=""
     while [[ $# -gt 0 ]]; do
