@@ -140,7 +140,10 @@ run_tests() {
 
         # Show output except the counters line when verbose or for failed tests
         if [[ "$VERBOSITY" == "info" || $(( __f )) -gt 0 ]]; then
-            echo "$run_output" | sed -e 's/\r$//' | grep -v '^__COUNTS__:' || true
+            if [[ -n "$counts_line" && $(( __f )) -gt 0 && "$VERBOSITY" == "error" ]]; then
+        echo -e "${RED}[FAIL]${NC} $(basename "$test_file")"
+        fi
+        echo "$run_output" | sed -e 's/\r$//' | grep -v '^__COUNTS__:' || true
         fi
     done
 }
