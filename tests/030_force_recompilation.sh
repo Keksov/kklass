@@ -4,9 +4,12 @@
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 parse_args "$@"
 
-# Setup: Ensure test_system.kk exists
-if [[ ! -f test_system.kk ]]; then
-    cat > test_system.kk <<'EOF'
+TEST_NUM=$(basename "${BASH_SOURCE[0]}" | cut -d'_' -f1)
+TEST_FILE="test_${TEST_NUM}.kk"
+
+# Setup: Ensure $TEST_FILE exists
+if [[ ! -f "$TEST_FILE" ]]; then
+    cat > "$TEST_FILE" <<'EOF'
 defineClass Counter "" \
     property value \
     method increment 'value=$((value + 1)); echo $value' \
@@ -21,7 +24,7 @@ fi
 
 # Test 30: Force compilation
 test_start "Force recompilation"
-output=$(bash -c "source '$KKLASS_DIR/kklass_autoload.sh' && kkrecompile test_system.kk" 2>&1)
+output=$(bash -c "source '$KKLASS_DIR/kklass_autoload.sh' && kkrecompile \"$TEST_FILE\"" 2>&1)
 if echo "$output" | grep -q "Force\|Compiling"; then
     test_pass "Force recompilation"
 else

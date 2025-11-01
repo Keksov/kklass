@@ -43,6 +43,8 @@ parse_args() {
     fi
     VERBOSITY="error"
     TEST_SELECTION=""
+    MODE="threaded"
+    WORKERS=8
     while [[ $# -gt 0 ]]; do
         case $1 in
             --verbosity|--verbosity=*)
@@ -61,10 +63,20 @@ parse_args() {
                 TEST_SELECTION="$2"
                 shift
                 ;;
+            -m|--mode)
+                MODE="$2"
+                shift
+                ;;
+            -w)
+                WORKERS="$2"
+                shift
+                ;;
             *)
                 echo "Unknown option: $1"
-                echo "Usage: $0 [-v|--verbosity info|error] [-n|--tests SELECTION]"
+                echo "Usage: $0 [-v|--verbosity info|error] [-n|--tests SELECTION] [-m|--mode threaded|single] [-w WORKERS]"
                 echo "  -n SELECTION: Run specific tests (e.g., 1, 1-3, 1,3,5-7)"
+                echo "  -m MODE: Execution mode, 'threaded' or 'single' (default: threaded)"
+                echo "  -w WORKERS: Number of workers for threaded mode (default: 8)"
                 exit 1
                 ;;
         esac
@@ -77,6 +89,18 @@ parse_args() {
         exit 1
     fi
 
+    # Validate mode
+    if [[ "$MODE" != "threaded" && "$MODE" != "single" ]]; then
+        echo "Error: mode must be 'threaded' or 'single'"
+        exit 1
+    fi
+
+    # Validate workers
+    if ! [[ "$WORKERS" =~ ^[0-9]+$ ]] || [[ "$WORKERS" -le 0 ]]; then
+        echo "Error: workers must be a positive integer"
+        exit 1
+    fi
+
     # Parse test selection if provided
     if [[ -n "$TEST_SELECTION" ]]; then
         parse_test_selection "$TEST_SELECTION"
@@ -84,6 +108,7 @@ parse_args() {
 
     # Set kklass verbosity based on our verbosity
     export VERBOSE_KKLASS="$VERBOSITY"
+    export MODE WORKERS
 }
 
 # Test result functions
@@ -124,23 +149,23 @@ test_section() {
 
 # Cleanup function
 cleanup() {
-    # Clean up any remaining instances
-    for cleanup_func in $(declare -F | grep -E '\.delete$' | sed 's/ declare -f //' | head -20); do
-        instance_name=$(echo "$cleanup_func" | sed 's/\.delete$//')
-        if declare -F | grep -q "^declare -f $instance_name\."; then
-            if [[ "${VERBOSITY:-1}" == "info" ]]; then echo "Cleaning up $instance_name"; fi
-            $instance_name.delete 2>/dev/null || true
-        fi
-    done
+# Clean up any remaining instances
+for cleanup_func in $(declare -F | grep -E '\.delete$' | sed 's/ declare -f //' | head -20); do
+instance_name=$(echo "$cleanup_func" | sed 's/\.delete$//')
+if declare -F | grep -q "^declare -f $instance_name\."; then
+if [[ "${VERBOSITY:-1}" == "info" ]]; then echo "Cleaning up $instance_name"; fi
+$instance_name.delete 2>/dev/null || true
+fi
+done
 
-    # Clean up test files
-    rm -f test_system.kk .ckk/test_system.ckk.sh 2>/dev/null || true
-    rm -rf .ckk 2>/dev/null || true
+# Clean up test files
+rm -f test_system.kk .ckk/test_system.ckk.sh 2>/dev/null || true
+# rm -rf .ckk 2>/dev/null || true  # Disabled to avoid deleting files for parallel tests
 }
 
 # Set up cleanup trap
 trap cleanup EXIT
-trap 'echo "Error occurred at line $LINENO: $BASH_COMMAND"; exit 1' ERR
+trap 'echo "Error occurred at line $LINENO: $BASH_COMMAND"' ERR
 
 # Source the class system if not already sourced
 if ! declare -F defineClass >/dev/null 2>&1; then

@@ -4,9 +4,12 @@
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 parse_args "$@"
 
-# Setup: Ensure test_system.kk exists and is compiled
-if [[ ! -f test_system.kk ]]; then
-    cat > test_system.kk <<'EOF'
+TEST_NUM=$(basename "${BASH_SOURCE[0]}" | cut -d'_' -f1)
+TEST_FILE="test_${TEST_NUM}.kk"
+
+# Setup: Ensure $TEST_FILE exists and is compiled
+if [[ ! -f "$TEST_FILE" ]]; then
+    cat > "$TEST_FILE" <<'EOF'
 defineClass Counter "" \
     property value \
     method increment 'value=$((value + 1)); echo $value' \
@@ -20,11 +23,11 @@ EOF
 fi
 
 # Ensure it's compiled
-bash -c "source '$KKLASS_DIR/kklass_autoload.sh' && kkload test_system.kk" >/dev/null 2>&1
+bash -c "source '$KKLASS_DIR/kklass_autoload.sh' && kkload \"$TEST_FILE\"" >/dev/null 2>&1
 
 # Test 33: Inheritance in compiled classes
 test_start "Inheritance in compiled classes"
-result=$(bash -c "source .ckk/test_system.ckk.sh && Timer.new tmr && tmr.value = 5 && tmr.increment")
+result=$(bash -c "source .ckk/\"${TEST_FILE%.*}\".ckk.sh && Timer.new tmr && tmr.value = 5 && tmr.increment")
 if [[ "$result" == "6" ]]; then
     test_pass "Inheritance in compiled classes"
 else

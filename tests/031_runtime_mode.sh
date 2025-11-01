@@ -4,9 +4,12 @@
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 parse_args "$@"
 
-# Setup: Ensure test_system.kk exists
-if [[ ! -f test_system.kk ]]; then
-    cat > test_system.kk <<'EOF'
+TEST_NUM=$(basename "${BASH_SOURCE[0]}" | cut -d'_' -f1)
+TEST_FILE="test_${TEST_NUM}.kk"
+
+# Setup: Ensure $TEST_FILE exists
+if [[ ! -f "$TEST_FILE" ]]; then
+    cat > "$TEST_FILE" <<'EOF'
 defineClass Counter "" \
     property value \
     method increment 'value=$((value + 1)); echo $value' \
@@ -21,8 +24,8 @@ fi
 
 # Test 31: Runtime mode (--no-compile)
 test_start "Runtime mode (--no-compile)"
-rm -f .ckk/test_system.ckk.sh
-output=$(bash -c "source '$KKLASS_DIR/kklass_autoload.sh' && kkload test_system.kk --no-compile" 2>&1)
+rm -f .ckk/\"$TEST_FILE\".sh
+output=$(bash -c "source '$KKLASS_DIR/kklass_autoload.sh' && kkload \"$TEST_FILE\" --no-compile" 2>&1)
 if echo "$output" | grep -q "runtime\|No compiled"; then
     test_pass "Runtime mode (--no-compile)"
 else

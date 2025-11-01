@@ -12,8 +12,8 @@ defineClass "TestClass" "" \
     "method" "greet" 'echo "Hello, I am $name"' \
     "method" "getValue" 'echo "$value"'
 
-echo 1111
-if declare -F | grep -q "1TestClass.new"; then
+
+if declare -F | grep -q "TestClass.new"; then
     test_pass "Basic class creation"
 else
     test_fail "Basic class creation"

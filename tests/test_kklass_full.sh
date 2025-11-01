@@ -105,12 +105,16 @@ run_tests() {
         echo -e "${CYAN}========================================${NC}"
         echo -e "${CYAN}Comprehensive Kklass Test Suite${NC}"
         echo -e "${CYAN}========================================${NC}"
-        echo "Running ${#test_files[@]} test file(s)..."
+        echo "Running ${#test_files[@]} test file(s) in $MODE mode..."
+        if [[ "$MODE" == "threaded" ]]; then
+            echo "Using $WORKERS worker(s)..."
+        fi
         echo ""
     fi
 
-    # Execute each test file in isolated bash, aggregate counters
-    for test_file in "${test_files[@]}"; do
+    if [[ "$MODE" == "single" ]]; then
+        # Execute each test file sequentially in isolated bash, aggregate counters
+        for test_file in "${test_files[@]}"; do
         if [[ "$VERBOSITY" == "info" ]]; then
             echo -e "${YELLOW}[EXEC]${NC} $(basename "$test_file")"
         fi
@@ -145,7 +149,70 @@ run_tests() {
         fi
         echo "$run_output" | sed -e 's/\r$//' | grep -v '^__COUNTS__:' || true
         fi
-    done
+        done
+    else
+        # Threaded execution
+        local temp_dir="$(mktemp -d)"
+        local temp_files=()
+
+        for test_file in "${test_files[@]}"; do
+            local clean_file="${test_file%$'\\r'}"
+            local temp_file="$temp_dir/$(basename "$test_file").out"
+            temp_files+=("$temp_file")
+
+            if [[ "$VERBOSITY" == "info" ]]; then
+                echo -e "${YELLOW}[EXEC]${NC} $(basename "$test_file")"
+            fi
+
+            # Run the test in background, output to temp file
+            bash -c "export VERBOSITY='$VERBOSITY'; source \"$clean_file\"; echo __COUNTS__:\$TESTS_TOTAL:\$TESTS_PASSED:\$TESTS_FAILED" > "$temp_file" 2>&1 &
+
+            # Limit concurrent jobs
+            while [[ $(jobs -r | wc -l) -ge $WORKERS ]]; do
+                wait $(jobs -r -p | head -1)
+            done
+        done
+
+        # Wait for all remaining jobs
+        wait
+
+        # Collect results
+        for temp_file in "${temp_files[@]}"; do
+            local run_output counts_line __tag __t __p __f
+            if [[ -f "$temp_file" ]]; then
+                run_output="$(cat "$temp_file")"
+            else
+                run_output=""
+            fi
+
+            # Parse counters
+            counts_line="$(printf '%s\n' "$run_output" | sed -e 's/\r$//' | grep '^__COUNTS__:' | tail -n 1)"
+            local test_name="$(basename "${temp_file%.out}")"
+            if [[ -n "$counts_line" ]]; then
+                IFS=':' read -r __tag __t __p __f <<<"$counts_line"
+                __t=${__t:-0}; __p=${__p:-0}; __f=${__f:-0}
+                TESTS_TOTAL=$((TESTS_TOTAL + __t))
+                TESTS_PASSED=$((TESTS_PASSED + __p))
+                TESTS_FAILED=$((TESTS_FAILED + __f))
+            else
+                TESTS_TOTAL=$((TESTS_TOTAL + 1))
+                TESTS_FAILED=$((TESTS_FAILED + 1))
+                __f=1
+                echo -e "${RED}[FAIL]${NC} $test_name (no counters reported)"
+            fi
+
+            # Show output
+            if [[ "$VERBOSITY" == "info" || $(( __f )) -gt 0 ]]; then
+                if [[ -n "$counts_line" && $(( __f )) -gt 0 && "$VERBOSITY" == "error" ]]; then
+                    echo -e "${RED}[FAIL]${NC} $test_name"
+                fi
+                echo "$run_output" | sed -e 's/\r$//' | grep -v '^__COUNTS__:' || true
+            fi
+        done
+
+        # Cleanup temp dir
+        rm -rf "$temp_dir"
+    fi
 }
 
 # Execute tests
