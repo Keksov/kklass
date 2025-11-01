@@ -132,12 +132,7 @@ run_tests() {
             bash -c "export VERBOSITY='$VERBOSITY'; source \"$clean_file\"; echo __COUNTS__:\$TESTS_TOTAL:\$TESTS_PASSED:\$TESTS_FAILED" 2>&1 || true
         )"
 
-        # Show output except the counters line when verbose
-        if [[ "$VERBOSITY" == "info" ]]; then
-            echo "$run_output" | sed -e 's/\r$//' | grep -v '^__COUNTS__:' || true
-        fi
-
-        # Parse counters
+        # Parse counters first
         counts_line="$(printf '%s\n' "$run_output" | sed -e 's/\r$//' | grep '^__COUNTS__:' | tail -n 1)"
         if [[ -n "$counts_line" ]]; then
             IFS=':' read -r __tag __t __p __f <<<"$counts_line"
@@ -146,10 +141,16 @@ run_tests() {
             TESTS_PASSED=$((TESTS_PASSED + __p))
             TESTS_FAILED=$((TESTS_FAILED + __f))
         else
-            # If no counters reported, assume the test file represents 1 test that failed hard
-            TESTS_TOTAL=$((TESTS_TOTAL + 1))
-            TESTS_FAILED=$((TESTS_FAILED + 1))
+        # If no counters reported, assume the test file represents 1 test that failed hard
+        TESTS_TOTAL=$((TESTS_TOTAL + 1))
+        TESTS_FAILED=$((TESTS_FAILED + 1))
+        __f=1  # Mark as failed for output
             echo -e "${RED}[FAIL]${NC} $(basename "$test_file") (no counters reported)"
+        fi
+
+        # Show output except the counters line when verbose or for failed tests
+        if [[ "$VERBOSITY" == "info" || $(( __f )) -gt 0 ]]; then
+            echo "$run_output" | sed -e 's/\r$//' | grep -v '^__COUNTS__:' || true
         fi
     done
 }

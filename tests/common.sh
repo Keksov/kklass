@@ -114,7 +114,7 @@ cleanup() {
 
 # Set up cleanup trap
 trap cleanup EXIT
-trap 'echo "Error occurred at line $LINENO: $BASH_COMMAND"' ERR
+trap 'echo "Error occurred at line $LINENO: $BASH_COMMAND"; exit 1' ERR
 
 # Source the class system if not already sourced
 if ! declare -F defineClass >/dev/null 2>&1; then
