@@ -19,16 +19,7 @@ TESTS_TOTAL=0
 TESTS_PASSED=0
 TESTS_FAILED=0
 
-# Function to expand test prefix (e.g., "1" becomes "1_ 01_ 001_ 0001_")
-expand_prefix() {
-    local prefix="$1"
-    local expanded=""
-    local len=${#prefix}
-    for ((i=4; i>=len; i--)); do
-        expanded+="$(printf '%0*d' $((i-len)) 0)$prefix "
-    done
-    echo "$expanded"
-}
+
 
 # Normalize and deduplicate file list (Windows-safe, no external sort)
 unique_and_clean() {
@@ -52,50 +43,49 @@ run_tests() {
     # Enable nullglob so unmatched globs expand to nothing
     shopt -s nullglob
 
-    if [[ -n "$TEST_PREFIX" ]]; then
-        # Build glob patterns for the given prefix
+    if [[ ${#TESTS_TO_RUN[@]} -gt 0 ]]; then
+    # Verbose debug info
+    if [[ "$VERBOSITY" == "info" ]]; then
+            echo -e "${YELLOW}[INFO]${NC} TEST_SELECTION='$TEST_SELECTION' -> TESTS_TO_RUN=(${TESTS_TO_RUN[*]})"
+    fi
+
+        # For each selected test number
+    for num in "${TESTS_TO_RUN[@]}"; do
         local patterns=()
 
-        # Always include the raw prefix form like "X_*.sh"
-        patterns+=("$SCRIPT_DIR/${TEST_PREFIX}_*.sh")
+    # Always include the raw prefix form like "X_*.sh"
+    patterns+=("$SCRIPT_DIR/${num}_*.sh")
 
-        # If the prefix is purely numeric, include zero-padded variants: 01_, 001_, 0001_
-        if [[ "$TEST_PREFIX" =~ ^[0-9]+$ ]]; then
-            patterns+=("$SCRIPT_DIR/0${TEST_PREFIX}_*.sh")
-            patterns+=("$SCRIPT_DIR/00${TEST_PREFIX}_*.sh")
-            patterns+=("$SCRIPT_DIR/000${TEST_PREFIX}_*.sh")
-            # Also include explicit 3-digit pad (covers e.g. 1 -> 001_)
-            patterns+=("$SCRIPT_DIR/$(printf '%03d' "$TEST_PREFIX")_*.sh")
-        fi
+    # If the prefix is purely numeric, include zero-padded variants: 01_, 001_, 0001_
+        if [[ "$num" =~ ^[0-9]+$ ]]; then
+                patterns+=("$SCRIPT_DIR/0${num}_*.sh")
+            patterns+=("$SCRIPT_DIR/00${num}_*.sh")
+            patterns+=("$SCRIPT_DIR/000${num}_*.sh")
+        # Also include explicit 3-digit pad (covers e.g. 1 -> 001_)
+        patterns+=("$SCRIPT_DIR/$(printf '%03d' "$num")_*.sh")
+    fi
 
-        # Verbose debug info
-        if [[ "$VERBOSITY" == "info" ]]; then
-            echo -e "${YELLOW}[INFO]${NC} TEST_PREFIX='$TEST_PREFIX'"
-            echo -e "${YELLOW}[INFO]${NC} Searching in: $SCRIPT_DIR"
-            echo -e "${YELLOW}[INFO]${NC} Patterns to try:"
-            for _p in "${patterns[@]}"; do echo " - $_p"; done
-        fi
-
-        # Collect matching files using globbing (safe with nullglob)
-        for pat in "${patterns[@]}"; do
+        # Collect matching files using globbing
+            for pat in "${patterns[@]}"; do
             for f in $pat; do
                 if [[ -f "$f" ]]; then
-                    test_files+=("$f")
-                fi
-            done
-        done
+                test_files+=("$f")
+        fi
+    done
+    done
+    done
 
         if [[ "$VERBOSITY" == "info" ]]; then
-            echo -e "${YELLOW}[INFO]${NC} Matched ${#test_files[@]} file(s):"
-            for _m in "${test_files[@]}"; do echo " - ${_m}"; done
-        fi
+        echo -e "${YELLOW}[INFO]${NC} Matched ${#test_files[@]} file(s):"
+    for _m in "${test_files[@]}"; do echo " - ${_m}"; done
+    fi
     else
         # Run all test files
-        for f in "$SCRIPT_DIR"/[0-9][0-9][0-9]_*.sh; do
-            if [[ -f "$f" ]]; then
-                test_files+=("$f")
-            fi
-        done
+    for f in "$SCRIPT_DIR"/[0-9][0-9][0-9]_*.sh; do
+        if [[ -f "$f" ]]; then
+        test_files+=("$f")
+    fi
+    done
     fi
     # Revert nullglob
     shopt -u nullglob

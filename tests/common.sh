@@ -13,6 +13,27 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
+# Global array for selected tests
+TESTS_TO_RUN=()
+
+# Parse test selection string into TESTS_TO_RUN array
+parse_test_selection() {
+    local selection="$1"
+    TESTS_TO_RUN=()
+    IFS=',' read -ra parts <<< "$selection"
+    for part in "${parts[@]}"; do
+        if [[ "$part" =~ ^([0-9]+)-([0-9]+)$ ]]; then
+            local start="${BASH_REMATCH[1]}"
+            local end="${BASH_REMATCH[2]}"
+            for ((i=start; i<=end; i++)); do
+                TESTS_TO_RUN+=("$i")
+            done
+        else
+            TESTS_TO_RUN+=("$part")
+        fi
+    done
+}
+
 # Parse command line arguments
 parse_args() {
     # If VERBOSITY is already set (e.g., from runner), use it and set kklass verbosity
@@ -21,7 +42,7 @@ parse_args() {
         return
     fi
     VERBOSITY="error"
-    TEST_PREFIX=""
+    TEST_SELECTION=""
     while [[ $# -gt 0 ]]; do
         case $1 in
             --verbosity|--verbosity=*)
@@ -36,14 +57,14 @@ parse_args() {
                 VERBOSITY="$2"
                 shift
                 ;;
-            -n|--number)
-                TEST_PREFIX="$2"
+            -n|--tests)
+                TEST_SELECTION="$2"
                 shift
                 ;;
             *)
                 echo "Unknown option: $1"
-                echo "Usage: $0 [-v|--verbosity info|error] [-n|--number X]"
-                echo "  -n X: Execute only tests with prefix X (e.g., 1, 01, 001, 0001)"
+                echo "Usage: $0 [-v|--verbosity info|error] [-n|--tests SELECTION]"
+                echo "  -n SELECTION: Run specific tests (e.g., 1, 1-3, 1,3,5-7)"
                 exit 1
                 ;;
         esac
@@ -54,6 +75,11 @@ parse_args() {
     if [[ "$VERBOSITY" != "info" && "$VERBOSITY" != "error" ]]; then
         echo "Error: verbosity must be 'info' or 'error'"
         exit 1
+    fi
+
+    # Parse test selection if provided
+    if [[ -n "$TEST_SELECTION" ]]; then
+        parse_test_selection "$TEST_SELECTION"
     fi
 
     # Set kklass verbosity based on our verbosity
