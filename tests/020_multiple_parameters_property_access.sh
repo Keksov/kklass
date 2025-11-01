@@ -2,6 +2,7 @@
 # 020_multiple_parameters_property_access.sh - Test method with multiple parameters and property access
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+parse_args "$@"
 
 # Test 20: Method with multiple parameters and property access
 test_start "Method with multiple parameters and property access"

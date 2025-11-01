@@ -2,6 +2,7 @@
 # 021_property_access_via_method.sh - Test property access via .property method
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+parse_args "$@"
 
 # Test 21: Property access via .property method
 test_start "Property access via .property method"

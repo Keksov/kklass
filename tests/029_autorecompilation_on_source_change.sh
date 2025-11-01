@@ -2,6 +2,7 @@
 # 029_autorecompilation_on_source_change.sh - Test auto-recompilation on source change
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+parse_args "$@"
 
 # Test 29: Modify source and auto-recompile
 test_start "Auto-recompilation on source change"

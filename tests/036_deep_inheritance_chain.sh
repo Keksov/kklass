@@ -2,6 +2,7 @@
 # 036_deep_inheritance_chain.sh - Test deep inheritance chain with properties
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+parse_args "$@"
 
 # Test 36: Deep inheritance chain with properties
 test_start "Deep inheritance chain with properties"

@@ -2,6 +2,7 @@
 # 018_parent_method_with_properties.sh - Test method calling parent and using properties
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+parse_args "$@"
 
 # Test 18: Method calling parent and using properties
 test_start "Method calling parent and using properties"

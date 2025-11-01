@@ -2,6 +2,7 @@
 # 006_method_overriding.sh - Test method overriding
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+parse_args "$@"
 
 # Setup: Create Animal and Dog classes
 defineClass "Animal" "" \

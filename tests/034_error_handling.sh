@@ -2,6 +2,7 @@
 # 034_error_handling.sh - Test error handling - non-existent method
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+parse_args "$@"
 
 # Test 34: Error handling - non-existent method
 test_start "Error handling - non-existent method"

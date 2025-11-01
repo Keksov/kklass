@@ -2,6 +2,7 @@
 # 004_method_calls.sh - Test method calls
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+parse_args "$@"
 
 # Setup: Create TestClass and instance with properties
 defineClass "TestClass" "" \

@@ -2,6 +2,7 @@
 # 035_complex_property_names.sh - Test complex property names
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+parse_args "$@"
 
 # Test 35: Complex property names
 test_start "Complex property names"

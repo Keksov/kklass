@@ -2,6 +2,7 @@
 # 011_property_inheritance.sh - Test property inheritance
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+parse_args "$@"
 
 # Test 11: Property inheritance
 test_start "Property inheritance"

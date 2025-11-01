@@ -2,6 +2,7 @@
 # 044_json_serialization.sh - Test JSON serialization with addSerializable
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+parse_args "$@"
 
 # Load serialization module
 source "$KKLASS_DIR/kklass_serializable.sh"

@@ -8,53 +8,11 @@ set -e  # Exit on any error
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 KKLASS_DIR="$SCRIPT_DIR/.."
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-NC='\033[0m' # No Color
+# Source common.sh for shared code and parsing
+source "$SCRIPT_DIR/common.sh"
 
 # Parse command line arguments
-VERBOSITY="error"
-TEST_PREFIX=""
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        --verbosity|--verbosity=*)
-            if [[ $1 == --verbosity=* ]]; then
-                VERBOSITY="${1#*=}"
-            else
-                VERBOSITY="$2"
-                shift
-            fi
-            ;;
-        -v)
-            VERBOSITY="$2"
-            shift
-            ;;
-        -n|--number)
-            TEST_PREFIX="$2"
-            shift
-            ;;
-        *)
-            echo "Unknown option: $1"
-            echo "Usage: $0 [-v|--verbosity info|error] [-n|--number X]"
-            echo "  -n X: Execute only tests with prefix X (e.g., 1, 01, 001, 0001)"
-            exit 1
-            ;;
-    esac
-    shift
-done
-
-# Validate verbosity
-if [[ "$VERBOSITY" != "info" && "$VERBOSITY" != "error" ]]; then
-    echo "Error: verbosity must be 'info' or 'error'"
-    exit 1
-fi
-
-# Set kklass verbosity based on our verbosity
-export VERBOSE_KKLASS="$VERBOSITY"
+parse_args "$@"
 
 # Test counters
 TESTS_TOTAL=0

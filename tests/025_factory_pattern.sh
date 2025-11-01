@@ -2,6 +2,7 @@
 # 025_factory_pattern.sh - Test factory pattern with static counters
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+parse_args "$@"
 
 # Test 25: Factory pattern with static counters
 test_start "Factory pattern with static counters"

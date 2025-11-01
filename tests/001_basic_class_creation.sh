@@ -2,6 +2,7 @@
 # 001_basic_class_creation.sh - Test basic class creation
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+parse_args "$@"
 
 # Test 1: Basic class creation
 test_start "Basic class creation"

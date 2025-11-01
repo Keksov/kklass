@@ -2,6 +2,7 @@
 # 037_composition_patterns.sh - Test composition patterns
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+parse_args "$@"
 
 # Test 37: Composition patterns
 test_start "Composition patterns"

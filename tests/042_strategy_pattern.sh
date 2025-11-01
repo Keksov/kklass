@@ -2,6 +2,7 @@
 # 042_strategy_pattern.sh - Test strategy pattern
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+parse_args "$@"
 
 # Test 42: Strategy pattern
 test_start "Strategy pattern"

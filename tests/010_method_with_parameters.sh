@@ -2,6 +2,7 @@
 # 010_method_with_parameters.sh - Test method with parameters
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+parse_args "$@"
 
 # Test 10: Method with parameters
 test_start "Method with parameters"

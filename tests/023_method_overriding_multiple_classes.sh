@@ -2,6 +2,7 @@
 # 023_method_overriding_multiple_classes.sh - Test method overriding with multiple derived classes
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+parse_args "$@"
 
 # Test 23: Method overriding with multiple derived classes
 test_start "Method overriding with multiple derived classes"

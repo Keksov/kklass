@@ -2,6 +2,7 @@
 # 002_instance_creation.sh - Test instance creation
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+parse_args "$@"
 
 # Setup: Create TestClass first
 defineClass "TestClass" "" \

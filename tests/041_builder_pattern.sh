@@ -2,6 +2,7 @@
 # 041_builder_pattern.sh - Test builder pattern
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+parse_args "$@"
 
 # Test 41: Builder pattern
 test_start "Builder pattern"

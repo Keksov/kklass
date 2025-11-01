@@ -2,6 +2,7 @@
 # 039_lazy_properties.sh - Test lazy properties (lazy initialization)
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+parse_args "$@"
 
 # Test 39: Lazy properties (lazy initialization)
 test_start "Lazy properties (lazy initialization)"

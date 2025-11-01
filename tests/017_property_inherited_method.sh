@@ -2,6 +2,7 @@
 # 017_property_inherited_method.sh - Test property used in inherited method
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+parse_args "$@"
 
 # Test 17: Property used in inherited method
 test_start "Property used in inherited method"

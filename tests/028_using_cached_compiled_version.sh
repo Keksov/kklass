@@ -2,6 +2,7 @@
 # 028_using_cached_compiled_version.sh - Test using cached compiled version
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+parse_args "$@"
 
 # Setup: Ensure test_system.kk exists and is already compiled
 if [[ ! -f test_system.kk ]]; then

@@ -2,6 +2,7 @@
 # 003_property_assignment_access.sh - Test property assignment and access
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+parse_args "$@"
 
 # Setup: Create TestClass and instance
 defineClass "TestClass" "" \

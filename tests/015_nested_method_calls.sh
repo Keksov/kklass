@@ -2,6 +2,7 @@
 # 015_nested_method_calls.sh - Test nested method calls with $this
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+parse_args "$@"
 
 # Test 15: Nested method calls with $this
 test_start "Nested method calls with \$this"

@@ -2,6 +2,7 @@
 # 033_inheritance_compiled.sh - Test inheritance in compiled classes
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+parse_args "$@"
 
 # Setup: Ensure test_system.kk exists and is compiled
 if [[ ! -f test_system.kk ]]; then

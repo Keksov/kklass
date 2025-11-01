@@ -2,6 +2,7 @@
 # 014_property_values_with_spaces.sh - Test property values with spaces
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+parse_args "$@"
 
 # Test 14: Property values with spaces
 test_start "Property values with spaces"

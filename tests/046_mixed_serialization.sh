@@ -2,6 +2,7 @@
 # 046_mixed_serialization.sh - Test mixed format serialization (string and JSON)
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+parse_args "$@"
 
 # Load serialization module
 source "$KKLASS_DIR/kklass_serializable.sh"

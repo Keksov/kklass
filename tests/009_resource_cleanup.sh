@@ -2,6 +2,7 @@
 # 009_resource_cleanup.sh - Test resource cleanup
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+parse_args "$@"
 
 # Setup: Create TestClass and instance
 defineClass "TestClass" "" \

@@ -2,6 +2,7 @@
 # 022_method_modifying_properties.sh - Test method modifying properties
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+parse_args "$@"
 
 # Test 22: Method modifying properties
 test_start "Method modifying properties"

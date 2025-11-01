@@ -2,6 +2,7 @@
 # 032_functional_test_compiled.sh - Test functional test with compiled classes
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+parse_args "$@"
 
 # Setup: Ensure test_system.kk exists
 if [[ ! -f test_system.kk ]]; then

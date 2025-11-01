@@ -2,6 +2,7 @@
 # 026_singleton_pattern.sh - Test singleton pattern with static properties
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+parse_args "$@"
 
 # Test 26: Singleton pattern with static properties
 test_start "Singleton pattern with static properties"

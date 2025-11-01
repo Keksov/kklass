@@ -2,6 +2,7 @@
 # 027_autocompilation_first_load.sh - Test auto-compilation (first load)
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+parse_args "$@"
 
 # Clean up any previous test files
 rm -f test_system.kk .ckk/test_system.ckk.sh

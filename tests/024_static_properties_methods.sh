@@ -2,6 +2,7 @@
 # 024_static_properties_methods.sh - Test static properties and methods
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+parse_args "$@"
 
 # Test 24: Static properties and methods
 test_start "Static properties and methods"

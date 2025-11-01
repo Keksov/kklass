@@ -2,6 +2,7 @@
 # 013_multiple_instances.sh - Test multiple instances of same class
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+parse_args "$@"
 
 # Test 13: Multiple instances of same class
 test_start "Multiple instances of same class"

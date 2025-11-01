@@ -2,6 +2,7 @@
 # 007_parent_method_calls.sh - Test parent method calls
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+parse_args "$@"
 
 # Setup: Create Animal base class first
 defineClass "Animal" "" \

@@ -2,6 +2,7 @@
 # 019_this_method_context.sh - Test $this.method calls method in current class context
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+parse_args "$@"
 
 # Test 19: $this.method ensures current class context
 test_start "\$this.method calls method in current class context"

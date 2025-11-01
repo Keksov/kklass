@@ -2,6 +2,7 @@
 # 040_observer_pattern.sh - Test observer pattern
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+parse_args "$@"
 
 # Test 40: Observer pattern
 test_start "Observer pattern"

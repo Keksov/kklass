@@ -2,6 +2,7 @@
 # 043_string_serialization.sh - Test string serialization with defineSerializableClass
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+parse_args "$@"
 
 # Load serialization module
 source "$KKLASS_DIR/kklass_serializable.sh"

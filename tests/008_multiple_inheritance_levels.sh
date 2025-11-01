@@ -2,6 +2,7 @@
 # 008_multiple_inheritance_levels.sh - Test multiple inheritance levels
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+parse_args "$@"
 
 # Test 8: Multiple inheritance levels
 test_start "Multiple inheritance levels"

@@ -2,6 +2,7 @@
 # 038_computed_properties.sh - Test computed properties (getter and setter)
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+parse_args "$@"
 
 # Test 38: Computed properties (getter and setter)
 test_start "Computed properties (getter and setter)"

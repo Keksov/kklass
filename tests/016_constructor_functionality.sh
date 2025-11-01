@@ -2,6 +2,7 @@
 # 016_constructor_functionality.sh - Test constructor functionality with initialization
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+parse_args "$@"
 
 # Test 16: Constructor functionality with initialization
 test_start "Constructor functionality with initialization"

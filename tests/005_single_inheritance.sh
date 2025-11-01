@@ -2,6 +2,7 @@
 # 005_single_inheritance.sh - Test single inheritance
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+parse_args "$@"
 
 # Test 5: Single inheritance
 test_start "Single inheritance"

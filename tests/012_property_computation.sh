@@ -2,6 +2,7 @@
 # 012_property_computation.sh - Test property access and computation in methods
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+parse_args "$@"
 
 # Test 12: Property access and computation in methods
 test_start "Property access and computation in methods"
