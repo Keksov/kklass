@@ -149,18 +149,18 @@ test_section() {
 
 # Cleanup function
 cleanup() {
-# Clean up any remaining instances
-for cleanup_func in $(declare -F | grep -E '\.delete$' | sed 's/ declare -f //' | head -20); do
-instance_name=$(echo "$cleanup_func" | sed 's/\.delete$//')
-if declare -F | grep -q "^declare -f $instance_name\."; then
-if [[ "${VERBOSITY:-1}" == "info" ]]; then echo "Cleaning up $instance_name"; fi
-$instance_name.delete 2>/dev/null || true
-fi
-done
+    # Clean up any remaining instances
+    for cleanup_func in $(declare -F | grep -E '\.delete$' | sed 's/ declare -f //' | head -20); do
+        instance_name=$(echo "$cleanup_func" | sed 's/\.delete$//')
+        if declare -F | grep -q "^declare -f $instance_name\."; then
+            if [[ "${VERBOSITY:-1}" == "info" ]]; then echo "Cleaning up $instance_name"; fi
+            $instance_name.delete 2>/dev/null || true
+        fi
+    done
 
-# Clean up test files
-rm -f test_system.kk .ckk/test_system.ckk.sh 2>/dev/null || true
-# rm -rf .ckk 2>/dev/null || true  # Disabled to avoid deleting files for parallel tests
+    # Clean up test files
+    rm -f test_system.kk .ckk/test_system.ckk.sh 2>/dev/null || true
+    # rm -rf .ckk 2>/dev/null || true  # Disabled to avoid deleting files for parallel tests
 }
 
 # Set up cleanup trap

@@ -19,8 +19,6 @@ TESTS_TOTAL=0
 TESTS_PASSED=0
 TESTS_FAILED=0
 
-
-
 # Normalize and deduplicate file list (Windows-safe, no external sort)
 unique_and_clean() {
     local -n in_arr=$1
@@ -44,48 +42,48 @@ run_tests() {
     shopt -s nullglob
 
     if [[ ${#TESTS_TO_RUN[@]} -gt 0 ]]; then
-    # Verbose debug info
-    if [[ "$VERBOSITY" == "info" ]]; then
+        # Verbose debug info
+        if [[ "$VERBOSITY" == "info" ]]; then
             echo -e "${YELLOW}[INFO]${NC} TEST_SELECTION='$TEST_SELECTION' -> TESTS_TO_RUN=(${TESTS_TO_RUN[*]})"
-    fi
+        fi
 
         # For each selected test number
-    for num in "${TESTS_TO_RUN[@]}"; do
-        local patterns=()
+        for num in "${TESTS_TO_RUN[@]}"; do
+            local patterns=()
 
-    # Always include the raw prefix form like "X_*.sh"
-    patterns+=("$SCRIPT_DIR/${num}_*.sh")
+            # Always include the raw prefix form like "X_*.sh"
+            patterns+=("$SCRIPT_DIR/${num}_*.sh")
 
-    # If the prefix is purely numeric, include zero-padded variants: 01_, 001_, 0001_
-        if [[ "$num" =~ ^[0-9]+$ ]]; then
+            # If the prefix is purely numeric, include zero-padded variants: 01_, 001_, 0001_
+            if [[ "$num" =~ ^[0-9]+$ ]]; then
                 patterns+=("$SCRIPT_DIR/0${num}_*.sh")
-            patterns+=("$SCRIPT_DIR/00${num}_*.sh")
-            patterns+=("$SCRIPT_DIR/000${num}_*.sh")
-        # Also include explicit 3-digit pad (covers e.g. 1 -> 001_)
-        patterns+=("$SCRIPT_DIR/$(printf '%03d' "$num")_*.sh")
-    fi
+                patterns+=("$SCRIPT_DIR/00${num}_*.sh")
+                patterns+=("$SCRIPT_DIR/000${num}_*.sh")
+                # Also include explicit 3-digit pad (covers e.g. 1 -> 001_)
+                patterns+=("$SCRIPT_DIR/$(printf '%03d' "$num")_*.sh")
+            fi
 
-        # Collect matching files using globbing
+            # Collect matching files using globbing
             for pat in "${patterns[@]}"; do
-            for f in $pat; do
-                if [[ -f "$f" ]]; then
-                test_files+=("$f")
-        fi
-    done
-    done
-    done
+                for f in $pat; do
+                    if [[ -f "$f" ]]; then
+                        test_files+=("$f")
+                    fi
+                done
+            done
+        done
 
         if [[ "$VERBOSITY" == "info" ]]; then
-        echo -e "${YELLOW}[INFO]${NC} Matched ${#test_files[@]} file(s):"
-    for _m in "${test_files[@]}"; do echo " - ${_m}"; done
-    fi
+            echo -e "${YELLOW}[INFO]${NC} Matched ${#test_files[@]} file(s):"
+            for _m in "${test_files[@]}"; do echo " - ${_m}"; done
+        fi
     else
         # Run all test files
-    for f in "$SCRIPT_DIR"/[0-9][0-9][0-9]_*.sh; do
-        if [[ -f "$f" ]]; then
-        test_files+=("$f")
-    fi
-    done
+        for f in "$SCRIPT_DIR"/[0-9][0-9][0-9]_*.sh; do
+            if [[ -f "$f" ]]; then
+                test_files+=("$f")
+            fi
+        done
     fi
     # Revert nullglob
     shopt -u nullglob
@@ -115,40 +113,40 @@ run_tests() {
     if [[ "$MODE" == "single" ]]; then
         # Execute each test file sequentially in isolated bash, aggregate counters
         for test_file in "${test_files[@]}"; do
-        if [[ "$VERBOSITY" == "info" ]]; then
-            echo -e "${YELLOW}[EXEC]${NC} $(basename "$test_file")"
-        fi
-        local clean_file="${test_file%$'\r'}"
-        local run_output counts_line __tag __t __p __f
+            if [[ "$VERBOSITY" == "info" ]]; then
+                echo -e "${YELLOW}[EXEC]${NC} $(basename "$test_file")"
+            fi
+            local clean_file="${test_file%$'\r'}"
+            local run_output counts_line __tag __t __p __f
 
-        # Run the test in a separate bash process to avoid sourcing path issues on Windows
-        run_output="$(
-            bash -c "export VERBOSITY='$VERBOSITY'; source \"$clean_file\"; echo __COUNTS__:\$TESTS_TOTAL:\$TESTS_PASSED:\$TESTS_FAILED" 2>&1 || true
-        )"
+            # Run the test in a separate bash process to avoid sourcing path issues on Windows
+            run_output="$(
+                bash -c "export VERBOSITY='$VERBOSITY'; source \"$clean_file\"; echo __COUNTS__:\$TESTS_TOTAL:\$TESTS_PASSED:\$TESTS_FAILED" 2>&1 || true
+            )"
 
-        # Parse counters first
-        counts_line="$(printf '%s\n' "$run_output" | sed -e 's/\r$//' | grep '^__COUNTS__:' | tail -n 1)"
-        if [[ -n "$counts_line" ]]; then
-            IFS=':' read -r __tag __t __p __f <<<"$counts_line"
-            __t=${__t:-0}; __p=${__p:-0}; __f=${__f:-0}
-            TESTS_TOTAL=$((TESTS_TOTAL + __t))
-            TESTS_PASSED=$((TESTS_PASSED + __p))
-            TESTS_FAILED=$((TESTS_FAILED + __f))
-        else
-        # If no counters reported, assume the test file represents 1 test that failed hard
-        TESTS_TOTAL=$((TESTS_TOTAL + 1))
-        TESTS_FAILED=$((TESTS_FAILED + 1))
-        __f=1  # Mark as failed for output
-            echo -e "${RED}[FAIL]${NC} $(basename "$test_file") (no counters reported)"
-        fi
+            # Parse counters first
+            counts_line="$(printf '%s\n' "$run_output" | sed -e 's/\r$//' | grep '^__COUNTS__:' | tail -n 1)"
+            if [[ -n "$counts_line" ]]; then
+                IFS=':' read -r __tag __t __p __f <<<"$counts_line"
+                __t=${__t:-0}; __p=${__p:-0}; __f=${__f:-0}
+                TESTS_TOTAL=$((TESTS_TOTAL + __t))
+                TESTS_PASSED=$((TESTS_PASSED + __p))
+                TESTS_FAILED=$((TESTS_FAILED + __f))
+            else
+                # If no counters reported, assume the test file represents 1 test that failed hard
+                TESTS_TOTAL=$((TESTS_TOTAL + 1))
+                TESTS_FAILED=$((TESTS_FAILED + 1))
+                __f=1  # Mark as failed for output
+                echo -e "${RED}[FAIL]${NC} $(basename "$test_file") (no counters reported)"
+            fi
 
-        # Show output except the counters line when verbose or for failed tests
-        if [[ "$VERBOSITY" == "info" || $(( __f )) -gt 0 ]]; then
-            if [[ -n "$counts_line" && $(( __f )) -gt 0 && "$VERBOSITY" == "error" ]]; then
-        echo -e "${RED}[FAIL]${NC} $(basename "$test_file")"
-        fi
-        echo "$run_output" | sed -e 's/\r$//' | grep -v '^__COUNTS__:' || true
-        fi
+            # Show output except the counters line when verbose or for failed tests
+            if [[ "$VERBOSITY" == "info" || $(( __f )) -gt 0 ]]; then
+                if [[ -n "$counts_line" && $(( __f )) -gt 0 && "$VERBOSITY" == "error" ]]; then
+                    echo -e "${RED}[FAIL]${NC} $(basename "$test_file")"
+                fi
+                echo "$run_output" | sed -e 's/\r$//' | grep -v '^__COUNTS__:' || true
+            fi
         done
     else
         # Threaded execution
@@ -245,4 +243,3 @@ if [[ "${VERBOSITY:-1}" == "info" ]]; then
 else
     echo -e $total
 fi
-
