@@ -133,10 +133,16 @@ local __inst__=\"\$this\""
         eval "${class_name}_method_cache[\"${m}\"]=\"${class_name}\""
     done
 
-    # Pre-generate property injection code (optimization: avoid subshell per method)
+    # Pre-generate property injection code with mutation detection (optimization: avoid subshell per method)
+    # Includes: property injection, original value backup for mutation detection, and write-back for mutated properties
     local props_injection=""
+    local props_backup=""
+    local props_writeback=""
+    
     for p in "${props_arr[@]}"; do
         props_injection+="local $p=\"\${__INST___data[\"$p\"]}\"; "
+        props_backup+="local __orig_$p=\"\$${p}\"; "
+        props_writeback+="if [[ \"\$${p}\" != \"\$__orig_${p}\" ]]; then __INST___data[\"$p\"]=\"\$${p}\"; fi; "
     done
     
     # Add static properties injection if available
@@ -207,20 +213,16 @@ local __inst__=\"\$this\""
         local saved_class=\"\${__INST___class}\"
         __INST___class=\"\$target_class\"
         ${props_injection}
+        ${props_backup}
         local method_var=\"\${target_class}_method_body_\${method_name}\"
-        # Execute in current shell to preserve mutated locals; capture output
-        local __tmp_out __out
+        # Execute in current shell (redirect stdout, mutations persist); strip newlines for clean output concatenation
+        local __tmp_out
         __tmp_out=\"\$(mktemp)\"
-        eval \"\${!method_var}\" >\"\$__tmp_out\"
-        __out=\"\$(tr -d \$'\\n' <\"\$__tmp_out\")\"
+        eval \"\${!method_var}\" >\"\$__tmp_out\" 2>&1
+        cat \"\$__tmp_out\" | tr -d '\n'
         rm -f \"\$__tmp_out\"
-        printf \"%s\" \"\$__out\"
+        ${props_writeback}
         __INST___class=\"\$saved_class\"
-        # Save modified properties back to storage
-        local __prop__
-        for __prop__ in ${props_arr[@]}; do
-            __INST___data[\"\$__prop__\"]=\"\${!__prop__}\"
-        done
     }"
 
     local meth_funcs=""
@@ -239,7 +241,7 @@ local __inst__=\"\$this\""
         
         # Check current class
         if [[ -n \"\${!method_var}\" ]]; then
-            echo \"\$search_class\"
+            echo -e \"\$search_class\"
             return 0
         fi
         
@@ -250,7 +252,7 @@ local __inst__=\"\$this\""
         while [[ -n \"\$parent_class\" ]]; do
             method_var=\"\${parent_class}_method_body_\${method_name}\"
             if [[ -n \"\${!method_var}\" ]]; then
-                echo \"\$parent_class\"
+                echo -e \"\$parent_class\"
                 return 0
             fi
             parent_var=\"\${parent_class}_parent_class\"
@@ -285,24 +287,19 @@ local __inst__=\"\$this\""
         
         # Inject all properties (pre-generated, no loop/eval)
         ${props_injection}
+        ${props_backup}
         
         # Get method body from found class
         local method_var=\"\${found_class}_method_body_\${method_name}\"
         local method_body=\"\${!method_var}\"
         
-        # Execute in current shell to preserve mutated locals; capture output
-        local __tmp_out __out
+        # Execute in current shell (redirect stdout, mutations persist); strip newlines for clean output concatenation
+        local __tmp_out
         __tmp_out=\"\$(mktemp)\"
-        eval \"\$method_body\" >\"\$__tmp_out\"
-        __out=\"\$(tr -d \$'\\n' <\"\$__tmp_out\")\"
+        eval \"\$method_body\" >\"\$__tmp_out\" 2>&1
+        cat \"\$__tmp_out\" | tr -d '\n'
         rm -f \"\$__tmp_out\"
-        printf \"%s\" \"\$__out\"
-        
-        # Save modified properties back to storage
-        local __prop__
-        for __prop__ in ${props_arr[@]}; do
-            __INST___data[\"\$__prop__\"]=\"\${!__prop__}\"
-        done
+        ${props_writeback}
     }"
 
     # Add parent method caller if there's a parent class
@@ -346,24 +343,19 @@ local __inst__=\"\$this\""
 
         # Inject all properties (pre-generated, no loop/eval)
         ${props_injection}
+        ${props_backup}
 
         # Get method body
         local method_var=\"\${found_class}_method_body_\${method_name}\"
         local parent_method_body=\"\${!method_var}\"
         
-        # Execute in current shell to preserve mutated locals; capture output
-        local __tmp_out __out
+        # Execute in current shell (redirect stdout, mutations persist); suppress trailing newline via command substitution + printf
+        local __tmp_out
         __tmp_out=\"\$(mktemp)\"
-        eval \"\$parent_method_body\" >\"\$__tmp_out\"
-        __out=\"\$(tr -d \$'\\n' <\"\$__tmp_out\")\"
+        eval \"\$parent_method_body\" >\"\$__tmp_out\" 2>&1
+        printf %s \"\$(cat \"\$__tmp_out\")\"
         rm -f \"\$__tmp_out\"
-        printf \"%s\" \"\$__out\"
-
-        # Save modified properties back to storage
-        local __prop__
-        for __prop__ in ${props_arr[@]}; do
-            __INST___data[\"\$__prop__\"]=\"\${!__prop__}\"
-        done
+        ${props_writeback}
 
         # Restore class context
         __INST___class=\"\$saved_class\"
@@ -379,7 +371,7 @@ __INST__.property() {
     if [ "$2" == "=" ]; then
         __INST___data["$1"]="$3"
     else
-        echo "${__INST___data["$1"]}"
+        echo -e "${__INST___data["$1"]}"
     fi
 }
 __PROP_FUNCS__
