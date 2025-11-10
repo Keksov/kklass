@@ -1,6 +1,9 @@
 #!/bin/bash
 # kklass.sh - Working class system for bash with dot notation
 
+KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${KKLASS_DIR}/kklib.sh"
+
 defineClass() {
     local class_name="$1"
     local parent_class="$2"
@@ -216,11 +219,12 @@ local __inst__=\"\$this\""
         ${props_backup}
         local method_var=\"\${target_class}_method_body_\${method_name}\"
         # Execute in current shell (redirect stdout, mutations persist); strip newlines for clean output concatenation
-        local __tmp_out
-        __tmp_out=\"\$(mktemp)\"
-        eval \"\${!method_var}\" >\"\$__tmp_out\" 2>&1
-        cat \"\$__tmp_out\" | tr -d '\n'
-        rm -f \"\$__tmp_out\"
+        #local __tmp_out
+        #__tmp_out=\"\$(mktemp)\"
+        #eval \"\${!method_var}\" >\"\$__tmp_out\" 2>&1
+        #cat \"\$__tmp_out\" | tr -d '\n'
+        #rm -f \"\$__tmp_out\"
+        eval \"\${!method_var}\" 2>&1
         ${props_writeback}
         __INST___class=\"\$saved_class\"
     }"
@@ -294,11 +298,12 @@ local __inst__=\"\$this\""
         local method_body=\"\${!method_var}\"
         
         # Execute in current shell (redirect stdout, mutations persist); strip newlines for clean output concatenation
-        local __tmp_out
-        __tmp_out=\"\$(mktemp)\"
-        eval \"\$method_body\" >\"\$__tmp_out\" 2>&1
-        cat \"\$__tmp_out\" | tr -d '\n'
-        rm -f \"\$__tmp_out\"
+        #local __tmp_out
+        #__tmp_out=\"\$(mktemp)\"
+        #eval \"\$method_body\" >\"\$__tmp_out\" 2>&1
+        #cat \"\$__tmp_out\" | tr -d '\n'
+        #rm -f \"\$__tmp_out\"
+        eval \"\$method_body\" 2>&1
         ${props_writeback}
     }"
 
@@ -350,11 +355,12 @@ local __inst__=\"\$this\""
         local parent_method_body=\"\${!method_var}\"
         
         # Execute in current shell (redirect stdout, mutations persist); suppress trailing newline via command substitution + printf
-        local __tmp_out
-        __tmp_out=\"\$(mktemp)\"
-        eval \"\$parent_method_body\" >\"\$__tmp_out\" 2>&1
-        printf %s \"\$(cat \"\$__tmp_out\")\"
-        rm -f \"\$__tmp_out\"
+        #local __tmp_out
+        #__tmp_out=\"\$(mktemp)\"
+        #eval \"\$parent_method_body\" >\"\$__tmp_out\" 2>&1
+        #printf %s \"\$(cat \"\$__tmp_out\")\"
+        #rm -f \"\$__tmp_out\"
+        eval \"\$parent_method_body\" 2>&1
         ${props_writeback}
 
         # Restore class context
