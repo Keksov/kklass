@@ -502,24 +502,25 @@ INSTANCE_TPL
     if [[ "${VERBOSE_KKLASS:-1}" == "debug" ]]; then echo "$class_name class created"; fi
 }
 
-defineMethod() {
+_defineMethodType() {
     local class_name="$1"
     local method_name="$2"
     local method_body="$3"
-    local meth_type="${4:-method}"  # Default to "method" if not specified
+    local meth_type="${4:-method}"
+    local func_name="${5:-Method}"
     
     # Validate inputs
     [[ -z "$class_name" || -z "$method_name" || -z "$method_body" ]] && {
-        echo "defineMethod: Usage: defineMethod CLASS_NAME METHOD_NAME BODY [TYPE]" >&2
+        echo "define${func_name}: Usage: define${func_name} CLASS_NAME METHOD_NAME BODY" >&2
         return 1
     }
     
     # Check if class exists
-    local class_props_var="${class_name}_class_properties"
-    [[ -z "${!class_props_var}" ]] && {
-        echo "defineMethod: Class '$class_name' does not exist" >&2
+    local class_meths_var="${class_name}_class_methods"
+    if ! declare -p "$class_meths_var" &>/dev/null; then
+        echo "define${func_name}: Class '$class_name' does not exist" >&2
         return 1
-    }
+    fi
     
     # Get existing methods array
     local -n meths_ref="${class_name}_class_methods"
@@ -547,8 +548,20 @@ defineMethod() {
     eval "${class_name}_has_dynamic_methods=1"
     
     if [[ "${VERBOSE_KKLASS:-1}" == "debug" ]]; then 
-        echo "Method '$method_name' added to class '$class_name'"
+        echo "${func_name} '$method_name' added to class '$class_name'"
     fi
 }
 
-export -f _processMethodBody defineClass defineMethod
+defineMethod() {
+    _defineMethodType "$1" "$2" "$3" "method" "Method"
+}
+
+defineProcedure() {
+    _defineMethodType "$1" "$2" "$3" "procedure" "Procedure"
+}
+
+defineFunction() {
+    _defineMethodType "$1" "$2" "$3" "function" "Function"
+}
+
+export -f _processMethodBody _defineMethodType defineClass defineMethod defineProcedure defineFunction

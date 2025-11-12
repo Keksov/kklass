@@ -31,9 +31,9 @@ defineMethod "PropertyModifier" "increment" '
 
 PropertyModifier.new modifier
 modifier.counter = "10"
-echo "Before increment: $(modifier.counter)" >&2
+#echo "Before increment: $(modifier.counter)" >&2
 modifier.increment
-echo "After increment: $(modifier.counter)" >&2
+#echo "After increment: $(modifier.counter)" >&2
 if [[ "$(modifier.counter)" == "11" ]]; then
     test_pass "Modify property from method"
 else
