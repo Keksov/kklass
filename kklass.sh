@@ -82,7 +82,7 @@ defineClass() {
                 lazy_inits["$2"]="$3"
                 shift 3
                 ;;
-            method)
+            method|procedure|function)
                 # Check if method already exists (override) using fast lookup
                 if [[ -z "${meth_index[$2]}" ]]; then
                     meths_arr+=("$2")
