@@ -1,6 +1,5 @@
 #!/bin/bash
-# test_kklass_full.sh - Comprehensive test suite for kklass system
-# Tests both core functionality and autoload/compilation features
+# Tests for KKLib only
 
 set -e  # Exit on any error
 
@@ -52,15 +51,15 @@ run_tests() {
             local patterns=()
 
             # Always include the raw prefix form like "X_*.sh"
-            patterns+=("$SCRIPT_DIR/${num}_*.sh")
+            patterns+=("$SCRIPT_DIR/${num}_KK*.sh")
 
             # If the prefix is purely numeric, include zero-padded variants: 01_, 001_, 0001_
             if [[ "$num" =~ ^[0-9]+$ ]]; then
-                patterns+=("$SCRIPT_DIR/0${num}_*.sh")
-                patterns+=("$SCRIPT_DIR/00${num}_*.sh")
-                patterns+=("$SCRIPT_DIR/000${num}_*.sh")
+                patterns+=("$SCRIPT_DIR/0${num}_KK*.sh")
+                patterns+=("$SCRIPT_DIR/00${num}_KK*.sh")
+                patterns+=("$SCRIPT_DIR/000${num}_KK*.sh")
                 # Also include explicit 3-digit pad (covers e.g. 1 -> 001_)
-                patterns+=("$SCRIPT_DIR/$(printf '%03d' "$num")_*.sh")
+                patterns+=("$SCRIPT_DIR/$(printf '%03d' "$num")_KK*.sh")
             fi
 
             # Collect matching files using globbing
@@ -79,7 +78,7 @@ run_tests() {
         fi
     else
         # Run all test files
-        for f in "$SCRIPT_DIR"/[0-9][0-9][0-9]_*.sh; do
+        for f in "$SCRIPT_DIR"/[0-9][0-9][0-9]_KK*.sh; do
             if [[ -f "$f" ]]; then
                 test_files+=("$f")
             fi
@@ -101,7 +100,7 @@ run_tests() {
     if [[ "$VERBOSITY" == "info" ]]; then
         echo ""
         echo -e "${CYAN}========================================${NC}"
-        echo -e "${CYAN}Comprehensive Kklass Test Suite${NC}"
+        echo -e "${CYAN}Comprehensive KKLib Test Suite${NC}"
         echo -e "${CYAN}========================================${NC}"
         echo "Running ${#test_files[@]} test file(s) in $MODE mode..."
         if [[ "$MODE" == "threaded" ]]; then
@@ -216,30 +215,4 @@ run_tests() {
 # Execute tests
 run_tests
 
-# =============================================================================
-# FINAL RESULTS
-# =============================================================================
-total=$(cat <<-EOT
-Total tests: $TESTS_TOTAL
-Passed: ${GREEN}$TESTS_PASSED${NC}
-Failed: ${RED}$TESTS_FAILED${NC}
-EOT
-)
-
-if [[ "${VERBOSITY:-1}" == "info" ]]; then
-    echo ""
-    echo -e "${CYAN}========================================${NC}"
-    echo -e "${CYAN}Test Results Summary${NC}"
-    echo -e "${CYAN}========================================${NC}"
-    echo -e "$total"
-
-    if [[ $TESTS_FAILED -eq 0 ]]; then
-        echo -e "${GREEN}✓ All tests passed!${NC}"
-        exit 0
-    else
-        echo -e "${RED}✗ Some tests failed.${NC}"
-        exit 1
-    fi
-else
-    echo -e $total
-fi
+show_results

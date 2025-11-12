@@ -5,7 +5,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 parse_args "$@"
 
 TEST_NUM=$(basename "${BASH_SOURCE[0]}" | cut -d'_' -f1)
-TEST_FILE=".ckk/test_${TEST_NUM}.kk"
+TEST_FILE="$SCRIPT_DIR/.ckk/test_${TEST_NUM}.kk"
 
 # Setup: Ensure $TEST_FILE exists and is compiled
 mkdir -p .ckk
@@ -28,7 +28,7 @@ bash -c "source '$KKLASS_DIR/kklass_autoload.sh' && kkload \"$TEST_FILE\"" >/dev
 
 # Test 33: Inheritance in compiled classes
 test_start "Inheritance in compiled classes"
-result=$(bash -c "source .ckk/\"${TEST_FILE%.*}\".ckk.sh && Timer.new tmr && tmr.value = 5 && tmr.increment")
+result=$(bash -c "source \"${TEST_FILE%.*}\".ckk.sh && Timer.new tmr && tmr.value = 5 && tmr.increment")
 if [[ "$result" == "6" ]]; then
     test_pass "Inheritance in compiled classes"
 else

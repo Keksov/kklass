@@ -164,6 +164,36 @@ cleanup() {
     # rm -rf .ckk 2>/dev/null || true  # Disabled to avoid deleting files for parallel tests
 }
 
+show_results() {
+    # =============================================================================
+    # FINAL RESULTS
+    # =============================================================================
+    total=$(cat <<-EOT
+Total tests: $TESTS_TOTAL
+Passed: ${GREEN}$TESTS_PASSED${NC}
+Failed: ${RED}$TESTS_FAILED${NC}
+EOT
+)
+
+    if [[ "${VERBOSITY:-1}" == "info" ]]; then
+        echo ""
+        echo -e "${CYAN}========================================${NC}"
+        echo -e "${CYAN}Test Results Summary${NC}"
+        echo -e "${CYAN}========================================${NC}"
+        echo -e "$total"
+
+        if [[ $TESTS_FAILED -eq 0 ]]; then
+            echo -e "${GREEN}✓ All tests passed!${NC}"
+            exit 0
+        else
+            echo -e "${RED}✗ Some tests failed.${NC}"
+            exit 1
+        fi
+    else
+        echo -e $total
+    fi
+}
+
 # Set up cleanup trap
 trap cleanup EXIT
 trap 'echo "Error occurred at line $LINENO: $BASH_COMMAND"' ERR
@@ -176,3 +206,5 @@ fi
 if ! declare -F kk.write >/dev/null 2>&1; then
     source "$KKLIB_DIR/kklib.sh"
 fi
+
+

@@ -5,7 +5,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 parse_args "$@"
 
 TEST_NUM=$(basename "${BASH_SOURCE[0]}" | cut -d'_' -f1)
-TEST_FILE=".ckk/test_${TEST_NUM}.kk"
+TEST_FILE="$SCRIPT_DIR/.ckk/test_${TEST_NUM}.kk"
 
 # Setup: Ensure $TEST_FILE exists
 mkdir -p .ckk
@@ -26,7 +26,7 @@ fi
 # Test 32: Functional test with compiled classes
 test_start "Functional test with compiled classes"
 bash -c "source '$KKLASS_DIR/kklass_autoload.sh' && kkload \"$TEST_FILE\" --force-compile" >/dev/null 2>&1
- result=$(bash -c "source .ckk/\"${TEST_FILE%.*}\".ckk.sh && Counter.new cnt && cnt.value = 7 && cnt.increment")
+ result=$(bash -c "source \"${TEST_FILE%.*}\".ckk.sh && Counter.new cnt && cnt.value = 7 && cnt.increment")
 if [[ "$result" == "8" ]]; then
     test_pass "Functional test with compiled classes"
 else

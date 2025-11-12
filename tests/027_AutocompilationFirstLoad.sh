@@ -5,11 +5,11 @@ source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 parse_args "$@"
 
 TEST_NUM=$(basename "${BASH_SOURCE[0]}" | cut -d'_' -f1)
-TEST_FILE=".ckk/test_${TEST_NUM}.kk"
+TEST_FILE="$SCRIPT_DIR/.ckk/test_${TEST_NUM}.kk"
 
 # Clean up any previous test files
-mkdir -p .ckk
-rm -f "$TEST_FILE" .ckk/"${TEST_FILE%.*}".ckk.sh
+mkdir -p "$SCRIPT_DIR/.ckk"
+rm -f "$TEST_FILE" "$SCRIPT_DIR/.ckk/${TEST_FILE%.*}.ckk.sh"
 
 # Create test class file
 cat > "$TEST_FILE" <<'EOF'
@@ -29,7 +29,7 @@ test_info "Created $TEST_FILE"
 # Test 27: First load with autocompilation
 test_start "Auto-compilation (first load)"
 output=$(bash -c "source '$KKLASS_DIR/kklass_autoload.sh' && kkload \"$TEST_FILE\"" 2>&1)
-if echo "$output" | grep -q "Compilation successful" && [[ -f .ckk/${TEST_FILE%.*}.ckk.sh ]]; then
+if echo "$output" | grep -q "Compilation successful" && [[ -f "${TEST_FILE%.*}.ckk.sh" ]]; then
     test_pass "Auto-compilation (first load)"
 else
     test_fail "Auto-compilation (first load)"
