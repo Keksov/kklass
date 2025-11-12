@@ -83,6 +83,7 @@ defineClass() {
                 shift 3
                 ;;
             method|procedure|function)
+                local meth_type="$1"
                 # Check if method already exists (override) using fast lookup
                 if [[ -z "${meth_index[$2]}" ]]; then
                     meths_arr+=("$2")
@@ -104,8 +105,13 @@ defineClass() {
                 # Inject "local this" setup if not already present (optimized check)
                 if [[ "$method_body" != *"local this="* ]]; then
                     local this_setup="local this=\"\${FUNCNAME[0]%%.*}\"
-local __inst__=\"\$this\""
+            local __inst__=\"\$this\""
                     method_body="$this_setup"$'\n'"$method_body"
+                fi
+
+                # For function type, append kk.result call
+                if [[ "$meth_type" == "function" ]]; then
+                    method_body+=$'\n'"kk.result \"${class_name}_$2\" \"\$RESULT\""
                 fi
 
                 meth_bodies["$2"]="$method_body"
