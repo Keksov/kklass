@@ -8,15 +8,15 @@ parse_args "$@"
 test_start "Deep inheritance chain with properties"
 defineClass "A" "" \
     "property" "propA" \
-    "method" "showA" 'echo "A:$propA"'
+    "method" "showA" 'kk.write "A:$propA"'
 
 defineClass "B" "A" \
     "property" "propB" \
-    "method" "showB" 'echo "B:$propB"'
+    "method" "showB" 'kk.write "B:$propB"'
 
 defineClass "C" "B" \
     "property" "propC" \
-    "method" "showAll" '$this.showA; $this.showB; echo "C:$propC"'
+    "method" "showAll" '$this.showA; $this.showB; kk.write "C:$propC"'
 
 C.new obj_c
 obj_c.propA = "1"

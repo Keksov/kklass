@@ -8,12 +8,12 @@ parse_args "$@"
 test_start "Method calling parent and using properties"
 defineClass "Shape" "" \
     "property" "name" \
-    "method" "describe" 'echo "Shape: $name"'
+    "method" "describe" 'kk.write "Shape: $name"'
 
 defineClass "Rectangle" "Shape" \
     "property" "width" \
     "property" "height" \
-    "method" "describe" 'echo -n "Rectangle "; $this.parent describe; echo -n " ($width x $height)"'
+    "method" "describe" 'kk.write "Rectangle "; $this.parent describe; kk.write " ($width x $height)"'
 
 Rectangle.new rect1
 rect1.name = "MyRect"

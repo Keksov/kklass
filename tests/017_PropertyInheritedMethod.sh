@@ -8,11 +8,11 @@ parse_args "$@"
 test_start "Property used in inherited method"
 defineClass "Vehicle" "" \
     "property" "speed" \
-    "method" "getSpeed" 'echo "Speed: $speed km/h"'
+    "method" "getSpeed" 'kk.write "Speed: $speed km/h"'
 
 defineClass "Car" "Vehicle" \
     "property" "brand" \
-    "method" "info" 'echo "Brand: $brand"; $this.getSpeed'
+    "method" "info" 'kk.write "Brand: $brand"; $this.getSpeed'
 
 Car.new car1
 car1.brand = "Toyota"

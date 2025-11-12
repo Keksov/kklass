@@ -7,13 +7,13 @@ parse_args "$@"
 # Setup: Create Animal base class first
 defineClass "Animal" "" \
     "property" "species" \
-    "method" "speak" 'echo "Some generic sound"'
+    "method" "speak" 'kk.write "Some generic sound"'
 
 # Test 7: Parent method calls
 test_start "Parent method calls"
 defineClass "Cat" "Animal" \
-    "method" "speak" 'echo "Meow!"' \
-    "method" "speakAsAnimal" 'echo -n "Cat sound: "; $this.speak; echo -n "Animal sound: "; $this.parent speak'
+    "method" "speak" 'kk.write "Meow!"' \
+    "method" "speakAsAnimal" 'kk.write "Cat sound: "; $this.speak; kk.write "Animal sound: "; $this.parent speak'
 
 Cat.new cat1
 result=$(cat1.speakAsAnimal)

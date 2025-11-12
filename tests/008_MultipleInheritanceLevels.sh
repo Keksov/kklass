@@ -7,13 +7,13 @@ parse_args "$@"
 # Test 8: Multiple inheritance levels
 test_start "Multiple inheritance levels"
 defineClass "GrandParent" "" \
-    "method" "generation" 'echo "GrandParent"'
+    "method" "generation" 'kk.write "GrandParent"'
 
 defineClass "Parent" "GrandParent" \
-    "method" "generation" 'echo "Parent"; $this.parent generation'
+    "method" "generation" 'kk.write "Parent"; $this.parent generation'
 
 defineClass "Child" "Parent" \
-    "method" "generation" 'echo "Child"; $this.parent generation'
+    "method" "generation" 'kk.write "Child"; $this.parent generation'
 
 Child.new child1
 result=$(child1.generation)

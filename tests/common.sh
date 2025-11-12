@@ -4,6 +4,7 @@
 # Get script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 KKLASS_DIR="$SCRIPT_DIR/.."
+KKLIB_DIR="$SCRIPT_DIR/.."
 
 # Colors for output
 RED='\033[0;31m'
@@ -170,4 +171,8 @@ trap 'echo "Error occurred at line $LINENO: $BASH_COMMAND"' ERR
 # Source the class system if not already sourced
 if ! declare -F defineClass >/dev/null 2>&1; then
     source "$KKLASS_DIR/kklass.sh"
+fi
+
+if ! declare -F kk.write >/dev/null 2>&1; then
+    source "$KKLIB_DIR/kklib.sh"
 fi
