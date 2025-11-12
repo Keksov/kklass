@@ -4,6 +4,36 @@
 KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${KKLASS_DIR}/kklib.sh"
 
+_processMethodBody() {
+    local class_name="$1"
+    local method_name="$2"
+    local method_body="$3"
+    local meth_type="${4:-method}"
+    local -n meths_array="$5"  # Reference to methods array
+    
+    # Replace all $this.METHOD_NAME patterns with $__inst__.call METHOD_NAME
+    for wm in "${meths_array[@]}"; do
+        # Replace $this.method with proper call syntax
+        method_body="${method_body//\$this.${wm}/\$__inst__.call ${wm}}"
+        # Also handle ${this}.method syntax
+        method_body="${method_body//\$\{this\}.${wm}/\$__inst__.call ${wm}}"
+    done
+    
+    # Inject "local this" setup if not already present (optimized check)
+    if [[ "$method_body" != *"local this="* ]]; then
+        local this_setup="local this=\"\${FUNCNAME[0]%%.*}\"
+    local __inst__=\"\$this\""
+        method_body="$this_setup"$'\n'"$method_body"
+    fi
+    
+    # For function type, append kk.result call
+    if [[ "$meth_type" == "function" ]]; then
+        method_body+=$'\n'"kk.result \"${class_name}_${method_name}\" \"\$RESULT\""
+    fi
+    
+    METHOD_BODY="$method_body"
+}
+
 defineClass() {
     local class_name="$1"
     local parent_class="$2"
@@ -90,31 +120,10 @@ defineClass() {
                     meth_index["$2"]=1
                 fi
 
-                # Set or override method body - preprocess to replace $this.method with $__inst__.call
-                local method_body="$3"
-
-                # Replace all $this.METHOD_NAME patterns with $__inst__.call METHOD_NAME
-                # This ensures methods are called in the current class context
-                for wm in "${meths_arr[@]}"; do
-                    # Replace $this.method with proper call syntax
-                    method_body="${method_body//\$this.${wm}/\$__inst__.call ${wm}}"
-                    # Also handle ${this}.method syntax
-                    method_body="${method_body//\$\{this\}.${wm}/\$__inst__.call ${wm}}"
-                done
-
-                # Inject "local this" setup if not already present (optimized check)
-                if [[ "$method_body" != *"local this="* ]]; then
-                    local this_setup="local this=\"\${FUNCNAME[0]%%.*}\"
-            local __inst__=\"\$this\""
-                    method_body="$this_setup"$'\n'"$method_body"
-                fi
-
-                # For function type, append kk.result call
-                if [[ "$meth_type" == "function" ]]; then
-                    method_body+=$'\n'"kk.result \"${class_name}_$2\" \"\$RESULT\""
-                fi
-
-                meth_bodies["$2"]="$method_body"
+                # Process method body using shared logic
+                #local processed_method=$(_processMethodBody "$class_name" "$2" "$3" "$meth_type" "meths_arr")
+                _processMethodBody "$class_name" "$2" "$3" "$meth_type" "meths_arr"
+                meth_bodies["$2"]="$METHOD_BODY"
                 shift 3
                 ;;
             constructor)
@@ -465,8 +474,17 @@ INSTANCE_TPL
         shift
         [[ \"\$instname\" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || { echo \"Invalid instance name: \$instname\" >&2; return 1; }
         source <(sed \"s/__INST__/\$instname/g\" <<< \"\$${class_name}_instance_template\")
-        #(sed \"s/__INST__/\$instname/g\" <<< \"\$${class_name}_instance_template\")
-        #exit
+        
+        # If methods were added via defineMethod, create them on the instance
+        if [[ \"\$${class_name}_has_dynamic_methods\" == \"1\" ]]; then
+            for __meth_nm in \"\${${class_name}_class_methods[@]}\"; do
+                # Skip if method already in template
+                if ! declare -f \${instname}.\$__meth_nm >/dev/null 2>&1; then
+                    eval \"\${instname}.\${__meth_nm}() { \${instname}._exec \\\"\${__meth_nm}\\\" \\\"${class_name}\\\" \\\"\\\$@\\\"; }\"
+                fi
+            done
+        fi
+        
         # Run constructor if defined
         if [[ -n \"\$${class_name}_constructor_body\" ]]; then
             # Inject properties into constructor context
@@ -484,4 +502,53 @@ INSTANCE_TPL
     if [[ "${VERBOSE_KKLASS:-1}" == "debug" ]]; then echo "$class_name class created"; fi
 }
 
-export -f defineClass
+defineMethod() {
+    local class_name="$1"
+    local method_name="$2"
+    local method_body="$3"
+    local meth_type="${4:-method}"  # Default to "method" if not specified
+    
+    # Validate inputs
+    [[ -z "$class_name" || -z "$method_name" || -z "$method_body" ]] && {
+        echo "defineMethod: Usage: defineMethod CLASS_NAME METHOD_NAME BODY [TYPE]" >&2
+        return 1
+    }
+    
+    # Check if class exists
+    local class_props_var="${class_name}_class_properties"
+    [[ -z "${!class_props_var}" ]] && {
+        echo "defineMethod: Class '$class_name' does not exist" >&2
+        return 1
+    }
+    
+    # Get existing methods array
+    local -n meths_ref="${class_name}_class_methods"
+    local -A meth_index
+    
+    # Build index of existing methods
+    for m in "${meths_ref[@]}"; do
+        meth_index["$m"]=1
+    done
+    
+    # Check if method already exists (will override it)
+    if [[ -z "${meth_index[$method_name]}" ]]; then
+        meths_ref+=("$method_name")
+    fi
+    
+    # Process method body using shared logic from defineClass
+    _processMethodBody "$class_name" "$method_name" "$method_body" "$meth_type" "meths_ref"
+    eval "${class_name}_method_body_${method_name}=\$METHOD_BODY"
+    
+    # Update class methods array in global scope
+    eval "${class_name}_class_methods=(\"\${meths_ref[@]}\")"
+    
+    # Set a flag indicating that methods were added dynamically after class definition
+    # This is used in .new to create the method wrappers
+    eval "${class_name}_has_dynamic_methods=1"
+    
+    if [[ "${VERBOSE_KKLASS:-1}" == "debug" ]]; then 
+        echo "Method '$method_name' added to class '$class_name'"
+    fi
+}
+
+export -f _processMethodBody defineClass defineMethod
