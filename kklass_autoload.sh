@@ -39,7 +39,7 @@ autoloadClasses() {
     # Generate compiled filename (.kk -> .ckk/filename.ckk.sh)
     local source_dir="$(dirname "$source_file")"
     local source_name="$(basename "$source_file")"
-    local ckk_dir="$source_dir/.ckk"
+    local ckk_dir="$(pwd)/.ckk"
     local compiled_file="$ckk_dir/${source_name%.kk}.ckk.sh"
     
     # Create .ckk directory if it doesn't exist

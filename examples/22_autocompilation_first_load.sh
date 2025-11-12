@@ -10,13 +10,16 @@ echo "=== Auto-compilation (First Load) Example ==="
 echo
 
 # Clean up any previous test files
-rm -f test_system.kk .ckk/test_system.ckk.sh 2>/dev/null || true
+rm -f .ckk/test_system.kk .ckk/test_system.ckk.sh 2>/dev/null || true
 rm -rf .ckk 2>/dev/null || true
 
 echo "✓ Cleaned up previous test files"
 
+# Create .ckk directory if not exists
+mkdir -p .ckk
+
 # Create a test class file
-cat > test_system.kk << 'EOF'
+cat > .ckk/test_system.kk << 'EOF'
 defineClass Counter "" \
     property value \
     method increment 'value=$((value + 1)); echo $value' \
@@ -28,11 +31,11 @@ defineClass Timer Counter \
     method elapsed 'local now=$(date +%s); echo $((now - start_time))'
 EOF
 
-echo "✓ Created test_system.kk with Counter and Timer classes"
+echo "✓ Created .ckk/test_system.kk with Counter and Timer classes"
 
 # Load the file for the first time (should trigger compilation)
-echo "Loading test_system.kk for the first time:"
-output=$(bash -c "source '$SCRIPT_DIR/../kklass_autoload.sh' && kkload test_system.kk" 2>&1)
+echo "Loading .ckk/test_system.kk for the first time:"
+output=$(bash -c "source '$SCRIPT_DIR/../kklass_autoload.sh' && kkload .ckk/test_system.kk" 2>&1)
 
 echo "Output: $output"
 
@@ -53,7 +56,7 @@ echo "Testing compiled Timer class:"
 bash -c "source .ckk/test_system.ckk.sh && Timer.new tmr && tmr.value = 10 && tmr.increment"
 
 # Clean up
-rm -f test_system.kk .ckk/test_system.ckk.sh 2>/dev/null || true
+rm -f .ckk/test_system.kk .ckk/test_system.ckk.sh 2>/dev/null || true
 rm -rf .ckk 2>/dev/null || true
 echo "✓ Test files cleaned up"
 

@@ -5,9 +5,10 @@ source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 parse_args "$@"
 
 TEST_NUM=$(basename "${BASH_SOURCE[0]}" | cut -d'_' -f1)
-TEST_FILE="test_${TEST_NUM}.kk"
+TEST_FILE=".ckk/test_${TEST_NUM}.kk"
 
 # Clean up any previous test files
+mkdir -p .ckk
 rm -f "$TEST_FILE" .ckk/"${TEST_FILE%.*}".ckk.sh
 
 # Create test class file

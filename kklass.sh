@@ -219,12 +219,13 @@ local __inst__=\"\$this\""
         ${props_backup}
         local method_var=\"\${target_class}_method_body_\${method_name}\"
         # Execute in current shell (redirect stdout, mutations persist); strip newlines for clean output concatenation
+        # exec
         #local __tmp_out
         #__tmp_out=\"\$(mktemp)\"
         #eval \"\${!method_var}\" >\"\$__tmp_out\" 2>&1
         #cat \"\$__tmp_out\" | tr -d '\n'
         #rm -f \"\$__tmp_out\"
-        eval \"\${!method_var}\" 2>&1
+        eval \"\${!method_var}\" 2>\&1
         ${props_writeback}
         __INST___class=\"\$saved_class\"
     }"
@@ -298,12 +299,13 @@ local __inst__=\"\$this\""
         local method_body=\"\${!method_var}\"
         
         # Execute in current shell (redirect stdout, mutations persist); strip newlines for clean output concatenation
+        # call
         #local __tmp_out
         #__tmp_out=\"\$(mktemp)\"
         #eval \"\$method_body\" >\"\$__tmp_out\" 2>&1
         #cat \"\$__tmp_out\" | tr -d '\n'
         #rm -f \"\$__tmp_out\"
-        eval \"\$method_body\" 2>&1
+        eval \"\$method_body\" 2>\&1
         ${props_writeback}
     }"
 
@@ -355,12 +357,13 @@ local __inst__=\"\$this\""
         local parent_method_body=\"\${!method_var}\"
         
         # Execute in current shell (redirect stdout, mutations persist); suppress trailing newline via command substitution + printf
+        # parent
         #local __tmp_out
         #__tmp_out=\"\$(mktemp)\"
         #eval \"\$parent_method_body\" >\"\$__tmp_out\" 2>&1
         #printf %s \"\$(cat \"\$__tmp_out\")\"
         #rm -f \"\$__tmp_out\"
-        eval \"\$parent_method_body\" 2>&1
+        eval \"\$parent_method_body\" 2>\&1
         ${props_writeback}
 
         # Restore class context
@@ -403,7 +406,7 @@ INSTANCE_TPL
 
     # Store template for this class (for compiler support)
     eval "${class_name}_instance_template=\$instance_template"
-    
+
     # Store constructor body
     eval "${class_name}_constructor_body=\$constructor_body"
     
@@ -456,7 +459,8 @@ INSTANCE_TPL
         shift
         [[ \"\$instname\" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || { echo \"Invalid instance name: \$instname\" >&2; return 1; }
         source <(sed \"s/__INST__/\$instname/g\" <<< \"\$${class_name}_instance_template\")
-        
+        #(sed \"s/__INST__/\$instname/g\" <<< \"\$${class_name}_instance_template\")
+        #exit
         # Run constructor if defined
         if [[ -n \"\$${class_name}_constructor_body\" ]]; then
             # Inject properties into constructor context

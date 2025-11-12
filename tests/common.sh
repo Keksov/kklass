@@ -160,7 +160,7 @@ cleanup() {
     done
 
     # Clean up test files
-    rm -f test_system.kk .ckk/test_system.ckk.sh 2>/dev/null || true
+    rm -f .ckk/test_system.kk .ckk/test_system.ckk.sh 2>/dev/null || true
     # rm -rf .ckk 2>/dev/null || true  # Disabled to avoid deleting files for parallel tests
 }
 
