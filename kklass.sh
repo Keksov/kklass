@@ -96,15 +96,40 @@ defineClass() {
                 shift 3
                 ;;
             property)
-                props_arr+=("$2")
+                local prop_name="$2"
+                props_arr+=("$prop_name")
                 shift 2
-                ;;
-            computed_property)
-                # usage: computed_property PROP GETTER SETTER_OR_-
-                props_arr+=("$2")
-                computed_getters["$2"]="$3"
-                [[ "$4" != "-" ]] && computed_setters["$2"]="$4"
-                shift 4
+                
+                # Check if next arguments are getter/setter methods
+                # Method names starting with "get" or "set" are treated as computed accessors
+                # Consume following getter/setter methods until we hit a keyword or non-accessor
+                local keyword_str=" property static_property method procedure function lazy_property constructor "
+                while [[ $# -gt 0 ]]; do
+                    # Peek at next argument
+                    local peek_arg="$1"
+                    
+                    # Check if it's a keyword
+                    if [[ "$keyword_str" == *" $peek_arg "* ]]; then
+                        break
+                    fi
+                    
+                    # Check if it's a getter/setter by prefix
+                    # Allows both "get"/"set" and "_get"/"_set"
+                    case "$peek_arg" in
+                        get* | _get*)
+                            computed_getters["$prop_name"]="$peek_arg"
+                            shift
+                            ;;
+                        set* | _set*)
+                            computed_setters["$prop_name"]="$peek_arg"
+                            shift
+                            ;;
+                        *)
+                            # Not a getter/setter, stop processing
+                            break
+                            ;;
+                    esac
+                done
                 ;;
             lazy_property)
                 # usage: lazy_property PROP INIT_METHOD
@@ -141,6 +166,16 @@ defineClass() {
     eval "${class_name}_class_methods=(\"\${meths_arr[@]}\")"
     eval "${class_name}_parent_class=\"$parent_class\""
     
+    # Store computed property getters/setters
+    eval "declare -gA ${class_name}_computed_getters"
+    eval "declare -gA ${class_name}_computed_setters"
+    for p in "${!computed_getters[@]}"; do
+        eval "${class_name}_computed_getters[\"$p\"]=\"${computed_getters[$p]}\""
+    done
+    for p in "${!computed_setters[@]}"; do
+        eval "${class_name}_computed_setters[\"$p\"]=\"${computed_setters[$p]}\""
+    done
+    
     # Create method resolution cache for performance
     eval "declare -gA ${class_name}_method_cache"
     
@@ -173,6 +208,7 @@ defineClass() {
     # Build template parts as strings
     local prop_funcs=""
     for p in "${props_arr[@]}"; do
+        # Check if property has computed getter/setter by looking at saved metadata
         local has_computed_getter="${computed_getters[$p]:+1}"
         local has_computed_setter="${computed_setters[$p]:+1}"
         local has_lazy_init="${lazy_inits[$p]:+1}"
@@ -192,24 +228,28 @@ defineClass() {
             fi
             
             prop_funcs+="
-        else"
+            else"
             
             if [[ -n "$has_computed_getter" ]]; then
                 prop_funcs+="
-            __INST__.call \"${computed_getters[$p]}\""
+             __INST__.call \"${computed_getters[$p]}\""
             elif [[ -n "$has_lazy_init" ]]; then
                 prop_funcs+="
-            if [[ ! -v __INST___lazy_$p ]]; then
-                local __lazy_val
-                __lazy_val=\$(__INST__.${lazy_inits[$p]})
-                declare -g __INST___lazy_$p=\"\$__lazy_val\"
-            fi
-            echo \"\${__INST___lazy_$p}\""
+             if [[ ! -v __INST___lazy_$p ]]; then
+                 local __lazy_val
+                 __lazy_val=\$(__INST__.${lazy_inits[$p]})
+                 declare -g __INST___lazy_$p=\"\$__lazy_val\"
+             fi
+             echo \"\${__INST___lazy_$p}\""
+            else
+                # No getter, just return the property value
+                prop_funcs+="
+             __INST__.property \"$p\""
             fi
             
             prop_funcs+="
-        fi
-    }"
+            fi
+            }"
         else
             # Regular property accessor
             prop_funcs+="
@@ -240,10 +280,10 @@ defineClass() {
         #eval \"\${!method_var}\" >\"\$__tmp_out\" 2>&1
         #cat \"\$__tmp_out\" | tr -d '\n'
         #rm -f \"\$__tmp_out\"
-        eval \"\${!method_var}\" 2>\&1
+        eval \"\${!method_var}\" 2>\&1 || true
         ${props_writeback}
         __INST___class=\"\$saved_class\"
-    }"
+        }"
 
     local meth_funcs=""
     for m in "${meths_arr[@]}"; do
@@ -320,9 +360,9 @@ defineClass() {
         #eval \"\$method_body\" >\"\$__tmp_out\" 2>&1
         #cat \"\$__tmp_out\" | tr -d '\n'
         #rm -f \"\$__tmp_out\"
-        eval \"\$method_body\" 2>\&1
+        eval \"\$method_body\" 2>\&1 || true
         ${props_writeback}
-    }"
+        }"
 
     # Add parent method caller if there's a parent class
     local parent_func=""
@@ -378,12 +418,12 @@ defineClass() {
         #eval \"\$parent_method_body\" >\"\$__tmp_out\" 2>&1
         #printf %s \"\$(cat \"\$__tmp_out\")\"
         #rm -f \"\$__tmp_out\"
-        eval \"\$parent_method_body\" 2>\&1
+        eval \"\$parent_method_body\" 2>\&1 || true
         ${props_writeback}
 
         # Restore class context
         __INST___class=\"\$saved_class\"
-    }"
+        }"
     fi
 
     # Build instance template with single-quoted heredoc (freeze all $ and ")

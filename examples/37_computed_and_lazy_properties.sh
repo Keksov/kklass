@@ -14,7 +14,7 @@ defineClass "User" "" \
     "property" "first_name" \
     "property" "last_name" \
     "property" "email" \
-    "computed_property" "full_name" "get_full_name" "set_full_name" \
+    "property" "full_name" "get_full_name" "set_full_name" \
     "lazy_property" "gravatar" "compute_gravatar" \
     "method" "get_full_name" 'echo "$first_name $last_name"' \
     "method" "set_full_name" 'local full="$1"; local f l; IFS=" " read -r f l <<< "$full"; first_name="$f"; last_name="$l"' \
@@ -97,7 +97,7 @@ defineClass "Product" "" \
     "property" "base_price" \
     "property" "tax_rate" \
     "property" "discount" \
-    "computed_property" "final_price" "calculate_price" "-" \
+    "property" "final_price" "calculate_price" \
     "method" "calculate_price" '
         local price=$(echo "scale=2; $base_price * (1 + $tax_rate / 100) * (1 - $discount / 100)" | bc 2>/dev/null || echo "$base_price")
         echo "$price"

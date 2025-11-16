@@ -28,7 +28,7 @@ defineSerializableClass() {
         else
             # Skip other definitions
             case "${args_copy[$i]}" in
-                method|static_method|computed_property)
+                method|static_method)
                     ((i+=3))
                     ;;
                 lazy_property)
