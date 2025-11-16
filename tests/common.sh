@@ -17,6 +17,25 @@ NC='\033[0m' # No Color
 # Global array for selected tests
 TESTS_TO_RUN=()
 
+# Test ID for temp file isolation
+TEST_ID=""
+TEST_TMP_DIR=""
+
+# Initialize test-specific temporary directory
+init_test_tmpdir() {
+    TEST_ID="$1"
+    # Create isolated temp directory
+    local base_tmp_dir="$SCRIPT_DIR/.tmp"
+    [[ ! -d "$base_tmp_dir" ]] && mkdir -p "$base_tmp_dir"
+
+    TEST_TMP_DIR="$base_tmp_dir/$TEST_ID"
+    mkdir -p "$TEST_TMP_DIR"
+
+    if [[ "$VERBOSITY" == "info" ]]; then
+        echo -e "${YELLOW}[INFO]${NC} Using test temp directory: $TEST_TMP_DIR"
+    fi
+}
+
 # Parse test selection string into TESTS_TO_RUN array
 parse_test_selection() {
     local selection="$1"
@@ -162,6 +181,11 @@ cleanup() {
     # Clean up test files
     rm -f .ckk/test_system.kk .ckk/test_system.ckk.sh 2>/dev/null || true
     # rm -rf .ckk 2>/dev/null || true  # Disabled to avoid deleting files for parallel tests
+    
+    # Clean up test temp directory if initialized
+    if [[ -n "$TEST_TMP_DIR" ]]; then
+        rm -rf "$TEST_TMP_DIR" 2>/dev/null || true
+    fi
 }
 
 show_results() {

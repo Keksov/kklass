@@ -7,13 +7,13 @@ parse_args "$@"
 
 test_section "kklib Integration Tests"
 
-# Test 1: kk.var and kk.result workflow
-test_start "Integration - kk.var with kk.result"
-kk.result "my.property" "myValue"
+# Test 1: kk._var and kk._result workflow
+test_start "Integration - kk._var with kk._result"
+kk._result "my.property" "myValue"
 if [[ "${MY_PROPERTY}" == "myValue" ]]; then
-    test_pass "Integration - kk.var with kk.result"
+    test_pass "Integration - kk._var with kk._result"
 else
-    test_fail "Integration - kk.var with kk.result"
+    test_fail "Integration - kk._var with kk._result"
 fi
 
 # Test 2: kk.write used multiple times
@@ -43,7 +43,7 @@ fi
 test_start "Integration - dynamic variable creation"
 SUCCESS=true
 for i in {1..5}; do
-    kk.result "var${i}" "value${i}"
+    kk._result "var${i}" "value${i}"
     var_name="VAR${i}"
     if [[ "${!var_name}" != "value${i}" ]]; then
         SUCCESS=false
@@ -58,7 +58,7 @@ fi
 
 # Test 5: Output with variable expansion
 test_start "Integration - output with variable expansion"
-kk.result "username" "testuser"
+kk._result "username" "testuser"
 OUTPUT=$(kk.writeln "User: ${USERNAME}" 2>&1)
 if [[ "$OUTPUT" == "User: testuser"* ]]; then
     test_pass "Integration - output with variable expansion"
@@ -68,9 +68,9 @@ fi
 
 # Test 6: Chained variable normalization
 test_start "Integration - chained variable normalization"
-kk.var "Complex.Property Name"
+kk._var "Complex.Property Name"
 VAR_NAME="$KK_VAR"
-kk.result "Complex.Property Name" "complexValue"
+kk._result "Complex.Property Name" "complexValue"
 if [[ "${!VAR_NAME}" == "complexValue" ]]; then
     test_pass "Integration - chained variable normalization"
 else
@@ -98,9 +98,9 @@ test_section "kklib Real-world Scenarios"
 
 # Test 8: Configuration file simulation
 test_start "Integration - configuration storage"
-kk.result "db.host" "localhost"
-kk.result "db.port" "5432"
-kk.result "db.name" "myapp"
+kk._result "db.host" "localhost"
+kk._result "db.port" "5432"
+kk._result "db.name" "myapp"
 if [[ "${DB_HOST}" == "localhost" && "${DB_PORT}" == "5432" && "${DB_NAME}" == "myapp" ]]; then
     test_pass "Integration - configuration storage"
 else
@@ -111,7 +111,7 @@ fi
 test_start "Integration - property with validation output"
 PROP_NAME="app.version"
 PROP_VALUE="1.2.3"
-kk.result "$PROP_NAME" "$PROP_VALUE"
+kk._result "$PROP_NAME" "$PROP_VALUE"
 if [[ "${APP_VERSION}" == "1.2.3" ]]; then
     test_pass "Integration - property with validation output"
 else
@@ -140,7 +140,7 @@ test_section "kklib Stress Tests"
 test_start "Integration - large batch assignment"
 SUCCESS=true
 for i in {1..100}; do
-    kk.result "property_${i}" "value_${i}"
+    kk._result "property_${i}" "value_${i}"
 done
 # Check a few random ones
 if [[ "${PROPERTY_1}" == "value_1" && "${PROPERTY_50}" == "value_50" && "${PROPERTY_100}" == "value_100" ]]; then
@@ -151,7 +151,7 @@ fi
 
 # Test 12: Complex naming with various separators
 test_start "Integration - complex separators"
-kk.result "My.Complex Property.Name With.Multiple Dots" "testVal"
+kk._result "My.Complex Property.Name With.Multiple Dots" "testVal"
 if [[ "${MY_COMPLEX_PROPERTY_NAME_WITH_MULTIPLE_DOTS}" == "testVal" ]]; then
     test_pass "Integration - complex separators"
 else
@@ -175,8 +175,8 @@ fi
 # Test 14: Mixed operations in sequence
 test_start "Integration - mixed operations"
 OUTPUT=$(kk.write "Config:" 2>&1)
-kk.result "setting.one" "value1"
-kk.result "setting.two" "value2"
+kk._result "setting.one" "value1"
+kk._result "setting.two" "value2"
 OUTPUT2=$(kk.writeln " Settings saved" 2>&1)
 if [[ "${SETTING_ONE}" == "value1" && "${SETTING_TWO}" == "value2" ]]; then
     test_pass "Integration - mixed operations"
@@ -186,7 +186,7 @@ fi
 
 # Test 15: Variable name case insensitivity
 test_start "Integration - variable case handling"
-kk.result "MyVar" "val1"
+kk._result "MyVar" "val1"
 if [[ "${MYVAR}" == "val1" ]]; then
     test_pass "Integration - variable case handling"
 else

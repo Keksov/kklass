@@ -4,7 +4,32 @@
 KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${KKLASS_DIR}/kklib.sh"
 
-_processMethodBody() {
+# Global variable to control echoing of function results
+KK_ECHO_RESULT=false
+
+kk._var() {
+    local str="${1^^}" # Convert to upper case
+    str="${str// /_}"
+    KK_VAR="${str//./_}"
+}
+
+kk._result() {
+    local var_name="$1"
+    local var_value="$2"
+    local echo_result="${3:-$KK_ECHO_RESULT}"
+    
+    kk._var "$var_name"
+    #eval "declare -gx ${KK_VAR}='${var_value//\'/\'\\\'\'}'"
+    #echo declare -gx "${KK_VAR}"="${var_value}"
+    #declare -gx "${KK_VAR}"="${var_value}"
+    printf -v "$KK_VAR" '%s' "$var_value"
+
+    if [[ "$echo_result" == "true" ]]; then
+        echo "$var_value"
+    fi
+}
+
+kk._processMethodBody() {
     local class_name="$1"
     local method_name="$2"
     local method_body="$3"
@@ -26,9 +51,9 @@ _processMethodBody() {
         method_body="$this_setup"$'\n'"$method_body"
     fi
     
-    # For function type, append kk.result call
+    # For function type, append kk._result call
     if [[ "$meth_type" == "function" ]]; then
-        method_body+=$'\n'"kk.result \"${class_name}_${method_name}\" \"\$RESULT\""
+        method_body+=$'\n'"kk._result \"${class_name}_${method_name}\" \"\$RESULT\""
     fi
     
     METHOD_BODY="$method_body"
@@ -146,8 +171,8 @@ defineClass() {
                 fi
 
                 # Process method body using shared logic
-                #local processed_method=$(_processMethodBody "$class_name" "$2" "$3" "$meth_type" "meths_arr")
-                _processMethodBody "$class_name" "$2" "$3" "$meth_type" "meths_arr"
+                #local processed_method=$(kk._processMethodBody "$class_name" "$2" "$3" "$meth_type" "meths_arr")
+                kk._processMethodBody "$class_name" "$2" "$3" "$meth_type" "meths_arr"
                 meth_bodies["$2"]="$METHOD_BODY"
                 shift 3
                 ;;
@@ -577,7 +602,7 @@ _defineMethodType() {
     fi
     
     # Process method body using shared logic from defineClass
-    _processMethodBody "$class_name" "$method_name" "$method_body" "$meth_type" "meths_ref"
+    kk._processMethodBody "$class_name" "$method_name" "$method_body" "$meth_type" "meths_ref"
     eval "${class_name}_method_body_${method_name}=\$METHOD_BODY"
     
     # Update class methods array in global scope
@@ -604,4 +629,4 @@ defineFunction() {
     _defineMethodType "$1" "$2" "$3" "function" "Function"
 }
 
-export -f _processMethodBody _defineMethodType defineClass defineMethod defineProcedure defineFunction
+export -f kk._processMethodBody kk._result kk._var _defineMethodType defineClass defineMethod defineProcedure defineFunction
