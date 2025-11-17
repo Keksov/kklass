@@ -42,3 +42,14 @@ if [[ "$result_parent_init" == "true" ]] && [[ "$result_parent_name" == "ChildOb
 else
     test_fail "Child class constructor invokes parent constructor (parent_init: '$result_parent_init', parent_name: '$result_parent_name', child_init: '$result_child_init')"
 fi
+
+# Test 16.2: Inherited properties and methods from parent class
+test_start "Inherited properties and methods from parent class work in child"
+TChild.new child2 "ChildObject2"
+result_age=$(child2.getAge)
+result_name=$(child2.getName)
+if [[ "$result_age" =~ ^[0-9]+\ seconds\ old$ ]] && [[ "$result_name" == "ChildObject2" ]]; then
+    test_pass "Inherited properties and methods from parent class work in child"
+else
+    test_fail "Inherited properties and methods from parent class work in child (age: '$result_age', name: '$result_name')"
+fi

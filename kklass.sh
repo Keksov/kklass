@@ -562,7 +562,16 @@ INSTANCE_TPL
                 eval \"\${instname}_data[\\\"\$__prop__\\\"]=\"\${!__prop__}\"\"
             done
         fi
-    }"
+    }
+    
+    # Create constructor caller function for explicit parent constructor calls
+    eval \"${class_name}.constructor() {
+        # This function executes the constructor body for use in derived classes
+        # Properties should already be injected by the caller
+        if [[ -n \\\"\$${class_name}_constructor_body\\\" ]]; then
+            eval \\\"\$${class_name}_constructor_body\\\"
+        fi
+    }\""
 
     if [[ "${VERBOSE_KKLASS:-1}" == "debug" ]]; then echo "$class_name class created"; fi
 }
