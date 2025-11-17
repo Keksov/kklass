@@ -5,7 +5,8 @@ KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${KKLASS_DIR}/kklib.sh"
 
 # Global variable to control echoing of function results
-KK_ECHO_RESULT=false
+# "" (empty) = auto-detect (default), "true" = always echo, "false" = never echo
+KK_ECHO_RESULT=""
 
 kk._var() {
     local str="${1^^}" # Convert to upper case
@@ -18,15 +19,38 @@ kk._return() {
     local var_value="$2"
     local echo_result="${3:-$KK_ECHO_RESULT}"
     
-    kk._var "$var_name"
-    #eval "declare -gx ${KK_VAR}='${var_value//\'/\'\\\'\'}'"
-    #echo declare -gx "${KK_VAR}"="${var_value}"
-    #declare -gx "${KK_VAR}"="${var_value}"
-    printf -v "$KK_VAR" '%s' "$var_value"
-
-    if [[ "$echo_result" == "true" ]]; then
-        echo "$var_value"
+    # Automatically enable echo if we're in a subshell context
+    local is_subshell=false
+    if [[ $BASH_SUBSHELL -gt 0 ]]; then
+        is_subshell=true
     fi
+
+    # Decide whether to echo the value:
+    # - If echo_result is "false": never echo (explicit disable)
+    # - If echo_result is "true": always echo (explicit enable)
+    # - If echo_result is empty: auto-detect (echo if in subshell)
+    local should_echo=false
+    
+    if [[ "$echo_result" == "false" ]]; then
+        # Explicit false - never echo
+        should_echo=false
+    elif [[ "$echo_result" == "true" ]]; then
+        # Explicit true - always echo
+        should_echo=true
+    elif [[ "$is_subshell" == "true" ]]; then
+        # Auto-detect: echo if in subshell
+        should_echo=true
+    fi
+    
+    if [[ "$should_echo" == "true" ]]; then
+        # In subshell or explicitly enabled: just echo and return
+        echo -n "$var_value"
+        return
+    fi
+    
+    # Not in subshell: set the variable
+    kk._var "$var_name"
+    printf -v "$KK_VAR" '%s' "$var_value"
 }
 
 kk._processMethodBody() {
