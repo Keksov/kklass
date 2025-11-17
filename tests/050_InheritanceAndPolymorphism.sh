@@ -1,0 +1,365 @@
+#!/bin/bash
+# 050_InheritanceAndPolymorphism.sh - Comprehensive test for inheritance and polymorphism
+# Tests full OOP functionality: class hierarchy, method overriding, and polymorphic behavior
+
+source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+parse_args "$@"
+
+test_section "Inheritance and Polymorphism Test Suite"
+
+# Define base parent class
+defineClass "TParent" "" \
+    "property" "count" \
+    "property" "baseValue" \
+    "method" "IncCount" 'count=$((count + $1))'
+
+# Define child class that overrides IncCount
+defineClass "TChild" "TParent" \
+    "method" "IncCount" 'count=$((count + $1 * 2))'
+
+# Test 1: Parent Class Definition
+test_start "TParent class definition"
+if declare -F TParent.new >/dev/null 2>&1; then
+    test_pass "TParent class definition"
+else
+    test_fail "TParent class definition"
+fi
+
+# Test 2: Child Class Definition
+test_start "TChild class definition (inherits from TParent)"
+if declare -F TChild.new >/dev/null 2>&1; then
+    test_pass "TChild class definition (inherits from TParent)"
+else
+    test_fail "TChild class definition (inherits from TParent)"
+fi
+
+# Test 2.6: Parent baseValue property exists
+test_start "TParent has baseValue property"
+TParent.new parent_with_base
+parent_with_base.baseValue = 10
+result=$(parent_with_base.baseValue)
+expected="10"
+if [[ "$result" == "$expected" ]]; then
+    test_pass "TParent has baseValue property"
+else
+    test_fail "TParent has baseValue property (expected: $expected, got: $result)"
+fi
+
+# Test 2.7: Child Inherits baseValue from Parent
+test_start "TChild inherits baseValue property from TParent"
+TChild.new child_basevalue
+child_basevalue.baseValue = 10
+result=$(child_basevalue.baseValue)
+expected="10"
+if [[ "$result" == "$expected" ]]; then
+    test_pass "TChild inherits baseValue property from TParent"
+else
+    test_fail "TChild inherits baseValue property from TParent (expected: $expected, got: $result)"
+fi
+
+# Test 3: Parent Instance Creation
+test_start "TParent instance creation"
+TParent.new parent1
+if declare -F parent1.IncCount >/dev/null 2>&1; then
+    test_pass "TParent instance creation"
+else
+    test_fail "TParent instance creation"
+fi
+
+# Test 4: Child Instance Creation
+test_start "TChild instance creation with inherited properties"
+TChild.new child1
+if declare -F child1.IncCount >/dev/null 2>&1; then
+    test_pass "TChild instance creation with inherited properties"
+else
+    test_fail "TChild instance creation with inherited properties"
+fi
+
+# Test 5: Parent Method Works
+test_start "Parent IncCount method increments by 5"
+parent1.IncCount 5
+result=$(parent1.count)
+expected="5"
+if [[ "$result" == "$expected" ]]; then
+    test_pass "Parent IncCount method increments by 5"
+else
+    test_fail "Parent IncCount method increments by 5 (expected: $expected, got: $result)"
+fi
+
+# Test 6: Child Method Doubles Increment
+test_start "Child IncCount method doubles increment (5*2=10)"
+child1.IncCount 5
+result=$(child1.count)
+expected="10"
+if [[ "$result" == "$expected" ]]; then
+    test_pass "Child IncCount method doubles increment (5*2=10)"
+else
+    test_fail "Child IncCount method doubles increment (5*2=10) (expected: $expected, got: $result)"
+fi
+
+# Test 7: Parent Multiple Operations
+test_start "Parent accumulates values across multiple calls"
+parent1.IncCount 3
+result=$(parent1.count)
+expected="8"
+# 5 + 3 = 8
+if [[ "$result" == "$expected" ]]; then
+    test_pass "Parent accumulates values across multiple calls"
+else
+    test_fail "Parent accumulates values across multiple calls (expected: $expected, got: $result)"
+fi
+
+# Test 8: Child Multiple Operations
+test_start "Child accumulates doubled values across multiple calls"
+child1.IncCount 3
+result=$(child1.count)
+expected="16"
+# 10 + (3*2) = 16
+if [[ "$result" == "$expected" ]]; then
+    test_pass "Child accumulates doubled values across multiple calls"
+else
+    test_fail "Child accumulates doubled values across multiple calls (expected: $expected, got: $result)"
+fi
+
+# Test 9: Polymorphism - Different Behaviors
+test_start "Polymorphism verification: parent and child have different behaviors"
+TParent.new parent2
+TChild.new child2
+parent2.IncCount 10
+child2.IncCount 10
+parent_result=$(parent2.count)
+child_result=$(child2.count)
+# Parent: 0 + 10 = 10, Child: 0 + (10 * 2) = 20
+if [[ "$parent_result" == "10" && "$child_result" == "20" ]]; then
+    test_pass "Polymorphism verification: parent and child have different behaviors"
+else
+    test_fail "Polymorphism verification: parent and child have different behaviors (expected: parent=10, child=20; got: parent=$parent_result, child=$child_result)"
+fi
+
+# Test 10: Multiple Independent Instances
+test_start "Multiple instances maintain independent state"
+TChild.new child3
+TChild.new child4
+child3.IncCount 5
+child4.IncCount 7
+result3=$(child3.count)
+result4=$(child4.count)
+# 0 + (5*2) = 10, 0 + (7*2) = 14
+if [[ "$result3" == "10" && "$result4" == "14" ]]; then
+    test_pass "Multiple instances maintain independent state"
+else
+    test_fail "Multiple instances maintain independent state (expected: child3=10, child4=14; got: child3=$result3, child4=$result4)"
+fi
+
+# Test 11: Interleaved Operations
+test_start "Interleaved operations on different instances"
+child3.IncCount 2
+result3_after=$(child3.count)
+child4.IncCount 3
+result4_after=$(child4.count)
+# child3: 10 + (2*2) = 14, child4: 14 + (3*2) = 20
+if [[ "$result3_after" == "14" && "$result4_after" == "20" ]]; then
+    test_pass "Interleaved operations on different instances"
+else
+    test_fail "Interleaved operations on different instances (expected: child3=14, child4=20; got: child3=$result3_after, child4=$result4_after)"
+fi
+
+# Test 12: Large Value Increment
+test_start "Large value increment handling"
+TChild.new child5
+child5.IncCount 1000
+result=$(child5.count)
+expected="2000"
+if [[ "$result" == "$expected" ]]; then
+    test_pass "Large value increment handling"
+else
+    test_fail "Large value increment handling (expected: $expected, got: $result)"
+fi
+
+# Test 13: Zero Increment
+test_start "Zero increment handling"
+TChild.new child6
+child6.IncCount 0
+result=$(child6.count)
+expected="0"
+if [[ "$result" == "$expected" ]]; then
+    test_pass "Zero increment handling"
+else
+    test_fail "Zero increment handling (expected: $expected, got: $result)"
+fi
+
+# Test 14: Negative Increment
+test_start "Negative increment (decrement) handling"
+TParent.new parent3
+parent3.IncCount 10
+parent3.IncCount -3
+result=$(parent3.count)
+expected="7"
+# 10 + (-3) = 7
+if [[ "$result" == "$expected" ]]; then
+    test_pass "Negative increment (decrement) handling"
+else
+    test_fail "Negative increment (decrement) handling (expected: $expected, got: $result)"
+fi
+
+# Test 15: Sequential Accumulation
+test_start "Sequential operations accumulation"
+TChild.new child7
+child7.IncCount 2
+child7.IncCount 3
+child7.IncCount 5
+result=$(child7.count)
+expected="20"
+# 0 + (2*2) + (3*2) + (5*2) = 0 + 4 + 6 + 10 = 20
+if [[ "$result" == "$expected" ]]; then
+    test_pass "Sequential operations accumulation"
+else
+    test_fail "Sequential operations accumulation (expected: $expected, got: $result)"
+fi
+
+# Test 16: Three-Level Inheritance
+test_start "Grandchild class definition and instantiation"
+defineClass "TGrandchild" "TChild" \
+    "method" "IncCount" 'count=$((count + $1 * 3))'
+
+TGrandchild.new grandchild1
+grandchild1.IncCount 5
+result=$(grandchild1.count)
+expected="15"
+# 0 + (5*3) = 15
+if [[ "$result" == "$expected" ]]; then
+    test_pass "Grandchild class definition and instantiation"
+else
+    test_fail "Grandchild class definition and instantiation (expected: $expected, got: $result)"
+fi
+
+# Test 17: Grandchild Multiple Operations
+test_start "Grandchild polymorphic behavior"
+grandchild1.IncCount 2
+result=$(grandchild1.count)
+expected="21"
+# 15 + (2*3) = 21
+if [[ "$result" == "$expected" ]]; then
+    test_pass "Grandchild polymorphic behavior"
+else
+    test_fail "Grandchild polymorphic behavior (expected: $expected, got: $result)"
+fi
+
+# Test 18: Polymorphism with Three Levels
+test_start "Three-level polymorphism verification"
+TParent.new p_test
+TChild.new c_test
+TGrandchild.new g_test
+p_test.IncCount 10
+c_test.IncCount 10
+g_test.IncCount 10
+p_result=$(p_test.count)
+c_result=$(c_test.count)
+g_result=$(g_test.count)
+# Parent: 10, Child: 20, Grandchild: 30
+if [[ "$p_result" == "10" && "$c_result" == "20" && "$g_result" == "30" ]]; then
+    test_pass "Three-level polymorphism verification"
+else
+    test_fail "Three-level polymorphism verification (expected: parent=10, child=20, grandchild=30; got: parent=$p_result, child=$c_result, grandchild=$g_result)"
+fi
+
+# Test 19: Property Access Works
+test_start "Direct property access on instances"
+TParent.new p_prop
+p_prop.count = 42
+result=$(p_prop.count)
+if [[ "$result" == "42" ]]; then
+    test_pass "Direct property access on instances"
+else
+    test_fail "Direct property access on instances (expected: 42, got: $result)"
+fi
+
+# Test 20: Instance Cleanup
+test_start "Instance deletion cleanup"
+parent1.delete
+if ! declare -F parent1.IncCount >/dev/null 2>&1; then
+    test_pass "Instance deletion cleanup"
+else
+    test_fail "Instance deletion cleanup"
+fi
+
+# Test 21: Parent Method Called from Child
+test_start "Access to parent method from child instance"
+TParent.new parent_access
+parent_access.IncCount 7
+result=$(parent_access.count)
+expected="7"
+if [[ "$result" == "$expected" ]]; then
+    test_pass "Access to parent method from child instance"
+else
+    test_fail "Access to parent method from child instance (expected: $expected, got: $result)"
+fi
+
+# Test 22: Mixed Parent and Child Operations
+test_start "Mixed operations with parent and child instances"
+TParent.new mixed_parent
+TChild.new mixed_child
+mixed_parent.IncCount 4
+mixed_child.IncCount 4
+mixed_parent.IncCount 2
+result_p=$(mixed_parent.count)
+result_c=$(mixed_child.count)
+# parent: 4 + 2 = 6, child: 0 + (4*2) = 8
+if [[ "$result_p" == "6" && "$result_c" == "8" ]]; then
+    test_pass "Mixed operations with parent and child instances"
+else
+    test_fail "Mixed operations with parent and child instances (expected: parent=6, child=8; got: parent=$result_p, child=$result_c)"
+fi
+
+# Test 23: Count Property Mutation Tracking
+test_start "Count property mutation persists across calls"
+TChild.new mutation_test
+mutation_test.IncCount 1
+val1=$(mutation_test.count)
+mutation_test.IncCount 1
+val2=$(mutation_test.count)
+mutation_test.IncCount 1
+val3=$(mutation_test.count)
+# (1*2) + (1*2) + (1*2) = 2 + 2 + 2 = 6
+if [[ "$val1" == "2" && "$val2" == "4" && "$val3" == "6" ]]; then
+    test_pass "Count property mutation persists across calls"
+else
+    test_fail "Count property mutation persists across calls (expected: 2,4,6; got: $val1,$val2,$val3)"
+fi
+
+# Test 24: Inheritance Chain Depth
+test_start "Inheritance chain with four levels"
+defineClass "TGreatGrandchild" "TGrandchild" \
+    "method" "IncCount" 'count=$((count + $1 * 4))'
+
+TGreatGrandchild.new ggc
+ggc.IncCount 5
+result=$(ggc.count)
+expected="20"
+# 0 + (5*4) = 20
+if [[ "$result" == "$expected" ]]; then
+    test_pass "Inheritance chain with four levels"
+else
+    test_fail "Inheritance chain with four levels (expected: $expected, got: $result)"
+fi
+
+# Test 25: Method Override Verification
+test_start "Method override changes behavior between parent and child"
+TParent.new override_test_parent
+TChild.new override_test_child
+override_test_parent.count = 100
+override_test_child.count = 100
+override_test_parent.IncCount 5
+override_test_child.IncCount 5
+result_p=$(override_test_parent.count)
+result_c=$(override_test_child.count)
+# parent: 100 + 5 = 105, child: 100 + (5*2) = 110
+if [[ "$result_p" == "105" && "$result_c" == "110" ]]; then
+    test_pass "Method override changes behavior between parent and child"
+else
+    test_fail "Method override changes behavior between parent and child (expected: parent=105, child=110; got: parent=$result_p, child=$result_c)"
+fi
+
+# Clean up remaining instances
+cleanup
+
