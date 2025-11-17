@@ -7,15 +7,20 @@ parse_args "$@"
 
 test_section "Inheritance and Polymorphism Test Suite"
 
-# Define base parent class
+# Define base parent class with constructor
 defineClass "TParent" "" \
     "property" "count" \
     "property" "baseValue" \
-    "method" "IncCount" 'count=$((count + $1))'
+    "constructor" 'count=0; baseValue=0' \
+    "method" "IncCount" 'count=$((count + $1))' \
+    "method" "getCount" 'echo "$count"'
 
 # Define child class that overrides IncCount
 defineClass "TChild" "TParent" \
-    "method" "IncCount" 'count=$((count + $1 * 2))'
+    "property" "childValue" \
+    "constructor" 'TParent.constructor "$@"; childValue=0' \
+    "method" "IncCount" 'count=$((count + $1 * 2))' \
+    "method" "getChildValue" 'echo "$childValue"'
 
 # Test 1: Parent Class Definition
 test_start "TParent class definition"
@@ -220,6 +225,8 @@ fi
 # Test 16: Three-Level Inheritance
 test_start "Grandchild class definition and instantiation"
 defineClass "TGrandchild" "TChild" \
+    "property" "grandchildValue" \
+    "constructor" 'TChild.constructor "$@"; grandchildValue=0' \
     "method" "IncCount" 'count=$((count + $1 * 3))'
 
 TGrandchild.new grandchild1
@@ -330,6 +337,8 @@ fi
 # Test 24: Inheritance Chain Depth
 test_start "Inheritance chain with four levels"
 defineClass "TGreatGrandchild" "TGrandchild" \
+    "property" "greatGrandchildValue" \
+    "constructor" 'TGrandchild.constructor "$@"; greatGrandchildValue=0' \
     "method" "IncCount" 'count=$((count + $1 * 4))'
 
 TGreatGrandchild.new ggc
@@ -358,6 +367,43 @@ if [[ "$result_p" == "105" && "$result_c" == "110" ]]; then
     test_pass "Method override changes behavior between parent and child"
 else
     test_fail "Method override changes behavior between parent and child (expected: parent=105, child=110; got: parent=$result_p, child=$result_c)"
+fi
+
+# Test 26: Constructor with parameters
+test_start "Constructor with initialization parameters"
+defineClass "TParentWithInit" "" \
+    "property" "name" \
+    "property" "initialValue" \
+    "constructor" 'name="$1"; initialValue="${2:-0}"' \
+    "method" "getName" 'echo "$name"' \
+    "method" "getValue" 'echo "$initialValue"'
+
+TParentWithInit.new initialized "TestName" 42
+result_name=$(initialized.getName)
+result_value=$(initialized.getValue)
+
+if [[ "$result_name" == "TestName" ]] && [[ "$result_value" == "42" ]]; then
+    test_pass "Constructor with initialization parameters"
+else
+    test_fail "Constructor with initialization parameters (name: '$result_name', value: '$result_value')"
+fi
+
+# Test 27: Child inherits and extends constructor
+test_start "Child constructor invokes parent with parameters"
+defineClass "TChildWithInit" "TParentWithInit" \
+    "property" "childName" \
+    "constructor" 'TParentWithInit.constructor "$@"; childName="${1}-child"' \
+    "method" "getChildName" 'echo "$childName"'
+
+TChildWithInit.new child_init "Parent" 99
+result_parent_name=$(child_init.getName)
+result_child_name=$(child_init.getChildName)
+result_parent_value=$(child_init.getValue)
+
+if [[ "$result_parent_name" == "Parent" ]] && [[ "$result_parent_value" == "99" ]] && [[ "$result_child_name" == "Parent-child" ]]; then
+    test_pass "Child constructor invokes parent with parameters"
+else
+    test_fail "Child constructor invokes parent with parameters (parent_name: '$result_parent_name', value: '$result_parent_value', child_name: '$result_child_name')"
 fi
 
 # Clean up remaining instances

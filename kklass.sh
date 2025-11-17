@@ -487,6 +487,12 @@ INSTANCE_TPL
     # Store template for this class (for compiler support)
     eval "${class_name}_instance_template=\$instance_template"
 
+    # Process constructor body to support parent.constructor syntax
+    if [[ -n "$parent_class" && "$constructor_body" == *"parent.constructor"* ]]; then
+        # Replace parent.constructor with actual parent class constructor call
+        constructor_body="${constructor_body//parent.constructor/${parent_class}.constructor}"
+    fi
+    
     # Store constructor body
     eval "${class_name}_constructor_body=\$constructor_body"
     
