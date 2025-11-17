@@ -1,5 +1,5 @@
 #!/bin/bash
-# 047_FunctionTypeWithKkResult.sh - Test that function type methods append kk._result call
+# 047_FunctionTypeWithKkResult.sh - Test that function type methods append kk._return call
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 parse_args "$@"
@@ -13,19 +13,19 @@ defineClass "Calculator" "" \
 Calculator.new calc
 calc.value = "10"
 
-# Test 1: Function type should inject kk._result call and set CALCULATOR_ADD variable
-test_start "Function type injects kk._result"
-# The function should set RESULT and then call kk._result which sets CALCULATOR_ADD
+# Test 1: Function type should inject kk._return call and set CALCULATOR_ADD variable
+test_start "Function type injects kk._return"
+# The function should set RESULT and then call kk._return which sets CALCULATOR_ADD
 calc.add 5 2>&1
-# Check if kk._result was called and variable was set
+# Check if kk._return was called and variable was set
 if [[ "${CALCULATOR_ADD}" == "15" ]]; then
-    test_pass "Function type injects kk._result"
+    test_pass "Function type injects kk._return"
 else
-    test_fail "Function type should set CALCULATOR_ADD=15 via kk._result (got: '${CALCULATOR_ADD}')"
+    test_fail "Function type should set CALCULATOR_ADD=15 via kk._return (got: '${CALCULATOR_ADD}')"
 fi
 
-# Test 2: Verify method type doesn't inject kk._result (method should still work)
-test_start "Method type doesn't inject kk._result"
+# Test 2: Verify method type doesn't inject kk._return (method should still work)
+test_start "Method type doesn't inject kk._return"
 result=$(calc.subtract 3)
 expected="7"  # 10 - 3 = 7
 if [[ "$result" == "$expected" ]]; then

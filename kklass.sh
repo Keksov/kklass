@@ -13,7 +13,7 @@ kk._var() {
     KK_VAR="${str//./_}"
 }
 
-kk._result() {
+kk._return() {
     local var_name="$1"
     local var_value="$2"
     local echo_result="${3:-$KK_ECHO_RESULT}"
@@ -51,9 +51,9 @@ kk._processMethodBody() {
         method_body="$this_setup"$'\n'"$method_body"
     fi
     
-    # For function type, append kk._result call
+    # For function type, append kk._return call
     if [[ "$meth_type" == "function" ]]; then
-        method_body+=$'\n'"kk._result \"${class_name}_${method_name}\" \"\$RESULT\""
+        method_body+=$'\n'"kk._return \"${class_name}_${method_name}\" \"\$RESULT\""
     fi
     
     METHOD_BODY="$method_body"
@@ -644,4 +644,4 @@ defineFunction() {
     _defineMethodType "$1" "$2" "$3" "function" "Function"
 }
 
-export -f kk._processMethodBody kk._result kk._var _defineMethodType defineClass defineMethod defineProcedure defineFunction
+export -f kk._processMethodBody kk._return kk._var _defineMethodType defineClass defineMethod defineProcedure defineFunction

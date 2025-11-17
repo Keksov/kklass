@@ -1,5 +1,5 @@
 #!/bin/bash
-# 048_KKEchoResult.sh - Test KK_ECHO_RESULT global variable and kk._result behavior
+# 048_KKEchoResult.sh - Test KK_ECHO_RESULT global variable and kk._return behavior
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 parse_args "$@"
@@ -52,9 +52,9 @@ fi
 # Test 3: Override global KK_ECHO_RESULT with explicit parameter - false overrides true
 test_start "Explicit false parameter suppresses echo"
 export KK_ECHO_RESULT=true
-# Call kk._result in main shell (not subshell) to preserve variables
+# Call kk._return in main shell (not subshell) to preserve variables
 output_file="$TEST_TMP_DIR/output_3"
-kk._result "test_var" "test_value" "false" >"$output_file" 2>&1
+kk._return "test_var" "test_value" "false" >"$output_file" 2>&1
 output=$(cat "$output_file")
 rm "$output_file"
 if [[ -z "$output" ]]; then
@@ -74,9 +74,9 @@ fi
 # Test 4: Override global KK_ECHO_RESULT with explicit parameter - true when global is false
 test_start "Explicit true parameter produces echo"
 export KK_ECHO_RESULT=false
-# Call kk._result in main shell to preserve variables
+# Call kk._return in main shell to preserve variables
 output_file="$TEST_TMP_DIR/output_4"
-kk._result "another_var" "another_value" "true" >"$output_file" 2>&1
+kk._return "another_var" "another_value" "true" >"$output_file" 2>&1
 output=$(cat "$output_file")
 rm "$output_file"
 if [[ "$output" == "another_value" ]]; then
@@ -129,9 +129,9 @@ concat_inst.delete
 # Test 7: Empty value echo
 test_start "Echo handles empty values"
 export KK_ECHO_RESULT=true
-# Call kk._result in main shell to preserve variables
+# Call kk._return in main shell to preserve variables
 output_file="$TEST_TMP_DIR/output_7"
-kk._result "empty_var" "" "true" >"$output_file" 2>&1
+kk._return "empty_var" "" "true" >"$output_file" 2>&1
 output=$(cat "$output_file")
 rm "$output_file"
 if [[ -z "$output" ]] && [[ -v EMPTY_VAR ]]; then
