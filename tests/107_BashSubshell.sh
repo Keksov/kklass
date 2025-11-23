@@ -73,15 +73,4 @@ else
     test_fail "Subshell method call - got '$result'"
 fi
 
-# Test with echo explicitly enabled in subshell
-test_start "Subshell with KK_ECHO_RESULT=true"
-export KK_ECHO_RESULT=true
-result=$(test_inst.GetValue)
-if [[ "$result" == "success" ]]; then
-    test_pass "Subshell with KK_ECHO_RESULT=true"
-else
-    test_fail "Subshell with KK_ECHO_RESULT=true - got '$result'"
-fi
-unset KK_ECHO_RESULT
-
 test_inst.delete

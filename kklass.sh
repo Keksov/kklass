@@ -4,10 +4,6 @@
 KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${KKLASS_DIR}/kklib.sh"
 
-# Global variable to control echoing of function results
-# "" (empty) = auto-detect (default), "true" = always echo, "false" = never echo
-KK_ECHO_RESULT=""
-
 kk._var() {
     local str="${1^^}" # Convert to upper case
     str="${str// /_}"
@@ -17,38 +13,15 @@ kk._var() {
 kk._return() {
     local var_name="$1"
     local var_value="$2"
-    local echo_result="${3:-$KK_ECHO_RESULT}"
     
     # Automatically enable echo if we're in a subshell context
-    local is_subshell=false
     if [[ $BASH_SUBSHELL -gt 0 ]]; then
-        is_subshell=true
-    fi
-
-    # Decide whether to echo the value:
-    # - If echo_result is "false": never echo (explicit disable)
-    # - If echo_result is "true": always echo (explicit enable)
-    # - If echo_result is empty: auto-detect (echo if in subshell)
-    local should_echo=false
-    
-    if [[ "$echo_result" == "false" ]]; then
-        # Explicit false - never echo
-        should_echo=false
-    elif [[ "$echo_result" == "true" ]]; then
-        # Explicit true - always echo
-        should_echo=true
-    elif [[ "$is_subshell" == "true" ]]; then
-        # Auto-detect: echo if in subshell
-        should_echo=true
-    fi
-    
-    if [[ "$should_echo" == "true" ]]; then
-        # In subshell or explicitly enabled: just echo and return
+        # In subshell: echo the value
         echo -n "$var_value"
         return
     fi
     
-    # Not in subshell: set the variable
+    # In main shell: set the variable
     kk._var "$var_name"
     printf -v "$KK_VAR" '%s' "$var_value"
 }

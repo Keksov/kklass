@@ -43,30 +43,7 @@ else
     test_fail "Real subshell with backticks - got '$index'"
 fi
 
-# Test 4: Explicit echo result enabled
-test_start "Explicit echo result enabled (KK_ECHO_RESULT=true)"
-export KK_ECHO_RESULT=true
-output=$(mytest.GetIndex 2>&1)
-if [[ "$output" == "42" ]]; then
-    test_pass "Explicit echo result enabled (KK_ECHO_RESULT=true)"
-else
-    test_fail "Explicit echo result enabled (KK_ECHO_RESULT=true) - got '$output'"
-fi
-
-# Test 5: Explicit echo result disabled (should override auto-detect)
-test_start "Explicit echo result disabled (KK_ECHO_RESULT=false)"
-export KK_ECHO_RESULT=false
-output=$(mytest.GetIndex 2>&1)
-if [[ -z "$output" ]]; then
-    test_pass "Explicit echo result disabled (KK_ECHO_RESULT=false)"
-else
-    test_fail "Explicit echo result disabled (KK_ECHO_RESULT=false) - got '$output'"
-fi
-
-# Reset KK_ECHO_RESULT for following tests
-unset KK_ECHO_RESULT
-
-# Test 6: Real nested subshell
+# Test 4: Real nested subshell
 test_start "Nested subshell context"
 index=$(
     mytest.GetIndex
@@ -78,5 +55,4 @@ else
 fi
 
 # Cleanup
-unset KK_ECHO_RESULT
 mytest.delete
