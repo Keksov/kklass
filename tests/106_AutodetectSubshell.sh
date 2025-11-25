@@ -11,10 +11,6 @@ kk_test_init "AutodetectSubshell" "$(dirname "$0")" "$@"
 KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 [[ -f "$KKLASS_DIR/kklass.sh" ]] && source "$KKLASS_DIR/kklass.sh"
 
-
-
-init_test_tmpdir "106_AutodetectSubshell"
-
 kk_test_section "Testing Automatic Subshell Detection"
 
 # Define a simple test class with a function that returns a value  
@@ -65,9 +61,3 @@ fi
 
 # Cleanup
 mytest.delete
-
-# TODO: Migrate this test completely:
-# - Replace kk_test_start() with kk_test_start()
-# - Replace kk_test_pass() with kk_test_pass()
-# - Replace kk_test_fail() with kk_test_fail()
-# - Use kk_assert_* functions for better assertions
