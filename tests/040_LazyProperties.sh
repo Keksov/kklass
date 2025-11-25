@@ -14,7 +14,7 @@ KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 
 # Test 39: Lazy properties (lazy initialization)
-test_start "Lazy properties (lazy initialization)"
+kk_test_start "Lazy properties (lazy initialization)"
 defineClass "LazyTest" "" \
     "property" "base_value" \
     "lazy_property" "expensive" "compute_expensive" \
@@ -35,18 +35,18 @@ if [[ "$result1" == "computed_from_test" ]]; then
     # Note: Due to bash subshell limitations, lazy caching only works within same shell context
     # This test just verifies the lazy property computes correctly
     if [[ "$result2" == "computed_from_changed" ]]; then
-        test_pass "Lazy properties (lazy initialization)"
+        kk_test_pass "Lazy properties (lazy initialization)"
     else
-        test_fail "Lazy properties failed on recompute (result2: '$result2')"
+        kk_test_fail "Lazy properties failed on recompute (result2: '$result2')"
     fi
 else
-    test_fail "Lazy properties failed on first compute (result1: '$result1')"
+    kk_test_fail "Lazy properties failed on first compute (result1: '$result1')"
 fi
 
 lazy_obj.delete
 
 # TODO: Migrate this test completely:
-# - Replace test_start() with kk_test_start()
-# - Replace test_pass() with kk_test_pass()
-# - Replace test_fail() with kk_test_fail()
+# - Replace kk_test_start() with kk_test_start()
+# - Replace kk_test_pass() with kk_test_pass()
+# - Replace kk_test_fail() with kk_test_fail()
 # - Use kk_assert_* functions for better assertions

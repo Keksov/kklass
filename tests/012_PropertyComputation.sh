@@ -14,7 +14,7 @@ KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 
 # Test 12: Property access and computation in methods
-test_start "Property access and computation in methods"
+kk_test_start "Property access and computation in methods"
 defineClass "Calculator2" "" \
     "property" "value" \
     "method" "double" 'echo $((value * 2))' \
@@ -25,13 +25,13 @@ calc2.value = "7"
 result1=$(calc2.double)
 result2=$(calc2.triple)
 if [[ "$result1" == "14" ]] && [[ "$result2" == "21" ]]; then
-    test_pass "Property access and computation in methods"
+    kk_test_pass "Property access and computation in methods"
 else
-    test_fail "Property access and computation in methods (expected: '14' and '21', got: '$result1' and '$result2')"
+    kk_test_fail "Property access and computation in methods (expected: '14' and '21', got: '$result1' and '$result2')"
 fi
 
 # TODO: Migrate this test completely:
-# - Replace test_start() with kk_test_start()
-# - Replace test_pass() with kk_test_pass()
-# - Replace test_fail() with kk_test_fail()
+# - Replace kk_test_start() with kk_test_start()
+# - Replace kk_test_pass() with kk_test_pass()
+# - Replace kk_test_fail() with kk_test_fail()
 # - Use kk_assert_* functions for better assertions

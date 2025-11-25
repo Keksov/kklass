@@ -33,16 +33,16 @@ EOF
 fi
 
 # Test 30: Force compilation
-test_start "Force recompilation"
+kk_test_start "Force recompilation"
 output=$(bash -c "source '$KKLASS_DIR/kklass_autoload.sh' && kkrecompile \"$TEST_FILE\"" 2>&1)
 if echo "$output" | grep -q "Force\|Compiling"; then
-    test_pass "Force recompilation"
+    kk_test_pass "Force recompilation"
 else
-    test_fail "Force recompilation"
+    kk_test_fail "Force recompilation"
 fi
 
 # TODO: Migrate this test completely:
-# - Replace test_start() with kk_test_start()
-# - Replace test_pass() with kk_test_pass()
-# - Replace test_fail() with kk_test_fail()
+# - Replace kk_test_start() with kk_test_start()
+# - Replace kk_test_pass() with kk_test_pass()
+# - Replace kk_test_fail() with kk_test_fail()
 # - Use kk_assert_* functions for better assertions

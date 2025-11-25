@@ -14,7 +14,7 @@ KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 
 # Test 39.1: Simple property without getter/setter
-test_start "Unified syntax - simple property"
+kk_test_start "Unified syntax - simple property"
 defineClass "SimpleProp" "" \
     "property" "name"
 
@@ -23,15 +23,15 @@ obj1.name = "test"
 result=$(obj1.name)
 
 if [[ "$result" == "test" ]]; then
-    test_pass "Unified syntax - simple property"
+    kk_test_pass "Unified syntax - simple property"
 else
-    test_fail "Simple property failed (expected: 'test', got: '$result')"
+    kk_test_fail "Simple property failed (expected: 'test', got: '$result')"
 fi
 
 obj1.delete
 
 # Test 39.2: Property with getter only
-test_start "Unified syntax - getter only"
+kk_test_start "Unified syntax - getter only"
 defineClass "GetterOnly" "" \
     "property" "base" \
     "property" "computed" "getComputed" \
@@ -42,15 +42,15 @@ obj2.base = "value"
 result=$(obj2.computed)
 
 if [[ "$result" == "computed_value" ]]; then
-    test_pass "Unified syntax - getter only"
+    kk_test_pass "Unified syntax - getter only"
 else
-    test_fail "Getter only failed (expected: 'computed_value', got: '$result')"
+    kk_test_fail "Getter only failed (expected: 'computed_value', got: '$result')"
 fi
 
 obj2.delete
 
 # Test 39.3: Property with setter only
-test_start "Unified syntax - setter only"
+kk_test_start "Unified syntax - setter only"
 defineClass "SetterOnly" "" \
     "property" "raw_input" \
     "property" "normalized" "setNormalized" \
@@ -61,15 +61,15 @@ obj3.normalized = "input"
 result=$(obj3.raw_input)
 
 if [[ "$result" == "norm_input" ]]; then
-    test_pass "Unified syntax - setter only"
+    kk_test_pass "Unified syntax - setter only"
 else
-    test_fail "Setter only failed (expected: 'norm_input', got: '$result')"
+    kk_test_fail "Setter only failed (expected: 'norm_input', got: '$result')"
 fi
 
 obj3.delete
 
 # Test 39.4: Property with both getter and setter
-test_start "Unified syntax - both getter and setter"
+kk_test_start "Unified syntax - both getter and setter"
 defineClass "BothAccessors" "" \
     "property" "first" \
     "property" "last" \
@@ -88,18 +88,18 @@ if [[ "$result1" == "John Doe" ]]; then
     result3=$(obj4.last)
     
     if [[ "$result2" == "Jane" ]] && [[ "$result3" == "Smith" ]]; then
-        test_pass "Unified syntax - both getter and setter"
+        kk_test_pass "Unified syntax - both getter and setter"
     else
-        test_fail "Both accessors - setter failed (first: '$result2', last: '$result3')"
+        kk_test_fail "Both accessors - setter failed (first: '$result2', last: '$result3')"
     fi
 else
-    test_fail "Both accessors - getter failed (expected: 'John Doe', got: '$result1')"
+    kk_test_fail "Both accessors - getter failed (expected: 'John Doe', got: '$result1')"
 fi
 
 obj4.delete
 
 # Test 39.5: Multiple properties with mixed accessors
-test_start "Unified syntax - mixed properties"
+kk_test_start "Unified syntax - mixed properties"
 defineClass "MixedProps" "" \
     "property" "id" \
     "property" "title" \
@@ -123,15 +123,15 @@ obj5.display = "456"
 id=$(obj5.id)
 
 if [[ "$slug" == "hello-world" ]] && [[ "$tags" == "[test]" ]] && [[ "$display" == "[123] Hello World" ]] && [[ "$id" == "456" ]]; then
-    test_pass "Unified syntax - mixed properties"
+    kk_test_pass "Unified syntax - mixed properties"
 else
-    test_fail "Mixed properties failed (slug: '$slug', tags: '$tags', display: '$display', id: '$id')"
+    kk_test_fail "Mixed properties failed (slug: '$slug', tags: '$tags', display: '$display', id: '$id')"
 fi
 
 obj5.delete
 
 # Test 39.6: Getter/setter detection stops at next keyword
-test_start "Unified syntax - keyword boundary detection"
+kk_test_start "Unified syntax - keyword boundary detection"
 defineClass "KeywordBoundary" "" \
     "property" "value" "getValue" \
     "method" "getValue" 'echo "get_${value}"' \
@@ -142,15 +142,15 @@ obj6.value = "test"
 result=$(obj6.getValue)
 
 if [[ "$result" == "get_test" ]]; then
-    test_pass "Unified syntax - keyword boundary detection"
+    kk_test_pass "Unified syntax - keyword boundary detection"
 else
-    test_fail "Keyword boundary detection failed (expected: 'get_test', got: '$result')"
+    kk_test_fail "Keyword boundary detection failed (expected: 'get_test', got: '$result')"
 fi
 
 obj6.delete
 
 # Test 39.7: Methods with get/set prefix but not for same property
-test_start "Unified syntax - prefix detection specificity"
+kk_test_start "Unified syntax - prefix detection specificity"
 defineClass "PrefixTest" "" \
     "property" "raw_x" \
     "property" "x" "getX" "setX" \
@@ -166,15 +166,15 @@ obj7.x = "20"
 result2=$(obj7.x)
 
 if [[ "$result1" == "x=set_10" ]] && [[ "$result2" == "x=set_20" ]]; then
-    test_pass "Unified syntax - prefix detection specificity"
+    kk_test_pass "Unified syntax - prefix detection specificity"
 else
-    test_fail "Prefix detection failed (result1: '$result1', result2: '$result2')"
+    kk_test_fail "Prefix detection failed (result1: '$result1', result2: '$result2')"
 fi
 
 obj7.delete
 
 # Test 39.8: Property with _getter (underscore-prefixed getter)
-test_start "Unified syntax - underscore getter (_get)"
+kk_test_start "Unified syntax - underscore getter (_get)"
 defineClass "UnderscoreGetter" "" \
     "property" "base" \
     "property" "derived" "_getComputed" \
@@ -185,15 +185,15 @@ obj8.base = "value"
 result=$(obj8.derived)
 
 if [[ "$result" == "result_value" ]]; then
-    test_pass "Unified syntax - underscore getter (_get)"
+    kk_test_pass "Unified syntax - underscore getter (_get)"
 else
-    test_fail "Underscore getter failed (expected: 'result_value', got: '$result')"
+    kk_test_fail "Underscore getter failed (expected: 'result_value', got: '$result')"
 fi
 
 obj8.delete
 
 # Test 39.9: Property with _setter (underscore-prefixed setter)
-test_start "Unified syntax - underscore setter (_set)"
+kk_test_start "Unified syntax - underscore setter (_set)"
 defineClass "UnderscoreSetter" "" \
     "property" "internal" \
     "property" "external" "_setInternal" \
@@ -204,15 +204,15 @@ obj9.external = "data"
 result=$(obj9.internal)
 
 if [[ "$result" == "priv_data" ]]; then
-    test_pass "Unified syntax - underscore setter (_set)"
+    kk_test_pass "Unified syntax - underscore setter (_set)"
 else
-    test_fail "Underscore setter failed (expected: 'priv_data', got: '$result')"
+    kk_test_fail "Underscore setter failed (expected: 'priv_data', got: '$result')"
 fi
 
 obj9.delete
 
 # Test 39.10: Property with both _getter and _setter
-test_start "Unified syntax - both underscore accessors (_get and _set)"
+kk_test_start "Unified syntax - both underscore accessors (_get and _set)"
 defineClass "UnderscoreBoth" "" \
     "property" "first" \
     "property" "last" \
@@ -231,18 +231,18 @@ if [[ "$result1" == "Alice Wonder" ]]; then
     result3=$(obj10.last)
     
     if [[ "$result2" == "Bob" ]] && [[ "$result3" == "Jones" ]]; then
-        test_pass "Unified syntax - both underscore accessors (_get and _set)"
+        kk_test_pass "Unified syntax - both underscore accessors (_get and _set)"
     else
-        test_fail "Both underscore - setter failed (first: '$result2', last: '$result3')"
+        kk_test_fail "Both underscore - setter failed (first: '$result2', last: '$result3')"
     fi
 else
-    test_fail "Both underscore - getter failed (expected: 'Alice Wonder', got: '$result1')"
+    kk_test_fail "Both underscore - getter failed (expected: 'Alice Wonder', got: '$result1')"
 fi
 
 obj10.delete
 
 # Test 39.11: Mixed regular and underscore accessors
-test_start "Unified syntax - mixed regular and underscore accessors"
+kk_test_start "Unified syntax - mixed regular and underscore accessors"
 defineClass "MixedAccessors" "" \
     "property" "temp" \
     "property" "upper" "getUpper" \
@@ -266,15 +266,15 @@ obj11.modified = "test"
 mod=$(obj11.modified)
 
 if [[ "$upper" == "HELLO" ]] && [[ "$lower" == "hello" ]] && [[ "$rev" == "dlrow" ]] && [[ "$mod" == "MOD:mod_test" ]]; then
-    test_pass "Unified syntax - mixed regular and underscore accessors"
+    kk_test_pass "Unified syntax - mixed regular and underscore accessors"
 else
-    test_fail "Mixed accessors failed (upper: '$upper', lower: '$lower', rev: '$rev', mod: '$mod')"
+    kk_test_fail "Mixed accessors failed (upper: '$upper', lower: '$lower', rev: '$rev', mod: '$mod')"
 fi
 
 obj11.delete
 
 # TODO: Migrate this test completely:
-# - Replace test_start() with kk_test_start()
-# - Replace test_pass() with kk_test_pass()
-# - Replace test_fail() with kk_test_fail()
+# - Replace kk_test_start() with kk_test_start()
+# - Replace kk_test_pass() with kk_test_pass()
+# - Replace kk_test_fail() with kk_test_fail()
 # - Use kk_assert_* functions for better assertions

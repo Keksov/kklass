@@ -14,7 +14,7 @@ KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 
 # Test 37: Composition patterns
-test_start "Composition patterns"
+kk_test_start "Composition patterns"
 defineClass "Engine" "" \
     "property" "type" \
     "property" "horsepower" \
@@ -40,15 +40,15 @@ mycar.assemble
 
 result=$(mycar.getInfo)
 if [[ "$result" == *"Toyota Camry"* ]] && [[ "$result" == *"V8"* ]] && [[ "$result" == *"18 inches"* ]]; then
-    test_pass "Composition patterns"
+    kk_test_pass "Composition patterns"
 else
-    test_fail "Composition patterns (expected car with engine and wheels, got: '$result')"
+    kk_test_fail "Composition patterns (expected car with engine and wheels, got: '$result')"
 fi
 
 mycar.delete
 
 # TODO: Migrate this test completely:
-# - Replace test_start() with kk_test_start()
-# - Replace test_pass() with kk_test_pass()
-# - Replace test_fail() with kk_test_fail()
+# - Replace kk_test_start() with kk_test_start()
+# - Replace kk_test_pass() with kk_test_pass()
+# - Replace kk_test_fail() with kk_test_fail()
 # - Use kk_assert_* functions for better assertions

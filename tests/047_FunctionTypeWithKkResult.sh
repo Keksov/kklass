@@ -23,24 +23,24 @@ Calculator.new calc
 calc.value = "10"
 
 # Test 1: Function type should inject kk._return call and set CALCULATOR_ADD variable
-test_start "Function type injects kk._return"
+kk_test_start "Function type injects kk._return"
 # The function should set RESULT and then call kk._return which sets CALCULATOR_ADD
 calc.add 5 2>&1
 # Check if kk._return was called and variable was set
 if [[ "${CALCULATOR_ADD}" == "15" ]]; then
-    test_pass "Function type injects kk._return"
+    kk_test_pass "Function type injects kk._return"
 else
-    test_fail "Function type should set CALCULATOR_ADD=15 via kk._return (got: '${CALCULATOR_ADD}')"
+    kk_test_fail "Function type should set CALCULATOR_ADD=15 via kk._return (got: '${CALCULATOR_ADD}')"
 fi
 
 # Test 2: Verify method type doesn't inject kk._return (method should still work)
-test_start "Method type doesn't inject kk._return"
+kk_test_start "Method type doesn't inject kk._return"
 result=$(calc.subtract 3)
 expected="7"  # 10 - 3 = 7
 if [[ "$result" == "$expected" ]]; then
-    test_pass "Method type works correctly"
+    kk_test_pass "Method type works correctly"
 else
-    test_fail "Method type should return echo output (expected: '$expected', got: '$result')"
+    kk_test_fail "Method type should return echo output (expected: '$expected', got: '$result')"
 fi
 
 # Test 3: Function type with multiple arguments
@@ -48,12 +48,12 @@ defineClass "Multiplier" "" \
     "function" "multiply" 'RESULT=$((($1) * ($2)))'
 
 Multiplier.new mult
-test_start "Function type with multiple arguments"
+kk_test_start "Function type with multiple arguments"
 mult.multiply 6 7
 if [[ "${MULTIPLIER_MULTIPLY}" == "42" ]]; then
-    test_pass "Function type with multiple arguments"
+    kk_test_pass "Function type with multiple arguments"
 else
-    test_fail "Function type should set MULTIPLIER_MULTIPLY=42 (got: '${MULTIPLIER_MULTIPLY}')"
+    kk_test_fail "Function type should set MULTIPLIER_MULTIPLY=42 (got: '${MULTIPLIER_MULTIPLY}')"
 fi
 mult.delete
 
@@ -64,12 +64,12 @@ defineClass "StringOps" "" \
 
 StringOps.new str
 str.prefix = "Hello"
-test_start "Function type with string operations"
+kk_test_start "Function type with string operations"
 str.concat " World"
 if [[ "${STRINGOPS_CONCAT}" == "Hello World" ]]; then
-    test_pass "Function type with string operations"
+    kk_test_pass "Function type with string operations"
 else
-    test_fail "Function type should set STRINGOPS_CONCAT='Hello World' (got: '${STRINGOPS_CONCAT}')"
+    kk_test_fail "Function type should set STRINGOPS_CONCAT='Hello World' (got: '${STRINGOPS_CONCAT}')"
 fi
 str.delete
 
@@ -80,7 +80,7 @@ calc.delete
 #show_results
 
 # TODO: Migrate this test completely:
-# - Replace test_start() with kk_test_start()
-# - Replace test_pass() with kk_test_pass()
-# - Replace test_fail() with kk_test_fail()
+# - Replace kk_test_start() with kk_test_start()
+# - Replace kk_test_pass() with kk_test_pass()
+# - Replace kk_test_fail() with kk_test_fail()
 # - Use kk_assert_* functions for better assertions

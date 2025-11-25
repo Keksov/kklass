@@ -14,7 +14,7 @@ KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 
 # Test 5: Single inheritance
-test_start "Single inheritance"
+kk_test_start "Single inheritance"
 defineClass "Animal" "" \
     "property" "species" \
     "method" "speak" 'echo "Some generic sound"'
@@ -28,13 +28,13 @@ dog1.species = "Canine"
 dog1.breed = "Golden Retriever"
 
 if [[ "$(dog1.species)" == "Canine" ]] && [[ "$(dog1.breed)" == "Golden Retriever" ]]; then
-    test_pass "Single inheritance"
+    kk_test_pass "Single inheritance"
 else
-    test_fail "Single inheritance"
+    kk_test_fail "Single inheritance"
 fi
 
 # TODO: Migrate this test completely:
-# - Replace test_start() with kk_test_start()
-# - Replace test_pass() with kk_test_pass()
-# - Replace test_fail() with kk_test_fail()
+# - Replace kk_test_start() with kk_test_start()
+# - Replace kk_test_pass() with kk_test_pass()
+# - Replace kk_test_fail() with kk_test_fail()
 # - Use kk_assert_* functions for better assertions

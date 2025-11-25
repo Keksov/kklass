@@ -17,7 +17,7 @@ KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$KKLASS_DIR/kklass_serializable.sh"
 
 # Test 46: Mixed format serialization (string and JSON)
-test_start "Mixed format serialization (string and JSON)"
+kk_test_start "Mixed format serialization (string and JSON)"
 defineClass "Item" "" \
     "property" "code" \
     "property" "description" \
@@ -43,9 +43,9 @@ item_from_json.fromJSON "$json_data"
 
 if [[ "$(item1.code)" == "$(item_from_str.code)" ]] && \
    [[ "$(item1.code)" == "$(item_from_json.code)" ]]; then
-    test_pass "Mixed format serialization (string and JSON)"
+    kk_test_pass "Mixed format serialization (string and JSON)"
 else
-    test_fail "Mixed format serialization (string and JSON)"
+    kk_test_fail "Mixed format serialization (string and JSON)"
 fi
 
 item1.delete
@@ -53,7 +53,7 @@ item_from_str.delete
 item_from_json.delete
 
 # TODO: Migrate this test completely:
-# - Replace test_start() with kk_test_start()
-# - Replace test_pass() with kk_test_pass()
-# - Replace test_fail() with kk_test_fail()
+# - Replace kk_test_start() with kk_test_start()
+# - Replace kk_test_pass() with kk_test_pass()
+# - Replace kk_test_fail() with kk_test_fail()
 # - Use kk_assert_* functions for better assertions

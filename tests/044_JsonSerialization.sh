@@ -17,7 +17,7 @@ KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$KKLASS_DIR/kklass_serializable.sh"
 
 # Test 44: JSON serialization with addSerializable
-test_start "JSON serialization with addSerializable"
+kk_test_start "JSON serialization with addSerializable"
 defineClass "UserJSON" "" \
     "property" "id" \
     "property" "username" \
@@ -37,16 +37,16 @@ user_json_restored.fromJSON "$json_data"
 
 if [[ "$(user_json1.username)" == "$(user_json_restored.username)" ]] && \
    [[ "$(user_json1.email)" == "$(user_json_restored.email)" ]]; then
-    test_pass "JSON serialization with addSerializable"
+    kk_test_pass "JSON serialization with addSerializable"
 else
-    test_fail "JSON serialization with addSerializable"
+    kk_test_fail "JSON serialization with addSerializable"
 fi
 
 user_json1.delete
 user_json_restored.delete
 
 # TODO: Migrate this test completely:
-# - Replace test_start() with kk_test_start()
-# - Replace test_pass() with kk_test_pass()
-# - Replace test_fail() with kk_test_fail()
+# - Replace kk_test_start() with kk_test_start()
+# - Replace kk_test_pass() with kk_test_pass()
+# - Replace kk_test_fail() with kk_test_fail()
 # - Use kk_assert_* functions for better assertions

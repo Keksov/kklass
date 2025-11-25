@@ -14,7 +14,7 @@ KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 
 # Test 36: Deep inheritance chain with properties
-test_start "Deep inheritance chain with properties"
+kk_test_start "Deep inheritance chain with properties"
 defineClass "A" "" \
     "property" "propA" \
     "method" "showA" 'kk.write "A:$propA"'
@@ -34,13 +34,13 @@ obj_c.propC = "3"
 result=$(obj_c.showAll)
 expected="A:1B:2C:3"
 if [[ "$result" == "$expected" ]]; then
-    test_pass "Deep inheritance chain with properties"
+    kk_test_pass "Deep inheritance chain with properties"
 else
-    test_fail "Deep inheritance chain with properties (expected: '$expected', got: '$result')"
+    kk_test_fail "Deep inheritance chain with properties (expected: '$expected', got: '$result')"
 fi
 
 # TODO: Migrate this test completely:
-# - Replace test_start() with kk_test_start()
-# - Replace test_pass() with kk_test_pass()
-# - Replace test_fail() with kk_test_fail()
+# - Replace kk_test_start() with kk_test_start()
+# - Replace kk_test_pass() with kk_test_pass()
+# - Replace kk_test_fail() with kk_test_fail()
 # - Use kk_assert_* functions for better assertions

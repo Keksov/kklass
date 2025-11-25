@@ -14,7 +14,7 @@ KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 
 # Test 19: $this.method ensures current class context
-test_start "\$this.method calls method in current class context"
+kk_test_start "\$this.method calls method in current class context"
 defineClass "Base" "" \
     "method" "greet" 'echo "BaseGreeting"' \
     "method" "sayHello" 'echo -n "From Base: "; $this.greet'
@@ -27,13 +27,13 @@ Derived.new derived1
 result=$(derived1.test)
 expected="From Base: BaseGreeting"
 if [[ "$result" == "$expected" ]]; then
-    test_pass "\$this.method calls method in current class context"
+    kk_test_pass "\$this.method calls method in current class context"
 else
-    test_fail "\$this.method calls method in current class context (expected: '$expected', got: '$result')"
+    kk_test_fail "\$this.method calls method in current class context (expected: '$expected', got: '$result')"
 fi
 
 # TODO: Migrate this test completely:
-# - Replace test_start() with kk_test_start()
-# - Replace test_pass() with kk_test_pass()
-# - Replace test_fail() with kk_test_fail()
+# - Replace kk_test_start() with kk_test_start()
+# - Replace kk_test_pass() with kk_test_pass()
+# - Replace kk_test_fail() with kk_test_fail()
 # - Use kk_assert_* functions for better assertions

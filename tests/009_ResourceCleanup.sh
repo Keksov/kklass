@@ -23,16 +23,16 @@ defineClass "TestClass" "" \
 TestClass.new myobj
 
 # Test 9: Resource cleanup
-test_start "Resource cleanup"
+kk_test_start "Resource cleanup"
 myobj.delete
 if ! declare -F | grep -q "myobj\."; then
-    test_pass "Resource cleanup"
+    kk_test_pass "Resource cleanup"
 else
-    test_fail "Resource cleanup"
+    kk_test_fail "Resource cleanup"
 fi
 
 # TODO: Migrate this test completely:
-# - Replace test_start() with kk_test_start()
-# - Replace test_pass() with kk_test_pass()
-# - Replace test_fail() with kk_test_fail()
+# - Replace kk_test_start() with kk_test_start()
+# - Replace kk_test_pass() with kk_test_pass()
+# - Replace kk_test_fail() with kk_test_fail()
 # - Use kk_assert_* functions for better assertions

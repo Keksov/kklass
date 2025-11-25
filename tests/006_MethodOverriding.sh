@@ -27,16 +27,16 @@ dog1.species = "Canine"
 dog1.breed = "Golden Retriever"
 
 # Test 6: Method overriding
-test_start "Method overriding"
+kk_test_start "Method overriding"
 result=$(dog1.speak)
 if [[ "$result" == "Woof!" ]]; then
-    test_pass "Method overriding"
+    kk_test_pass "Method overriding"
 else
-    test_fail "Method overriding (expected: 'Woof!', got: '$result')"
+    kk_test_fail "Method overriding (expected: 'Woof!', got: '$result')"
 fi
 
 # TODO: Migrate this test completely:
-# - Replace test_start() with kk_test_start()
-# - Replace test_pass() with kk_test_pass()
-# - Replace test_fail() with kk_test_fail()
+# - Replace kk_test_start() with kk_test_start()
+# - Replace kk_test_pass() with kk_test_pass()
+# - Replace kk_test_fail() with kk_test_fail()
 # - Use kk_assert_* functions for better assertions

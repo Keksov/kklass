@@ -17,7 +17,7 @@ KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$KKLASS_DIR/kklass_serializable.sh"
 
 # Test 45: Nested object serialization (string format)
-test_start "Nested object serialization (string format)"
+kk_test_start "Nested object serialization (string format)"
 defineClass "Address" "" \
     "property" "street" \
     "property" "city" \
@@ -50,9 +50,9 @@ addr_test_restored.fromString "$(person_test_restored.address_data)"
 
 if [[ "$(person_test.name)" == "$(person_test_restored.name)" ]] && \
    [[ "$(addr_test.city)" == "$(addr_test_restored.city)" ]]; then
-    test_pass "Nested object serialization (string format)"
+    kk_test_pass "Nested object serialization (string format)"
 else
-    test_fail "Nested object serialization (string format)"
+    kk_test_fail "Nested object serialization (string format)"
 fi
 
 addr_test.delete
@@ -61,7 +61,7 @@ person_test_restored.delete
 addr_test_restored.delete
 
 # TODO: Migrate this test completely:
-# - Replace test_start() with kk_test_start()
-# - Replace test_pass() with kk_test_pass()
-# - Replace test_fail() with kk_test_fail()
+# - Replace kk_test_start() with kk_test_start()
+# - Replace kk_test_pass() with kk_test_pass()
+# - Replace kk_test_fail() with kk_test_fail()
 # - Use kk_assert_* functions for better assertions

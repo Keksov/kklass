@@ -14,7 +14,7 @@ KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 
 # Test 22: Method modifying properties
-test_start "Method modifying properties"
+kk_test_start "Method modifying properties"
 defineClass "ModifyTest" "" \
     "property" "name" \
     "property" "value" \
@@ -32,13 +32,13 @@ modtest.setName "UpdatedName"
 result=$(modtest.greet)
 expected="Hello, I am UpdatedName"
 if [[ "$result" == "$expected" ]]; then
-    test_pass "Method modifying properties"
+    kk_test_pass "Method modifying properties"
 else
-    test_fail "Method modifying properties (expected: '$expected', got: '$result')"
+    kk_test_fail "Method modifying properties (expected: '$expected', got: '$result')"
 fi
 
 # TODO: Migrate this test completely:
-# - Replace test_start() with kk_test_start()
-# - Replace test_pass() with kk_test_pass()
-# - Replace test_fail() with kk_test_fail()
+# - Replace kk_test_start() with kk_test_start()
+# - Replace kk_test_pass() with kk_test_pass()
+# - Replace kk_test_fail() with kk_test_fail()
 # - Use kk_assert_* functions for better assertions

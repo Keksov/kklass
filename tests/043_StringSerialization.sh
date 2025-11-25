@@ -17,7 +17,7 @@ KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$KKLASS_DIR/kklass_serializable.sh"
 
 # Test 43: String serialization with defineSerializableClass
-test_start "String serialization with defineSerializableClass"
+kk_test_start "String serialization with defineSerializableClass"
 defineSerializableClass "UserStr" "" ":" "string" \
     "property" "id" \
     "property" "username" \
@@ -35,16 +35,16 @@ user_str_restored.fromString "$serialized" >/dev/null
 
 if [[ "$(user_str1.username)" == "$(user_str_restored.username)" ]] && \
    [[ "$(user_str1.email)" == "$(user_str_restored.email)" ]]; then
-    test_pass "String serialization with defineSerializableClass"
+    kk_test_pass "String serialization with defineSerializableClass"
 else
-    test_fail "String serialization with defineSerializableClass"
+    kk_test_fail "String serialization with defineSerializableClass"
 fi
 
 user_str1.delete
 user_str_restored.delete
 
 # TODO: Migrate this test completely:
-# - Replace test_start() with kk_test_start()
-# - Replace test_pass() with kk_test_pass()
-# - Replace test_fail() with kk_test_fail()
+# - Replace kk_test_start() with kk_test_start()
+# - Replace kk_test_pass() with kk_test_pass()
+# - Replace kk_test_fail() with kk_test_fail()
 # - Use kk_assert_* functions for better assertions

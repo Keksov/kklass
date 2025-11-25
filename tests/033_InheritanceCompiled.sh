@@ -36,16 +36,16 @@ fi
 bash -c "source '$KKLASS_DIR/kklass_autoload.sh' && kkload \"$TEST_FILE\"" >/dev/null 2>&1
 
 # Test 33: Inheritance in compiled classes
-test_start "Inheritance in compiled classes"
+kk_test_start "Inheritance in compiled classes"
 result=$(bash -c "source \"${TEST_FILE%.*}\".ckk.sh && Timer.new tmr && tmr.value = 5 && tmr.increment")
 if [[ "$result" == "6" ]]; then
-    test_pass "Inheritance in compiled classes"
+    kk_test_pass "Inheritance in compiled classes"
 else
-    test_fail "Inheritance in compiled classes (expected: 6, got: $result)"
+    kk_test_fail "Inheritance in compiled classes (expected: 6, got: $result)"
 fi
 
 # TODO: Migrate this test completely:
-# - Replace test_start() with kk_test_start()
-# - Replace test_pass() with kk_test_pass()
-# - Replace test_fail() with kk_test_fail()
+# - Replace kk_test_start() with kk_test_start()
+# - Replace kk_test_pass() with kk_test_pass()
+# - Replace kk_test_fail() with kk_test_fail()
 # - Use kk_assert_* functions for better assertions

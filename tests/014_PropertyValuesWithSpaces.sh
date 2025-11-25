@@ -14,7 +14,7 @@ KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 
 # Test 14: Property values with spaces
-test_start "Property values with spaces"
+kk_test_start "Property values with spaces"
 defineClass "Person" "" \
     "property" "fullName" \
     "method" "introduce" 'echo "My name is $fullName"'
@@ -24,13 +24,13 @@ person1.fullName = "John Doe Smith"
 result=$(person1.introduce)
 expected="My name is John Doe Smith"
 if [[ "$result" == "$expected" ]]; then
-    test_pass "Property values with spaces"
+    kk_test_pass "Property values with spaces"
 else
-    test_fail "Property values with spaces (expected: '$expected', got: '$result')"
+    kk_test_fail "Property values with spaces (expected: '$expected', got: '$result')"
 fi
 
 # TODO: Migrate this test completely:
-# - Replace test_start() with kk_test_start()
-# - Replace test_pass() with kk_test_pass()
-# - Replace test_fail() with kk_test_fail()
+# - Replace kk_test_start() with kk_test_start()
+# - Replace kk_test_pass() with kk_test_pass()
+# - Replace kk_test_fail() with kk_test_fail()
 # - Use kk_assert_* functions for better assertions

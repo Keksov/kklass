@@ -14,19 +14,19 @@ KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 
 # Test 34: Error handling - non-existent method
-test_start "Error handling - non-existent method"
+kk_test_start "Error handling - non-existent method"
 defineClass "ErrorTest" "" \
     "method" "existingMethod" 'echo "exists"'
 
 ErrorTest.new errortest
 if ! errortest.nonExistentMethod 2>/dev/null; then
-    test_pass "Error handling - non-existent method"
+    kk_test_pass "Error handling - non-existent method"
 else
-    test_fail "Error handling - non-existent method"
+    kk_test_fail "Error handling - non-existent method"
 fi
 
 # TODO: Migrate this test completely:
-# - Replace test_start() with kk_test_start()
-# - Replace test_pass() with kk_test_pass()
-# - Replace test_fail() with kk_test_fail()
+# - Replace kk_test_start() with kk_test_start()
+# - Replace kk_test_pass() with kk_test_pass()
+# - Replace kk_test_fail() with kk_test_fail()
 # - Use kk_assert_* functions for better assertions

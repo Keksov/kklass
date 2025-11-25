@@ -21,16 +21,16 @@ defineClass "TestClass" "" \
     "method" "getValue" 'echo "$value"'
 
 # Test 2: Instance creation
-test_start "Instance creation"
+kk_test_start "Instance creation"
 TestClass.new myobj
 if declare -F | grep -q "myobj\."; then
-    test_pass "Instance creation"
+    kk_test_pass "Instance creation"
 else
-    test_fail "Instance creation"
+    kk_test_fail "Instance creation"
 fi
 
 # TODO: Migrate this test completely:
-# - Replace test_start() with kk_test_start()
-# - Replace test_pass() with kk_test_pass()
-# - Replace test_fail() with kk_test_fail()
+# - Replace kk_test_start() with kk_test_start()
+# - Replace kk_test_pass() with kk_test_pass()
+# - Replace kk_test_fail() with kk_test_fail()
 # - Use kk_assert_* functions for better assertions

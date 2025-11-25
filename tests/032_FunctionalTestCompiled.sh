@@ -33,17 +33,17 @@ EOF
 fi
 
 # Test 32: Functional test with compiled classes
-test_start "Functional test with compiled classes"
+kk_test_start "Functional test with compiled classes"
 bash -c "source '$KKLASS_DIR/kklass_autoload.sh' && kkload \"$TEST_FILE\" --force-compile" >/dev/null 2>&1
  result=$(bash -c "source \"${TEST_FILE%.*}\".ckk.sh && Counter.new cnt && cnt.value = 7 && cnt.increment")
 if [[ "$result" == "8" ]]; then
-    test_pass "Functional test with compiled classes"
+    kk_test_pass "Functional test with compiled classes"
 else
-test_fail "Functional test with compiled classes (expected: 8, got: $result)"
+kk_test_fail "Functional test with compiled classes (expected: 8, got: $result)"
 fi
 
 # TODO: Migrate this test completely:
-# - Replace test_start() with kk_test_start()
-# - Replace test_pass() with kk_test_pass()
-# - Replace test_fail() with kk_test_fail()
+# - Replace kk_test_start() with kk_test_start()
+# - Replace kk_test_pass() with kk_test_pass()
+# - Replace kk_test_fail() with kk_test_fail()
 # - Use kk_assert_* functions for better assertions

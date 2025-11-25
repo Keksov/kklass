@@ -29,18 +29,18 @@ EOF
 fi
 
 # Test 29: Modify source and auto-recompile
-test_start "Auto-recompilation on source change"
+kk_test_start "Auto-recompilation on source change"
 sleep 1
 touch "$TEST_FILE"
 output=$(bash -c "source '$KKLASS_DIR/kklass_autoload.sh' && kkload \"$TEST_FILE\"" 2>&1)
 if echo "$output" | grep -q "newer\|Compiling"; then
-    test_pass "Auto-recompilation on source change"
+    kk_test_pass "Auto-recompilation on source change"
 else
-    test_fail "Auto-recompilation on source change"
+    kk_test_fail "Auto-recompilation on source change"
 fi
 
 # TODO: Migrate this test completely:
-# - Replace test_start() with kk_test_start()
-# - Replace test_pass() with kk_test_pass()
-# - Replace test_fail() with kk_test_fail()
+# - Replace kk_test_start() with kk_test_start()
+# - Replace kk_test_pass() with kk_test_pass()
+# - Replace kk_test_fail() with kk_test_fail()
 # - Use kk_assert_* functions for better assertions

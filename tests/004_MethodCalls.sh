@@ -25,17 +25,17 @@ myobj.name = "TestObject"
 myobj.value = "42"
 
 # Test 4: Method calls
-test_start "Method calls"
+kk_test_start "Method calls"
 result=$(myobj.greet)
 expected="Hello, I am TestObject"
 if [[ "$result" == "$expected" ]]; then
-    test_pass "Method calls"
+    kk_test_pass "Method calls"
 else
-    test_fail "Method calls (expected: '$expected', got: '$result')"
+    kk_test_fail "Method calls (expected: '$expected', got: '$result')"
 fi
 
 # TODO: Migrate this test completely:
-# - Replace test_start() with kk_test_start()
-# - Replace test_pass() with kk_test_pass()
-# - Replace test_fail() with kk_test_fail()
+# - Replace kk_test_start() with kk_test_start()
+# - Replace kk_test_pass() with kk_test_pass()
+# - Replace kk_test_fail() with kk_test_fail()
 # - Use kk_assert_* functions for better assertions

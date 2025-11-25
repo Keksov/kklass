@@ -14,7 +14,7 @@ KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 
 # Test 17: Property used in inherited method
-test_start "Property used in inherited method"
+kk_test_start "Property used in inherited method"
 defineClass "Vehicle" "" \
     "property" "speed" \
     "method" "getSpeed" 'kk.write "Speed: $speed km/h"'
@@ -29,13 +29,13 @@ car1.speed = "120"
 result=$(car1.info)
 expected="Brand: ToyotaSpeed: 120 km/h"
 if [[ "$result" == "$expected" ]]; then
-    test_pass "Property used in inherited method"
+    kk_test_pass "Property used in inherited method"
 else
-    test_fail "Property used in inherited method (expected: '$expected', got: '$result')"
+    kk_test_fail "Property used in inherited method (expected: '$expected', got: '$result')"
 fi
 
 # TODO: Migrate this test completely:
-# - Replace test_start() with kk_test_start()
-# - Replace test_pass() with kk_test_pass()
-# - Replace test_fail() with kk_test_fail()
+# - Replace kk_test_start() with kk_test_start()
+# - Replace kk_test_pass() with kk_test_pass()
+# - Replace kk_test_fail() with kk_test_fail()
 # - Use kk_assert_* functions for better assertions

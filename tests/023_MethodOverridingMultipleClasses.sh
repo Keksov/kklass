@@ -14,7 +14,7 @@ KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 
 # Test 23: Method overriding with multiple derived classes
-test_start "Method overriding with multiple derived classes"
+kk_test_start "Method overriding with multiple derived classes"
 defineClass "AnimalBase" "" \
     "property" "name" \
     "method" "speak" 'echo "Some generic animal sound"'
@@ -39,16 +39,16 @@ dog_sound=$(dogtest.speak)
 cat_sound=$(cattest.speak)
 
 if [[ "$dog_sound" == "Woof! Woof!" ]] && [[ "$cat_sound" == "Meow!" ]]; then
-    test_pass "Method overriding with multiple derived classes"
+    kk_test_pass "Method overriding with multiple derived classes"
 else
-    test_fail "Method overriding with multiple derived classes (expected: 'Woof! Woof!' and 'Meow!', got: '$dog_sound' and '$cat_sound')"
+    kk_test_fail "Method overriding with multiple derived classes (expected: 'Woof! Woof!' and 'Meow!', got: '$dog_sound' and '$cat_sound')"
 fi
 
 dogtest.delete
 cattest.delete
 
 # TODO: Migrate this test completely:
-# - Replace test_start() with kk_test_start()
-# - Replace test_pass() with kk_test_pass()
-# - Replace test_fail() with kk_test_fail()
+# - Replace kk_test_start() with kk_test_start()
+# - Replace kk_test_pass() with kk_test_pass()
+# - Replace kk_test_fail() with kk_test_fail()
 # - Use kk_assert_* functions for better assertions

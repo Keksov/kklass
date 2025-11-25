@@ -14,7 +14,7 @@ KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 
 # Test 15: Nested method calls with $this
-test_start "Nested method calls with \$this"
+kk_test_start "Nested method calls with \$this"
 defineClass "Nested" "" \
     "method" "a" 'echo "A"' \
     "method" "b" 'echo -n "B:"; $this.a' \
@@ -24,13 +24,13 @@ Nested.new nested1
 result=$(nested1.c)
 expected="C:B:A"
 if [[ "$result" == "$expected" ]]; then
-    test_pass "Nested method calls with \$this"
+    kk_test_pass "Nested method calls with \$this"
 else
-    test_fail "Nested method calls with \$this (expected: '$expected', got: '$result')"
+    kk_test_fail "Nested method calls with \$this (expected: '$expected', got: '$result')"
 fi
 
 # TODO: Migrate this test completely:
-# - Replace test_start() with kk_test_start()
-# - Replace test_pass() with kk_test_pass()
-# - Replace test_fail() with kk_test_fail()
+# - Replace kk_test_start() with kk_test_start()
+# - Replace kk_test_pass() with kk_test_pass()
+# - Replace kk_test_fail() with kk_test_fail()
 # - Use kk_assert_* functions for better assertions

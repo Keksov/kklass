@@ -14,7 +14,7 @@ KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 
 # Test 35: Complex property names
-test_start "Complex property names"
+kk_test_start "Complex property names"
 defineClass "ComplexTest" "" \
     "property" "file_name" \
     "property" "file_size"
@@ -24,13 +24,13 @@ complextest.file_name = "test.txt"
 complextest.file_size = "1024"
 
 if [[ "$(complextest.file_name)" == "test.txt" ]] && [[ "$(complextest.file_size)" == "1024" ]]; then
-    test_pass "Complex property names"
+    kk_test_pass "Complex property names"
 else
-    test_fail "Complex property names"
+    kk_test_fail "Complex property names"
 fi
 
 # Test 35b: Modify property from method
-test_start "Modify property from method"
+kk_test_start "Modify property from method"
 defineClass "PropertyModifier" "" \
     "property" "counter"
 
@@ -44,13 +44,13 @@ modifier.counter = "10"
 modifier.increment
 #echo "After increment: $(modifier.counter)" >&2
 if [[ "$(modifier.counter)" == "11" ]]; then
-    test_pass "Modify property from method"
+    kk_test_pass "Modify property from method"
 else
-    test_fail "Modify property from method"
+    kk_test_fail "Modify property from method"
 fi
 
 # TODO: Migrate this test completely:
-# - Replace test_start() with kk_test_start()
-# - Replace test_pass() with kk_test_pass()
-# - Replace test_fail() with kk_test_fail()
+# - Replace kk_test_start() with kk_test_start()
+# - Replace kk_test_pass() with kk_test_pass()
+# - Replace kk_test_fail() with kk_test_fail()
 # - Use kk_assert_* functions for better assertions

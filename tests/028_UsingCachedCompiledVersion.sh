@@ -36,16 +36,16 @@ fi
 bash -c "source '$KKLASS_DIR/kklass_autoload.sh' && kkload \"$TEST_FILE\"" >/dev/null 2>&1
 
 # Test 28: Second load (use cached)
-test_start "Using cached compiled version"
+kk_test_start "Using cached compiled version"
 output=$(bash -c "source '$KKLASS_DIR/kklass_autoload.sh' && kkload \"$TEST_FILE\"" 2>&1)
 if echo "$output" | grep -q "cached"; then
-    test_pass "Using cached compiled version"
+    kk_test_pass "Using cached compiled version"
 else
-    test_fail "Using cached compiled version"
+    kk_test_fail "Using cached compiled version"
 fi
 
 # TODO: Migrate this test completely:
-# - Replace test_start() with kk_test_start()
-# - Replace test_pass() with kk_test_pass()
-# - Replace test_fail() with kk_test_fail()
+# - Replace kk_test_start() with kk_test_start()
+# - Replace kk_test_pass() with kk_test_pass()
+# - Replace kk_test_fail() with kk_test_fail()
 # - Use kk_assert_* functions for better assertions

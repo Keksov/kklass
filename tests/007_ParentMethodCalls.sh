@@ -19,7 +19,7 @@ defineClass "Animal" "" \
     "method" "speak" 'kk.write "Some generic sound"'
 
 # Test 7: Parent method calls
-test_start "Parent method calls"
+kk_test_start "Parent method calls"
 defineClass "Cat" "Animal" \
     "method" "speak" 'kk.write "Meow!"' \
     "method" "speakAsAnimal" 'kk.write "Cat sound: "; $this.speak; kk.write "Animal sound: "; $this.parent speak'
@@ -28,13 +28,13 @@ Cat.new cat1
 result=$(cat1.speakAsAnimal)
 expected="Cat sound: Meow!Animal sound: Some generic sound"
 if [[ "$result" == "$expected" ]]; then
-    test_pass "Parent method calls"
+    kk_test_pass "Parent method calls"
 else
-    test_fail "Parent method calls (expected: '$expected', got: '$result')"
+    kk_test_fail "Parent method calls (expected: '$expected', got: '$result')"
 fi
 
 # TODO: Migrate this test completely:
-# - Replace test_start() with kk_test_start()
-# - Replace test_pass() with kk_test_pass()
-# - Replace test_fail() with kk_test_fail()
+# - Replace kk_test_start() with kk_test_start()
+# - Replace kk_test_pass() with kk_test_pass()
+# - Replace kk_test_fail() with kk_test_fail()
 # - Use kk_assert_* functions for better assertions

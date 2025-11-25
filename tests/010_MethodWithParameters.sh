@@ -14,7 +14,7 @@ KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 
 # Test 10: Method with parameters
-test_start "Method with parameters"
+kk_test_start "Method with parameters"
 defineClass "Calculator" "" \
     "method" "add" 'echo $(($1 + $2))' \
     "method" "multiply" 'echo $(($1 * $2))'
@@ -22,13 +22,13 @@ defineClass "Calculator" "" \
 Calculator.new calc
 result=$(calc.add 5 3)
 if [[ "$result" == "8" ]]; then
-    test_pass "Method with parameters"
+    kk_test_pass "Method with parameters"
 else
-    test_fail "Method with parameters (expected: '8', got: '$result')"
+    kk_test_fail "Method with parameters (expected: '8', got: '$result')"
 fi
 
 # TODO: Migrate this test completely:
-# - Replace test_start() with kk_test_start()
-# - Replace test_pass() with kk_test_pass()
-# - Replace test_fail() with kk_test_fail()
+# - Replace kk_test_start() with kk_test_start()
+# - Replace kk_test_pass() with kk_test_pass()
+# - Replace kk_test_fail() with kk_test_fail()
 # - Use kk_assert_* functions for better assertions

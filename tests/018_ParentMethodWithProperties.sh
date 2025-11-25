@@ -14,7 +14,7 @@ KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 
 # Test 18: Method calling parent and using properties
-test_start "Method calling parent and using properties"
+kk_test_start "Method calling parent and using properties"
 defineClass "Shape" "" \
     "property" "name" \
     "method" "describe" 'kk.write "Shape: $name"'
@@ -31,13 +31,13 @@ rect1.height = "5"
 result=$(rect1.describe)
 expected="Rectangle Shape: MyRect (10 x 5)"
 if [[ "$result" == "$expected" ]]; then
-    test_pass "Method calling parent and using properties"
+    kk_test_pass "Method calling parent and using properties"
 else
-    test_fail "Method calling parent and using properties (expected: '$expected', got: '$result')"
+    kk_test_fail "Method calling parent and using properties (expected: '$expected', got: '$result')"
 fi
 
 # TODO: Migrate this test completely:
-# - Replace test_start() with kk_test_start()
-# - Replace test_pass() with kk_test_pass()
-# - Replace test_fail() with kk_test_fail()
+# - Replace kk_test_start() with kk_test_start()
+# - Replace kk_test_pass() with kk_test_pass()
+# - Replace kk_test_fail() with kk_test_fail()
 # - Use kk_assert_* functions for better assertions

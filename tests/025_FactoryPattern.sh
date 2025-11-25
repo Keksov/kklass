@@ -14,7 +14,7 @@ KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 
 # Test 25: Factory pattern with static counters
-test_start "Factory pattern with static counters"
+kk_test_start "Factory pattern with static counters"
 defineClass "Product" "" \
     "property" "id" \
     "property" "name" \
@@ -42,16 +42,16 @@ result2=$(prod2.getInfo)
 count=$(Registry.getTotal)
 
 if [[ "$result1" == "Product #1: Widget" ]] && [[ "$result2" == "Product #2: Gadget" ]] && [[ "$count" == "2" ]]; then
-    test_pass "Factory pattern with static counters"
+    kk_test_pass "Factory pattern with static counters"
 else
-    test_fail "Factory pattern with static counters (got: '$result1', '$result2', count: '$count')"
+    kk_test_fail "Factory pattern with static counters (got: '$result1', '$result2', count: '$count')"
 fi
 
 prod1.delete
 prod2.delete
 
 # TODO: Migrate this test completely:
-# - Replace test_start() with kk_test_start()
-# - Replace test_pass() with kk_test_pass()
-# - Replace test_fail() with kk_test_fail()
+# - Replace kk_test_start() with kk_test_start()
+# - Replace kk_test_pass() with kk_test_pass()
+# - Replace kk_test_fail() with kk_test_fail()
 # - Use kk_assert_* functions for better assertions

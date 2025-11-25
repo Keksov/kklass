@@ -14,7 +14,7 @@ KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 
 # Test 42: Strategy pattern
-test_start "Strategy pattern"
+kk_test_start "Strategy pattern"
 defineClass "SortStrategy" "" \
     "property" "name" \
     "method" "sort" 'echo "[$name] Generic sorting strategy"'
@@ -59,9 +59,9 @@ result4=$(sorter_test.getStrategyName)
 if [[ "$result1" == "BubbleSort" ]] && [[ "$result2" == *"Sorting data: 5 3 8 1 9 2"* ]] && \
    [[ "$result2" == *"bubble sort algorithm"* ]] && \
    [[ "$result3" == "QuickSort" ]] && [[ "$result4" == "MergeSort" ]]; then
-    test_pass "Strategy pattern"
+    kk_test_pass "Strategy pattern"
 else
-    test_fail "Strategy pattern (result1: '$result1', result3: '$result3', result4: '$result4')"
+    kk_test_fail "Strategy pattern (result1: '$result1', result3: '$result3', result4: '$result4')"
 fi
 
 sorter_test.delete
@@ -70,7 +70,7 @@ quickSort_test.delete
 mergeSort_test.delete
 
 # TODO: Migrate this test completely:
-# - Replace test_start() with kk_test_start()
-# - Replace test_pass() with kk_test_pass()
-# - Replace test_fail() with kk_test_fail()
+# - Replace kk_test_start() with kk_test_start()
+# - Replace kk_test_pass() with kk_test_pass()
+# - Replace kk_test_fail() with kk_test_fail()
 # - Use kk_assert_* functions for better assertions

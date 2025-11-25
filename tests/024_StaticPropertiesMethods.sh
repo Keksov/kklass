@@ -14,7 +14,7 @@ KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 
 # Test 24: Static properties and methods
-test_start "Static properties and methods"
+kk_test_start "Static properties and methods"
 defineClass "StaticCounter" "" \
     "static_property" "instance_count" \
     "static_property" "class_name" \
@@ -38,16 +38,16 @@ result_id2=$(sc2.id)
 result_name=$(StaticCounter.getClassName)
 
 if [[ "$result_count" == "2" ]] && [[ "$result_id1" == "1" ]] && [[ "$result_id2" == "2" ]] && [[ "$result_name" == "StaticCounter" ]]; then
-    test_pass "Static properties and methods"
+    kk_test_pass "Static properties and methods"
 else
-    test_fail "Static properties and methods (count: '$result_count', id1: '$result_id1', id2: '$result_id2', name: '$result_name')"
+    kk_test_fail "Static properties and methods (count: '$result_count', id1: '$result_id1', id2: '$result_id2', name: '$result_name')"
 fi
 
 sc1.delete
 sc2.delete
 
 # TODO: Migrate this test completely:
-# - Replace test_start() with kk_test_start()
-# - Replace test_pass() with kk_test_pass()
-# - Replace test_fail() with kk_test_fail()
+# - Replace kk_test_start() with kk_test_start()
+# - Replace kk_test_pass() with kk_test_pass()
+# - Replace kk_test_fail() with kk_test_fail()
 # - Use kk_assert_* functions for better assertions

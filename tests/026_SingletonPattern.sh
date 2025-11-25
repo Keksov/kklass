@@ -14,7 +14,7 @@ KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 
 # Test 26: Singleton pattern with static properties
-test_start "Singleton pattern with static properties"
+kk_test_start "Singleton pattern with static properties"
 defineClass "Configuration" "" \
     "static_property" "instance" \
     "static_property" "initialized" \
@@ -52,21 +52,21 @@ if [[ "$instance1_ref" == "$instance2_ref" ]] && [[ "$instance2_ref" == "$instan
         debug3=$($instance3_ref.debug_mode)
         
         if [[ "$debug1" == "false" ]] && [[ "$debug2" == "false" ]] && [[ "$debug3" == "false" ]]; then
-            test_pass "Singleton pattern with static properties"
+            kk_test_pass "Singleton pattern with static properties"
         else
-            test_fail "Singleton pattern - state changes not shared (debug: '$debug1', '$debug2', '$debug3')"
+            kk_test_fail "Singleton pattern - state changes not shared (debug: '$debug1', '$debug2', '$debug3')"
         fi
     else
-        test_fail "Singleton pattern - configuration not shared properly"
+        kk_test_fail "Singleton pattern - configuration not shared properly"
     fi
 else
-    test_fail "Singleton pattern - instances not identical ($instance1_ref, $instance2_ref, $instance3_ref)"
+    kk_test_fail "Singleton pattern - instances not identical ($instance1_ref, $instance2_ref, $instance3_ref)"
 fi
 
 $instance1_ref.delete 2>/dev/null || true
 
 # TODO: Migrate this test completely:
-# - Replace test_start() with kk_test_start()
-# - Replace test_pass() with kk_test_pass()
-# - Replace test_fail() with kk_test_fail()
+# - Replace kk_test_start() with kk_test_start()
+# - Replace kk_test_pass() with kk_test_pass()
+# - Replace kk_test_fail() with kk_test_fail()
 # - Use kk_assert_* functions for better assertions

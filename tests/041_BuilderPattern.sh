@@ -14,7 +14,7 @@ KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 
 # Test 41: Builder pattern
-test_start "Builder pattern"
+kk_test_start "Builder pattern"
 defineClass "Computer" "" \
     "property" "cpu" \
     "property" "ram" \
@@ -57,21 +57,21 @@ if [[ "$specs" == *"Intel i9-12900K"* ]] && [[ "$specs" == *"32GB DDR5"* ]] && [
     
     specs2=$(eval "$workstation_computer.getSpecs")
     if [[ "$specs2" == *"AMD Ryzen 9"* ]] && [[ "$specs2" == *"64GB DDR4"* ]] && [[ "$specs2" != *"Gaming Mouse"* ]]; then
-        test_pass "Builder pattern"
+        kk_test_pass "Builder pattern"
     else
-        test_fail "Builder pattern - second build failed (got: '$specs2')"
+        kk_test_fail "Builder pattern - second build failed (got: '$specs2')"
     fi
     
     eval "$workstation_computer.delete" 2>/dev/null || true
 else
-    test_fail "Builder pattern - first build failed (got: '$specs')"
+    kk_test_fail "Builder pattern - first build failed (got: '$specs')"
 fi
 
 builder_test.delete
 eval "$gaming_computer.delete" 2>/dev/null || true
 
 # TODO: Migrate this test completely:
-# - Replace test_start() with kk_test_start()
-# - Replace test_pass() with kk_test_pass()
-# - Replace test_fail() with kk_test_fail()
+# - Replace kk_test_start() with kk_test_start()
+# - Replace kk_test_pass() with kk_test_pass()
+# - Replace kk_test_fail() with kk_test_fail()
 # - Use kk_assert_* functions for better assertions

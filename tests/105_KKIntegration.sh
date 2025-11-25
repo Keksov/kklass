@@ -14,28 +14,28 @@ KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # Tests interactions between multiple functions and real-world scenarios
 
 
-test_section "kklib Integration Tests"
+kk_test_section "kklib Integration Tests"
 
 # Test 1: kk._var and kk._return workflow
-test_start "Integration - kk._var with kk._return"
+kk_test_start "Integration - kk._var with kk._return"
 kk._return "my.property" "myValue"
 if [[ "${MY_PROPERTY}" == "myValue" ]]; then
-    test_pass "Integration - kk._var with kk._return"
+    kk_test_pass "Integration - kk._var with kk._return"
 else
-    test_fail "Integration - kk._var with kk._return"
+    kk_test_fail "Integration - kk._var with kk._return"
 fi
 
 # Test 2: kk.write used multiple times
-test_start "Integration - multiple kk.write calls"
+kk_test_start "Integration - multiple kk.write calls"
 OUTPUT=$(kk.write "Start" && kk.write ": " && kk.write "Middle" && kk.write " " && kk.write "End" 2>&1)
 if [[ "$OUTPUT" == "Start"*": "*"Middle"*" "*"End" ]]; then
-    test_pass "Integration - multiple kk.write calls"
+    kk_test_pass "Integration - multiple kk.write calls"
 else
-    test_fail "Integration - multiple kk.write calls"
+    kk_test_fail "Integration - multiple kk.write calls"
 fi
 
 # Test 3: Output functions combined
-test_start "Integration - kk.write and kk.writeln"
+kk_test_start "Integration - kk.write and kk.writeln"
 OUTPUT=$(
     {
         kk.write "Status: "
@@ -43,13 +43,13 @@ OUTPUT=$(
     } 2>&1
 )
 if [[ "$OUTPUT" == "Status: Success"* ]]; then
-    test_pass "Integration - kk.write and kk.writeln"
+    kk_test_pass "Integration - kk.write and kk.writeln"
 else
-    test_fail "Integration - kk.write and kk.writeln"
+    kk_test_fail "Integration - kk.write and kk.writeln"
 fi
 
 # Test 4: Dynamic variable creation with loop
-test_start "Integration - dynamic variable creation"
+kk_test_start "Integration - dynamic variable creation"
 SUCCESS=true
 for i in {1..5}; do
     kk._return "var${i}" "value${i}"
@@ -60,34 +60,34 @@ for i in {1..5}; do
     fi
 done
 if [[ "$SUCCESS" == true ]]; then
-    test_pass "Integration - dynamic variable creation"
+    kk_test_pass "Integration - dynamic variable creation"
 else
-    test_fail "Integration - dynamic variable creation"
+    kk_test_fail "Integration - dynamic variable creation"
 fi
 
 # Test 5: Output with variable expansion
-test_start "Integration - output with variable expansion"
+kk_test_start "Integration - output with variable expansion"
 kk._return "username" "testuser"
 OUTPUT=$(kk.writeln "User: ${USERNAME}" 2>&1)
 if [[ "$OUTPUT" == "User: testuser"* ]]; then
-    test_pass "Integration - output with variable expansion"
+    kk_test_pass "Integration - output with variable expansion"
 else
-    test_fail "Integration - output with variable expansion"
+    kk_test_fail "Integration - output with variable expansion"
 fi
 
 # Test 6: Chained variable normalization
-test_start "Integration - chained variable normalization"
+kk_test_start "Integration - chained variable normalization"
 kk._var "Complex.Property Name"
 VAR_NAME="$KK_VAR"
 kk._return "Complex.Property Name" "complexValue"
 if [[ "${!VAR_NAME}" == "complexValue" ]]; then
-    test_pass "Integration - chained variable normalization"
+    kk_test_pass "Integration - chained variable normalization"
 else
-    test_fail "Integration - chained variable normalization"
+    kk_test_fail "Integration - chained variable normalization"
 fi
 
 # Test 7: Output formatting workflow
-test_start "Integration - output formatting workflow"
+kk_test_start "Integration - output formatting workflow"
 OUTPUT=$(
     {
         kk.writeln "=== Report ==="
@@ -98,37 +98,37 @@ OUTPUT=$(
 )
 LINE_COUNT=$(echo "$OUTPUT" | wc -l)
 if [[ "$LINE_COUNT" -ge 3 ]]; then
-    test_pass "Integration - output formatting workflow"
+    kk_test_pass "Integration - output formatting workflow"
 else
-    test_fail "Integration - output formatting workflow"
+    kk_test_fail "Integration - output formatting workflow"
 fi
 
-test_section "kklib Real-world Scenarios"
+kk_test_section "kklib Real-world Scenarios"
 
 # Test 8: Configuration file simulation
-test_start "Integration - configuration storage"
+kk_test_start "Integration - configuration storage"
 kk._return "db.host" "localhost"
 kk._return "db.port" "5432"
 kk._return "db.name" "myapp"
 if [[ "${DB_HOST}" == "localhost" && "${DB_PORT}" == "5432" && "${DB_NAME}" == "myapp" ]]; then
-    test_pass "Integration - configuration storage"
+    kk_test_pass "Integration - configuration storage"
 else
-    test_fail "Integration - configuration storage"
+    kk_test_fail "Integration - configuration storage"
 fi
 
 # Test 9: Dynamic property assignment with validation
-test_start "Integration - property with validation output"
+kk_test_start "Integration - property with validation output"
 PROP_NAME="app.version"
 PROP_VALUE="1.2.3"
 kk._return "$PROP_NAME" "$PROP_VALUE"
 if [[ "${APP_VERSION}" == "1.2.3" ]]; then
-    test_pass "Integration - property with validation output"
+    kk_test_pass "Integration - property with validation output"
 else
-    test_fail "Integration - property with validation output"
+    kk_test_fail "Integration - property with validation output"
 fi
 
 # Test 10: Logging simulation
-test_start "Integration - logging simulation"
+kk_test_start "Integration - logging simulation"
 OUTPUT=$(
     {
         kk.write "[INFO] "
@@ -138,37 +138,37 @@ OUTPUT=$(
     } 2>&1
 )
 if [[ "$OUTPUT" == *"[INFO]"* && "$OUTPUT" == *"[DEBUG]"* ]]; then
-    test_pass "Integration - logging simulation"
+    kk_test_pass "Integration - logging simulation"
 else
-    test_fail "Integration - logging simulation"
+    kk_test_fail "Integration - logging simulation"
 fi
 
-test_section "kklib Stress Tests"
+kk_test_section "kklib Stress Tests"
 
 # Test 11: Large batch variable assignment
-test_start "Integration - large batch assignment"
+kk_test_start "Integration - large batch assignment"
 SUCCESS=true
 for i in {1..100}; do
     kk._return "property_${i}" "value_${i}"
 done
 # Check a few random ones
 if [[ "${PROPERTY_1}" == "value_1" && "${PROPERTY_50}" == "value_50" && "${PROPERTY_100}" == "value_100" ]]; then
-    test_pass "Integration - large batch assignment"
+    kk_test_pass "Integration - large batch assignment"
 else
-    test_fail "Integration - large batch assignment"
+    kk_test_fail "Integration - large batch assignment"
 fi
 
 # Test 12: Complex naming with various separators
-test_start "Integration - complex separators"
+kk_test_start "Integration - complex separators"
 kk._return "My.Complex Property.Name With.Multiple Dots" "testVal"
 if [[ "${MY_COMPLEX_PROPERTY_NAME_WITH_MULTIPLE_DOTS}" == "testVal" ]]; then
-    test_pass "Integration - complex separators"
+    kk_test_pass "Integration - complex separators"
 else
-    test_fail "Integration - complex separators"
+    kk_test_fail "Integration - complex separators"
 fi
 
 # Test 13: Large output generation
-test_start "Integration - large output generation"
+kk_test_start "Integration - large output generation"
 OUTPUT=$(
     for i in {1..50}; do
         kk.writeln "Line $i content"
@@ -176,36 +176,28 @@ OUTPUT=$(
 )
 LINE_COUNT=$(echo "$OUTPUT" | wc -l)
 if [[ "$LINE_COUNT" -eq 50 ]]; then
-    test_pass "Integration - large output generation"
+    kk_test_pass "Integration - large output generation"
 else
-    test_fail "Integration - large output generation (got $LINE_COUNT lines)"
+    kk_test_fail "Integration - large output generation (got $LINE_COUNT lines)"
 fi
 
 # Test 14: Mixed operations in sequence
-test_start "Integration - mixed operations"
+kk_test_start "Integration - mixed operations"
 OUTPUT=$(kk.write "Config:" 2>&1)
 kk._return "setting.one" "value1"
 kk._return "setting.two" "value2"
 OUTPUT2=$(kk.writeln " Settings saved" 2>&1)
 if [[ "${SETTING_ONE}" == "value1" && "${SETTING_TWO}" == "value2" ]]; then
-    test_pass "Integration - mixed operations"
+    kk_test_pass "Integration - mixed operations"
 else
-    test_fail "Integration - mixed operations"
+    kk_test_fail "Integration - mixed operations"
 fi
 
 # Test 15: Variable name case insensitivity
-test_start "Integration - variable case handling"
+kk_test_start "Integration - variable case handling"
 kk._return "MyVar" "val1"
 if [[ "${MYVAR}" == "val1" ]]; then
-    test_pass "Integration - variable case handling"
+    kk_test_pass "Integration - variable case handling"
 else
-    test_fail "Integration - variable case handling"
+    kk_test_fail "Integration - variable case handling"
 fi
-
-cleanup
-
-# TODO: Migrate this test completely:
-# - Replace test_start() with kk_test_start()
-# - Replace test_pass() with kk_test_pass()
-# - Replace test_fail() with kk_test_fail()
-# - Use kk_assert_* functions for better assertions

@@ -33,17 +33,17 @@ EOF
 fi
 
 # Test 31: Runtime mode (--no-compile)
-test_start "Runtime mode (--no-compile)"
+kk_test_start "Runtime mode (--no-compile)"
 rm -f .ckk/\"$TEST_FILE\".sh
 output=$(bash -c "source '$KKLASS_DIR/kklass_autoload.sh' && kkload \"$TEST_FILE\" --no-compile" 2>&1)
 if echo "$output" | grep -q "runtime\|No compiled"; then
-    test_pass "Runtime mode (--no-compile)"
+    kk_test_pass "Runtime mode (--no-compile)"
 else
-    test_fail "Runtime mode (--no-compile)"
+    kk_test_fail "Runtime mode (--no-compile)"
 fi
 
 # TODO: Migrate this test completely:
-# - Replace test_start() with kk_test_start()
-# - Replace test_pass() with kk_test_pass()
-# - Replace test_fail() with kk_test_fail()
+# - Replace kk_test_start() with kk_test_start()
+# - Replace kk_test_pass() with kk_test_pass()
+# - Replace kk_test_fail() with kk_test_fail()
 # - Use kk_assert_* functions for better assertions

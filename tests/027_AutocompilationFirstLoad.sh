@@ -33,19 +33,19 @@ defineClass Timer Counter \
     method elapsed 'local now=$(date +%s); echo $((now - start_time))'
 EOF
 
-test_info "Created $TEST_FILE"
+kk_test_log "Created $TEST_FILE"
 
 # Test 27: First load with autocompilation
-test_start "Auto-compilation (first load)"
+kk_test_start "Auto-compilation (first load)"
 output=$(bash -c "source '$KKLASS_DIR/kklass_autoload.sh' && kkload \"$TEST_FILE\"" 2>&1)
 if echo "$output" | grep -q "Compilation successful" && [[ -f "${TEST_FILE%.*}.ckk.sh" ]]; then
-    test_pass "Auto-compilation (first load)"
+    kk_test_pass "Auto-compilation (first load)"
 else
-    test_fail "Auto-compilation (first load)"
+    kk_test_fail "Auto-compilation (first load)"
 fi
 
 # TODO: Migrate this test completely:
-# - Replace test_start() with kk_test_start()
-# - Replace test_pass() with kk_test_pass()
-# - Replace test_fail() with kk_test_fail()
+# - Replace kk_test_start() with kk_test_start()
+# - Replace kk_test_pass() with kk_test_pass()
+# - Replace kk_test_fail() with kk_test_fail()
 # - Use kk_assert_* functions for better assertions
