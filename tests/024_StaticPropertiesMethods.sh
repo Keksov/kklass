@@ -1,8 +1,17 @@
 #!/bin/bash
-# 024_static_properties_methods.sh - Test static properties and methods
+# StaticPropertiesMethods
+# Auto-migrated from kklass test framework
 
-source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
-parse_args "$@"
+KKTESTS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../kktests" && pwd)"
+source "$KKTESTS_LIB_DIR/kk-test.sh"
+
+kk_test_init "StaticPropertiesMethods" "$(dirname "$0")" "$@"
+
+# Source kklass if needed
+KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+[[ -f "$KKLASS_DIR/kklass.sh" ]] && source "$KKLASS_DIR/kklass.sh"
+
+
 
 # Test 24: Static properties and methods
 test_start "Static properties and methods"
@@ -36,3 +45,9 @@ fi
 
 sc1.delete
 sc2.delete
+
+# TODO: Migrate this test completely:
+# - Replace test_start() with kk_test_start()
+# - Replace test_pass() with kk_test_pass()
+# - Replace test_fail() with kk_test_fail()
+# - Use kk_assert_* functions for better assertions

@@ -1,8 +1,17 @@
 #!/bin/bash
-# 017_property_inherited_method.sh - Test property used in inherited method
+# PropertyInheritedMethod
+# Auto-migrated from kklass test framework
 
-source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
-parse_args "$@"
+KKTESTS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../kktests" && pwd)"
+source "$KKTESTS_LIB_DIR/kk-test.sh"
+
+kk_test_init "PropertyInheritedMethod" "$(dirname "$0")" "$@"
+
+# Source kklass if needed
+KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+[[ -f "$KKLASS_DIR/kklass.sh" ]] && source "$KKLASS_DIR/kklass.sh"
+
+
 
 # Test 17: Property used in inherited method
 test_start "Property used in inherited method"
@@ -24,3 +33,9 @@ if [[ "$result" == "$expected" ]]; then
 else
     test_fail "Property used in inherited method (expected: '$expected', got: '$result')"
 fi
+
+# TODO: Migrate this test completely:
+# - Replace test_start() with kk_test_start()
+# - Replace test_pass() with kk_test_pass()
+# - Replace test_fail() with kk_test_fail()
+# - Use kk_assert_* functions for better assertions

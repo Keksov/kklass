@@ -1,8 +1,17 @@
 #!/bin/bash
-# 015_nested_method_calls.sh - Test nested method calls with $this
+# NestedMethodCalls
+# Auto-migrated from kklass test framework
 
-source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
-parse_args "$@"
+KKTESTS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../kktests" && pwd)"
+source "$KKTESTS_LIB_DIR/kk-test.sh"
+
+kk_test_init "NestedMethodCalls" "$(dirname "$0")" "$@"
+
+# Source kklass if needed
+KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+[[ -f "$KKLASS_DIR/kklass.sh" ]] && source "$KKLASS_DIR/kklass.sh"
+
+
 
 # Test 15: Nested method calls with $this
 test_start "Nested method calls with \$this"
@@ -19,3 +28,9 @@ if [[ "$result" == "$expected" ]]; then
 else
     test_fail "Nested method calls with \$this (expected: '$expected', got: '$result')"
 fi
+
+# TODO: Migrate this test completely:
+# - Replace test_start() with kk_test_start()
+# - Replace test_pass() with kk_test_pass()
+# - Replace test_fail() with kk_test_fail()
+# - Use kk_assert_* functions for better assertions

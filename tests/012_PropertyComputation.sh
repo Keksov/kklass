@@ -1,8 +1,17 @@
 #!/bin/bash
-# 012_property_computation.sh - Test property access and computation in methods
+# PropertyComputation
+# Auto-migrated from kklass test framework
 
-source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
-parse_args "$@"
+KKTESTS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../kktests" && pwd)"
+source "$KKTESTS_LIB_DIR/kk-test.sh"
+
+kk_test_init "PropertyComputation" "$(dirname "$0")" "$@"
+
+# Source kklass if needed
+KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+[[ -f "$KKLASS_DIR/kklass.sh" ]] && source "$KKLASS_DIR/kklass.sh"
+
+
 
 # Test 12: Property access and computation in methods
 test_start "Property access and computation in methods"
@@ -20,3 +29,9 @@ if [[ "$result1" == "14" ]] && [[ "$result2" == "21" ]]; then
 else
     test_fail "Property access and computation in methods (expected: '14' and '21', got: '$result1' and '$result2')"
 fi
+
+# TODO: Migrate this test completely:
+# - Replace test_start() with kk_test_start()
+# - Replace test_pass() with kk_test_pass()
+# - Replace test_fail() with kk_test_fail()
+# - Use kk_assert_* functions for better assertions
