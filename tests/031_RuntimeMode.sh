@@ -2,10 +2,10 @@
 # RuntimeMode
 # Auto-migrated from kklass test framework
 
-KKTESTS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../kktests" && pwd)"
-source "$KKTESTS_LIB_DIR/kk-test.sh"
+KTESTS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../ktests" && pwd)"
+source "$KTESTS_LIB_DIR/ktest.sh"
 
-kk_test_init "RuntimeMode" "$(dirname "$0")" "$@"
+kt_test_init "RuntimeMode" "$(dirname "$0")" "$@"
 
 # Source kklass if needed
 KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -33,17 +33,17 @@ EOF
 fi
 
 # Test 31: Runtime mode (--no-compile)
-kk_test_start "Runtime mode (--no-compile)"
+kt_test_start "Runtime mode (--no-compile)"
 rm -f .ckk/\"$TEST_FILE\".sh
 output=$(bash -c "source '$KKLASS_DIR/kklass_autoload.sh' && kkload \"$TEST_FILE\" --no-compile" 2>&1)
 if echo "$output" | grep -q "runtime\|No compiled"; then
-    kk_test_pass "Runtime mode (--no-compile)"
+    kt_test_pass "Runtime mode (--no-compile)"
 else
-    kk_test_fail "Runtime mode (--no-compile)"
+    kt_test_fail "Runtime mode (--no-compile)"
 fi
 
 # TODO: Migrate this test completely:
-# - Replace kk_test_start() with kk_test_start()
-# - Replace kk_test_pass() with kk_test_pass()
-# - Replace kk_test_fail() with kk_test_fail()
-# - Use kk_assert_* functions for better assertions
+# - Replace kt_test_start() with kt_test_start()
+# - Replace kt_test_pass() with kt_test_pass()
+# - Replace kt_test_fail() with kt_test_fail()
+# - Use kt_assert_* functions for better assertions

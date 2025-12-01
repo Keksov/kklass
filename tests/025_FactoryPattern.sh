@@ -2,10 +2,10 @@
 # FactoryPattern
 # Auto-migrated from kklass test framework
 
-KKTESTS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../kktests" && pwd)"
-source "$KKTESTS_LIB_DIR/kk-test.sh"
+KTESTS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../ktests" && pwd)"
+source "$KTESTS_LIB_DIR/ktest.sh"
 
-kk_test_init "FactoryPattern" "$(dirname "$0")" "$@"
+kt_test_init "FactoryPattern" "$(dirname "$0")" "$@"
 
 # Source kklass if needed
 KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -14,7 +14,7 @@ KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 
 # Test 25: Factory pattern with static counters
-kk_test_start "Factory pattern with static counters"
+kt_test_start "Factory pattern with static counters"
 defineClass "Product" "" \
     "property" "id" \
     "property" "name" \
@@ -42,16 +42,16 @@ result2=$(prod2.getInfo)
 count=$(Registry.getTotal)
 
 if [[ "$result1" == "Product #1: Widget" ]] && [[ "$result2" == "Product #2: Gadget" ]] && [[ "$count" == "2" ]]; then
-    kk_test_pass "Factory pattern with static counters"
+    kt_test_pass "Factory pattern with static counters"
 else
-    kk_test_fail "Factory pattern with static counters (got: '$result1', '$result2', count: '$count')"
+    kt_test_fail "Factory pattern with static counters (got: '$result1', '$result2', count: '$count')"
 fi
 
 prod1.delete
 prod2.delete
 
 # TODO: Migrate this test completely:
-# - Replace kk_test_start() with kk_test_start()
-# - Replace kk_test_pass() with kk_test_pass()
-# - Replace kk_test_fail() with kk_test_fail()
-# - Use kk_assert_* functions for better assertions
+# - Replace kt_test_start() with kt_test_start()
+# - Replace kt_test_pass() with kt_test_pass()
+# - Replace kt_test_fail() with kt_test_fail()
+# - Use kt_assert_* functions for better assertions

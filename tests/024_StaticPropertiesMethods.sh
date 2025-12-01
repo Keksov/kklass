@@ -2,10 +2,10 @@
 # StaticPropertiesMethods
 # Auto-migrated from kklass test framework
 
-KKTESTS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../kktests" && pwd)"
-source "$KKTESTS_LIB_DIR/kk-test.sh"
+KTESTS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../ktests" && pwd)"
+source "$KTESTS_LIB_DIR/ktest.sh"
 
-kk_test_init "StaticPropertiesMethods" "$(dirname "$0")" "$@"
+kt_test_init "StaticPropertiesMethods" "$(dirname "$0")" "$@"
 
 # Source kklass if needed
 KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -14,7 +14,7 @@ KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 
 # Test 24: Static properties and methods
-kk_test_start "Static properties and methods"
+kt_test_start "Static properties and methods"
 defineClass "StaticCounter" "" \
     "static_property" "instance_count" \
     "static_property" "class_name" \
@@ -38,16 +38,16 @@ result_id2=$(sc2.id)
 result_name=$(StaticCounter.getClassName)
 
 if [[ "$result_count" == "2" ]] && [[ "$result_id1" == "1" ]] && [[ "$result_id2" == "2" ]] && [[ "$result_name" == "StaticCounter" ]]; then
-    kk_test_pass "Static properties and methods"
+    kt_test_pass "Static properties and methods"
 else
-    kk_test_fail "Static properties and methods (count: '$result_count', id1: '$result_id1', id2: '$result_id2', name: '$result_name')"
+    kt_test_fail "Static properties and methods (count: '$result_count', id1: '$result_id1', id2: '$result_id2', name: '$result_name')"
 fi
 
 sc1.delete
 sc2.delete
 
 # TODO: Migrate this test completely:
-# - Replace kk_test_start() with kk_test_start()
-# - Replace kk_test_pass() with kk_test_pass()
-# - Replace kk_test_fail() with kk_test_fail()
-# - Use kk_assert_* functions for better assertions
+# - Replace kt_test_start() with kt_test_start()
+# - Replace kt_test_pass() with kt_test_pass()
+# - Replace kt_test_fail() with kt_test_fail()
+# - Use kt_assert_* functions for better assertions

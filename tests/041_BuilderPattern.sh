@@ -2,10 +2,10 @@
 # BuilderPattern
 # Auto-migrated from kklass test framework
 
-KKTESTS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../kktests" && pwd)"
-source "$KKTESTS_LIB_DIR/kk-test.sh"
+KTESTS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../ktests" && pwd)"
+source "$KTESTS_LIB_DIR/ktest.sh"
 
-kk_test_init "BuilderPattern" "$(dirname "$0")" "$@"
+kt_test_init "BuilderPattern" "$(dirname "$0")" "$@"
 
 # Source kklass if needed
 KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -14,7 +14,7 @@ KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 
 # Test 41: Builder pattern
-kk_test_start "Builder pattern"
+kt_test_start "Builder pattern"
 defineClass "Computer" "" \
     "property" "cpu" \
     "property" "ram" \
@@ -57,21 +57,21 @@ if [[ "$specs" == *"Intel i9-12900K"* ]] && [[ "$specs" == *"32GB DDR5"* ]] && [
     
     specs2=$(eval "$workstation_computer.getSpecs")
     if [[ "$specs2" == *"AMD Ryzen 9"* ]] && [[ "$specs2" == *"64GB DDR4"* ]] && [[ "$specs2" != *"Gaming Mouse"* ]]; then
-        kk_test_pass "Builder pattern"
+        kt_test_pass "Builder pattern"
     else
-        kk_test_fail "Builder pattern - second build failed (got: '$specs2')"
+        kt_test_fail "Builder pattern - second build failed (got: '$specs2')"
     fi
     
     eval "$workstation_computer.delete" 2>/dev/null || true
 else
-    kk_test_fail "Builder pattern - first build failed (got: '$specs')"
+    kt_test_fail "Builder pattern - first build failed (got: '$specs')"
 fi
 
 builder_test.delete
 eval "$gaming_computer.delete" 2>/dev/null || true
 
 # TODO: Migrate this test completely:
-# - Replace kk_test_start() with kk_test_start()
-# - Replace kk_test_pass() with kk_test_pass()
-# - Replace kk_test_fail() with kk_test_fail()
-# - Use kk_assert_* functions for better assertions
+# - Replace kt_test_start() with kt_test_start()
+# - Replace kt_test_pass() with kt_test_pass()
+# - Replace kt_test_fail() with kt_test_fail()
+# - Use kt_assert_* functions for better assertions

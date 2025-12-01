@@ -2,10 +2,10 @@
 # UsingCachedCompiledVersion
 # Auto-migrated from kklass test framework
 
-KKTESTS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../kktests" && pwd)"
-source "$KKTESTS_LIB_DIR/kk-test.sh"
+KTESTS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../ktests" && pwd)"
+source "$KTESTS_LIB_DIR/ktest.sh"
 
-kk_test_init "UsingCachedCompiledVersion" "$(dirname "$0")" "$@"
+kt_test_init "UsingCachedCompiledVersion" "$(dirname "$0")" "$@"
 
 # Source kklass if needed
 KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -36,16 +36,16 @@ fi
 bash -c "source '$KKLASS_DIR/kklass_autoload.sh' && kkload \"$TEST_FILE\"" >/dev/null 2>&1
 
 # Test 28: Second load (use cached)
-kk_test_start "Using cached compiled version"
+kt_test_start "Using cached compiled version"
 output=$(bash -c "source '$KKLASS_DIR/kklass_autoload.sh' && kkload \"$TEST_FILE\"" 2>&1)
 if echo "$output" | grep -q "cached"; then
-    kk_test_pass "Using cached compiled version"
+    kt_test_pass "Using cached compiled version"
 else
-    kk_test_fail "Using cached compiled version"
+    kt_test_fail "Using cached compiled version"
 fi
 
 # TODO: Migrate this test completely:
-# - Replace kk_test_start() with kk_test_start()
-# - Replace kk_test_pass() with kk_test_pass()
-# - Replace kk_test_fail() with kk_test_fail()
-# - Use kk_assert_* functions for better assertions
+# - Replace kt_test_start() with kt_test_start()
+# - Replace kt_test_pass() with kt_test_pass()
+# - Replace kt_test_fail() with kt_test_fail()
+# - Use kt_assert_* functions for better assertions

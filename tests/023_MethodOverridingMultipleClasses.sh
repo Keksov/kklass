@@ -2,10 +2,10 @@
 # MethodOverridingMultipleClasses
 # Auto-migrated from kklass test framework
 
-KKTESTS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../kktests" && pwd)"
-source "$KKTESTS_LIB_DIR/kk-test.sh"
+KTESTS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../ktests" && pwd)"
+source "$KTESTS_LIB_DIR/ktest.sh"
 
-kk_test_init "MethodOverridingMultipleClasses" "$(dirname "$0")" "$@"
+kt_test_init "MethodOverridingMultipleClasses" "$(dirname "$0")" "$@"
 
 # Source kklass if needed
 KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -14,7 +14,7 @@ KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 
 # Test 23: Method overriding with multiple derived classes
-kk_test_start "Method overriding with multiple derived classes"
+kt_test_start "Method overriding with multiple derived classes"
 defineClass "AnimalBase" "" \
     "property" "name" \
     "method" "speak" 'echo "Some generic animal sound"'
@@ -39,16 +39,16 @@ dog_sound=$(dogtest.speak)
 cat_sound=$(cattest.speak)
 
 if [[ "$dog_sound" == "Woof! Woof!" ]] && [[ "$cat_sound" == "Meow!" ]]; then
-    kk_test_pass "Method overriding with multiple derived classes"
+    kt_test_pass "Method overriding with multiple derived classes"
 else
-    kk_test_fail "Method overriding with multiple derived classes (expected: 'Woof! Woof!' and 'Meow!', got: '$dog_sound' and '$cat_sound')"
+    kt_test_fail "Method overriding with multiple derived classes (expected: 'Woof! Woof!' and 'Meow!', got: '$dog_sound' and '$cat_sound')"
 fi
 
 dogtest.delete
 cattest.delete
 
 # TODO: Migrate this test completely:
-# - Replace kk_test_start() with kk_test_start()
-# - Replace kk_test_pass() with kk_test_pass()
-# - Replace kk_test_fail() with kk_test_fail()
-# - Use kk_assert_* functions for better assertions
+# - Replace kt_test_start() with kt_test_start()
+# - Replace kt_test_pass() with kt_test_pass()
+# - Replace kt_test_fail() with kt_test_fail()
+# - Use kt_assert_* functions for better assertions

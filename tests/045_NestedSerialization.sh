@@ -2,10 +2,10 @@
 # NestedSerialization
 # Auto-migrated from kklass test framework
 
-KKTESTS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../kktests" && pwd)"
-source "$KKTESTS_LIB_DIR/kk-test.sh"
+KTESTS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../ktests" && pwd)"
+source "$KTESTS_LIB_DIR/ktest.sh"
 
-kk_test_init "NestedSerialization" "$(dirname "$0")" "$@"
+kt_test_init "NestedSerialization" "$(dirname "$0")" "$@"
 
 # Source kklass if needed
 KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -17,7 +17,7 @@ KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$KKLASS_DIR/kklass_serializable.sh"
 
 # Test 45: Nested object serialization (string format)
-kk_test_start "Nested object serialization (string format)"
+kt_test_start "Nested object serialization (string format)"
 defineClass "Address" "" \
     "property" "street" \
     "property" "city" \
@@ -50,9 +50,9 @@ addr_test_restored.fromString "$(person_test_restored.address_data)"
 
 if [[ "$(person_test.name)" == "$(person_test_restored.name)" ]] && \
    [[ "$(addr_test.city)" == "$(addr_test_restored.city)" ]]; then
-    kk_test_pass "Nested object serialization (string format)"
+    kt_test_pass "Nested object serialization (string format)"
 else
-    kk_test_fail "Nested object serialization (string format)"
+    kt_test_fail "Nested object serialization (string format)"
 fi
 
 addr_test.delete
@@ -61,7 +61,7 @@ person_test_restored.delete
 addr_test_restored.delete
 
 # TODO: Migrate this test completely:
-# - Replace kk_test_start() with kk_test_start()
-# - Replace kk_test_pass() with kk_test_pass()
-# - Replace kk_test_fail() with kk_test_fail()
-# - Use kk_assert_* functions for better assertions
+# - Replace kt_test_start() with kt_test_start()
+# - Replace kt_test_pass() with kt_test_pass()
+# - Replace kt_test_fail() with kt_test_fail()
+# - Use kt_assert_* functions for better assertions

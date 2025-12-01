@@ -2,10 +2,10 @@
 # PropertyInheritance
 # Auto-migrated from kklass test framework
 
-KKTESTS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../kktests" && pwd)"
-source "$KKTESTS_LIB_DIR/kk-test.sh"
+KTESTS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../ktests" && pwd)"
+source "$KTESTS_LIB_DIR/ktest.sh"
 
-kk_test_init "PropertyInheritance" "$(dirname "$0")" "$@"
+kt_test_init "PropertyInheritance" "$(dirname "$0")" "$@"
 
 # Source kklass if needed
 KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -14,7 +14,7 @@ KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 
 # Test 11: Property inheritance
-kk_test_start "Property inheritance"
+kt_test_start "Property inheritance"
 defineClass "BaseWithProps" "" \
     "property" "baseProp"
 
@@ -26,13 +26,13 @@ derived.baseProp = "inherited"
 derived.derivedProp = "own"
 
 if [[ "$(derived.baseProp)" == "inherited" ]] && [[ "$(derived.derivedProp)" == "own" ]]; then
-    kk_test_pass "Property inheritance"
+    kt_test_pass "Property inheritance"
 else
-    kk_test_fail "Property inheritance"
+    kt_test_fail "Property inheritance"
 fi
 
 # TODO: Migrate this test completely:
-# - Replace kk_test_start() with kk_test_start()
-# - Replace kk_test_pass() with kk_test_pass()
-# - Replace kk_test_fail() with kk_test_fail()
-# - Use kk_assert_* functions for better assertions
+# - Replace kt_test_start() with kt_test_start()
+# - Replace kt_test_pass() with kt_test_pass()
+# - Replace kt_test_fail() with kt_test_fail()
+# - Use kt_assert_* functions for better assertions

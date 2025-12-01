@@ -2,10 +2,10 @@
 # AutocompilationFirstLoad
 # Auto-migrated from kklass test framework
 
-KKTESTS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../kktests" && pwd)"
-source "$KKTESTS_LIB_DIR/kk-test.sh"
+KTESTS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../ktests" && pwd)"
+source "$KTESTS_LIB_DIR/ktest.sh"
 
-kk_test_init "AutocompilationFirstLoad" "$(dirname "$0")" "$@"
+kt_test_init "AutocompilationFirstLoad" "$(dirname "$0")" "$@"
 
 # Source kklass if needed
 KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -33,19 +33,19 @@ defineClass Timer Counter \
     method elapsed 'local now=$(date +%s); echo $((now - start_time))'
 EOF
 
-kk_test_log "Created $TEST_FILE"
+kt_test_log "Created $TEST_FILE"
 
 # Test 27: First load with autocompilation
-kk_test_start "Auto-compilation (first load)"
+kt_test_start "Auto-compilation (first load)"
 output=$(bash -c "source '$KKLASS_DIR/kklass_autoload.sh' && kkload \"$TEST_FILE\"" 2>&1)
 if echo "$output" | grep -q "Compilation successful" && [[ -f "${TEST_FILE%.*}.ckk.sh" ]]; then
-    kk_test_pass "Auto-compilation (first load)"
+    kt_test_pass "Auto-compilation (first load)"
 else
-    kk_test_fail "Auto-compilation (first load)"
+    kt_test_fail "Auto-compilation (first load)"
 fi
 
 # TODO: Migrate this test completely:
-# - Replace kk_test_start() with kk_test_start()
-# - Replace kk_test_pass() with kk_test_pass()
-# - Replace kk_test_fail() with kk_test_fail()
-# - Use kk_assert_* functions for better assertions
+# - Replace kt_test_start() with kt_test_start()
+# - Replace kt_test_pass() with kt_test_pass()
+# - Replace kt_test_fail() with kt_test_fail()
+# - Use kt_assert_* functions for better assertions

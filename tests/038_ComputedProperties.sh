@@ -2,10 +2,10 @@
 # ComputedProperties
 # Auto-migrated from kklass test framework
 
-KKTESTS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../kktests" && pwd)"
-source "$KKTESTS_LIB_DIR/kk-test.sh"
+KTESTS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../ktests" && pwd)"
+source "$KTESTS_LIB_DIR/ktest.sh"
 
-kk_test_init "ComputedProperties" "$(dirname "$0")" "$@"
+kt_test_init "ComputedProperties" "$(dirname "$0")" "$@"
 
 # Source kklass if needed
 KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -14,7 +14,7 @@ KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 
 # Test 38.1: Computed property with both getter and setter (new unified syntax)
-kk_test_start "Computed properties - both getter and setter"
+kt_test_start "Computed properties - both getter and setter"
 defineClass "UserWithComputed" "" \
     "property" "first_name" \
     "property" "last_name" \
@@ -35,18 +35,18 @@ if [[ "$result1" == "John Doe" ]]; then
     result3=$(user_comp.last_name)
     
     if [[ "$result2" == "Jane" ]] && [[ "$result3" == "Smith" ]]; then
-        kk_test_pass "Computed properties - both getter and setter"
+        kt_test_pass "Computed properties - both getter and setter"
     else
-        kk_test_fail "Computed properties - setter failed (first: '$result2', last: '$result3')"
+        kt_test_fail "Computed properties - setter failed (first: '$result2', last: '$result3')"
     fi
 else
-    kk_test_fail "Computed properties - getter failed (expected: 'John Doe', got: '$result1')"
+    kt_test_fail "Computed properties - getter failed (expected: 'John Doe', got: '$result1')"
 fi
 
 user_comp.delete
 
 # Test 38.2: Computed property with only getter
-kk_test_start "Computed properties - only getter"
+kt_test_start "Computed properties - only getter"
 defineClass "UserWithGetter" "" \
     "property" "first_name" \
     "property" "last_name" \
@@ -60,15 +60,15 @@ user_getter.last_name = "Doe"
 result=$(user_getter.display_name)
 
 if [[ "$result" == "Doe, John" ]]; then
-    kk_test_pass "Computed properties - only getter"
+    kt_test_pass "Computed properties - only getter"
 else
-    kk_test_fail "Computed properties - getter only failed (expected: 'Doe, John', got: '$result')"
+    kt_test_fail "Computed properties - getter only failed (expected: 'Doe, John', got: '$result')"
 fi
 
 user_getter.delete
 
 # Test 38.3: Computed property with only setter
-kk_test_start "Computed properties - only setter"
+kt_test_start "Computed properties - only setter"
 defineClass "UserWithSetter" "" \
     "property" "name" \
     "property" "username" \
@@ -82,15 +82,15 @@ user_setter.display_mode = "admin"
 result=$(user_setter.username)
 
 if [[ "$result" == "user_admin" ]]; then
-    kk_test_pass "Computed properties - only setter"
+    kt_test_pass "Computed properties - only setter"
 else
-    kk_test_fail "Computed properties - setter only failed (expected: 'user_admin', got: '$result')"
+    kt_test_fail "Computed properties - setter only failed (expected: 'user_admin', got: '$result')"
 fi
 
 user_setter.delete
 
 # Test 38.4: Property detection order (get/set by first 3 chars)
-kk_test_start "Computed properties - detection by prefix"
+kt_test_start "Computed properties - detection by prefix"
 defineClass "PropertyDetection" "" \
     "property" "raw_value" \
     "property" "value" "getValue" "setValue" \
@@ -110,18 +110,18 @@ if [[ "$result1" == "val_set_original" ]]; then
     result3=$(prop_test.cached)
     
     if [[ "$result2" == "val_set_modified" ]] && [[ "$result3" == "cached_data" ]]; then
-        kk_test_pass "Computed properties - detection by prefix"
+        kt_test_pass "Computed properties - detection by prefix"
     else
-        kk_test_fail "Computed properties - setter/getter detection failed (val2: '$result2', val3: '$result3')"
+        kt_test_fail "Computed properties - setter/getter detection failed (val2: '$result2', val3: '$result3')"
     fi
 else
-    kk_test_fail "Computed properties - getter detection failed (expected: 'val_set_original', got: '$result1')"
+    kt_test_fail "Computed properties - getter detection failed (expected: 'val_set_original', got: '$result1')"
 fi
 
 prop_test.delete
 
 # TODO: Migrate this test completely:
-# - Replace kk_test_start() with kk_test_start()
-# - Replace kk_test_pass() with kk_test_pass()
-# - Replace kk_test_fail() with kk_test_fail()
-# - Use kk_assert_* functions for better assertions
+# - Replace kt_test_start() with kt_test_start()
+# - Replace kt_test_pass() with kt_test_pass()
+# - Replace kt_test_fail() with kt_test_fail()
+# - Use kt_assert_* functions for better assertions

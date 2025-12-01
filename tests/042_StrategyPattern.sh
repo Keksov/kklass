@@ -2,10 +2,10 @@
 # StrategyPattern
 # Auto-migrated from kklass test framework
 
-KKTESTS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../kktests" && pwd)"
-source "$KKTESTS_LIB_DIR/kk-test.sh"
+KTESTS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../ktests" && pwd)"
+source "$KTESTS_LIB_DIR/ktest.sh"
 
-kk_test_init "StrategyPattern" "$(dirname "$0")" "$@"
+kt_test_init "StrategyPattern" "$(dirname "$0")" "$@"
 
 # Source kklass if needed
 KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -14,7 +14,7 @@ KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 
 # Test 42: Strategy pattern
-kk_test_start "Strategy pattern"
+kt_test_start "Strategy pattern"
 defineClass "SortStrategy" "" \
     "property" "name" \
     "method" "sort" 'echo "[$name] Generic sorting strategy"'
@@ -59,9 +59,9 @@ result4=$(sorter_test.getStrategyName)
 if [[ "$result1" == "BubbleSort" ]] && [[ "$result2" == *"Sorting data: 5 3 8 1 9 2"* ]] && \
    [[ "$result2" == *"bubble sort algorithm"* ]] && \
    [[ "$result3" == "QuickSort" ]] && [[ "$result4" == "MergeSort" ]]; then
-    kk_test_pass "Strategy pattern"
+    kt_test_pass "Strategy pattern"
 else
-    kk_test_fail "Strategy pattern (result1: '$result1', result3: '$result3', result4: '$result4')"
+    kt_test_fail "Strategy pattern (result1: '$result1', result3: '$result3', result4: '$result4')"
 fi
 
 sorter_test.delete
@@ -70,7 +70,7 @@ quickSort_test.delete
 mergeSort_test.delete
 
 # TODO: Migrate this test completely:
-# - Replace kk_test_start() with kk_test_start()
-# - Replace kk_test_pass() with kk_test_pass()
-# - Replace kk_test_fail() with kk_test_fail()
-# - Use kk_assert_* functions for better assertions
+# - Replace kt_test_start() with kt_test_start()
+# - Replace kt_test_pass() with kt_test_pass()
+# - Replace kt_test_fail() with kt_test_fail()
+# - Use kt_assert_* functions for better assertions

@@ -2,7 +2,7 @@
 # kklass.sh - Working class system for bash with dot notation
 
 KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${KKLASS_DIR}/kklib.sh"
+source "${KKLASS_DIR}/../kkore/klib.sh"
 
 kk._var() {
     local str="${1^^}" # Convert to upper case

@@ -2,10 +2,10 @@
 # MethodOverriding
 # Auto-migrated from kklass test framework
 
-KKTESTS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../kktests" && pwd)"
-source "$KKTESTS_LIB_DIR/kk-test.sh"
+KTESTS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../ktests" && pwd)"
+source "$KTESTS_LIB_DIR/ktest.sh"
 
-kk_test_init "MethodOverriding" "$(dirname "$0")" "$@"
+kt_test_init "MethodOverriding" "$(dirname "$0")" "$@"
 
 # Source kklass if needed
 KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -27,16 +27,16 @@ dog1.species = "Canine"
 dog1.breed = "Golden Retriever"
 
 # Test 6: Method overriding
-kk_test_start "Method overriding"
+kt_test_start "Method overriding"
 result=$(dog1.speak)
 if [[ "$result" == "Woof!" ]]; then
-    kk_test_pass "Method overriding"
+    kt_test_pass "Method overriding"
 else
-    kk_test_fail "Method overriding (expected: 'Woof!', got: '$result')"
+    kt_test_fail "Method overriding (expected: 'Woof!', got: '$result')"
 fi
 
 # TODO: Migrate this test completely:
-# - Replace kk_test_start() with kk_test_start()
-# - Replace kk_test_pass() with kk_test_pass()
-# - Replace kk_test_fail() with kk_test_fail()
-# - Use kk_assert_* functions for better assertions
+# - Replace kt_test_start() with kt_test_start()
+# - Replace kt_test_pass() with kt_test_pass()
+# - Replace kt_test_fail() with kt_test_fail()
+# - Use kt_assert_* functions for better assertions

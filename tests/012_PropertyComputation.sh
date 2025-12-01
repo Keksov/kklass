@@ -2,10 +2,10 @@
 # PropertyComputation
 # Auto-migrated from kklass test framework
 
-KKTESTS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../kktests" && pwd)"
-source "$KKTESTS_LIB_DIR/kk-test.sh"
+KTESTS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../ktests" && pwd)"
+source "$KTESTS_LIB_DIR/ktest.sh"
 
-kk_test_init "PropertyComputation" "$(dirname "$0")" "$@"
+kt_test_init "PropertyComputation" "$(dirname "$0")" "$@"
 
 # Source kklass if needed
 KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -14,7 +14,7 @@ KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 
 # Test 12: Property access and computation in methods
-kk_test_start "Property access and computation in methods"
+kt_test_start "Property access and computation in methods"
 defineClass "Calculator2" "" \
     "property" "value" \
     "method" "double" 'echo $((value * 2))' \
@@ -25,13 +25,13 @@ calc2.value = "7"
 result1=$(calc2.double)
 result2=$(calc2.triple)
 if [[ "$result1" == "14" ]] && [[ "$result2" == "21" ]]; then
-    kk_test_pass "Property access and computation in methods"
+    kt_test_pass "Property access and computation in methods"
 else
-    kk_test_fail "Property access and computation in methods (expected: '14' and '21', got: '$result1' and '$result2')"
+    kt_test_fail "Property access and computation in methods (expected: '14' and '21', got: '$result1' and '$result2')"
 fi
 
 # TODO: Migrate this test completely:
-# - Replace kk_test_start() with kk_test_start()
-# - Replace kk_test_pass() with kk_test_pass()
-# - Replace kk_test_fail() with kk_test_fail()
-# - Use kk_assert_* functions for better assertions
+# - Replace kt_test_start() with kt_test_start()
+# - Replace kt_test_pass() with kt_test_pass()
+# - Replace kt_test_fail() with kt_test_fail()
+# - Use kt_assert_* functions for better assertions

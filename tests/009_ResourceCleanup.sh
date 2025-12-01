@@ -2,10 +2,10 @@
 # ResourceCleanup
 # Auto-migrated from kklass test framework
 
-KKTESTS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../kktests" && pwd)"
-source "$KKTESTS_LIB_DIR/kk-test.sh"
+KTESTS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../ktests" && pwd)"
+source "$KTESTS_LIB_DIR/ktest.sh"
 
-kk_test_init "ResourceCleanup" "$(dirname "$0")" "$@"
+kt_test_init "ResourceCleanup" "$(dirname "$0")" "$@"
 
 # Source kklass if needed
 KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -23,16 +23,16 @@ defineClass "TestClass" "" \
 TestClass.new myobj
 
 # Test 9: Resource cleanup
-kk_test_start "Resource cleanup"
+kt_test_start "Resource cleanup"
 myobj.delete
 if ! declare -F | grep -q "myobj\."; then
-    kk_test_pass "Resource cleanup"
+    kt_test_pass "Resource cleanup"
 else
-    kk_test_fail "Resource cleanup"
+    kt_test_fail "Resource cleanup"
 fi
 
 # TODO: Migrate this test completely:
-# - Replace kk_test_start() with kk_test_start()
-# - Replace kk_test_pass() with kk_test_pass()
-# - Replace kk_test_fail() with kk_test_fail()
-# - Use kk_assert_* functions for better assertions
+# - Replace kt_test_start() with kt_test_start()
+# - Replace kt_test_pass() with kt_test_pass()
+# - Replace kt_test_fail() with kt_test_fail()
+# - Use kt_assert_* functions for better assertions

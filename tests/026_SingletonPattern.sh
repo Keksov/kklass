@@ -2,10 +2,10 @@
 # SingletonPattern
 # Auto-migrated from kklass test framework
 
-KKTESTS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../kktests" && pwd)"
-source "$KKTESTS_LIB_DIR/kk-test.sh"
+KTESTS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../ktests" && pwd)"
+source "$KTESTS_LIB_DIR/ktest.sh"
 
-kk_test_init "SingletonPattern" "$(dirname "$0")" "$@"
+kt_test_init "SingletonPattern" "$(dirname "$0")" "$@"
 
 # Source kklass if needed
 KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -14,7 +14,7 @@ KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 
 # Test 26: Singleton pattern with static properties
-kk_test_start "Singleton pattern with static properties"
+kt_test_start "Singleton pattern with static properties"
 defineClass "Configuration" "" \
     "static_property" "instance" \
     "static_property" "initialized" \
@@ -52,21 +52,21 @@ if [[ "$instance1_ref" == "$instance2_ref" ]] && [[ "$instance2_ref" == "$instan
         debug3=$($instance3_ref.debug_mode)
         
         if [[ "$debug1" == "false" ]] && [[ "$debug2" == "false" ]] && [[ "$debug3" == "false" ]]; then
-            kk_test_pass "Singleton pattern with static properties"
+            kt_test_pass "Singleton pattern with static properties"
         else
-            kk_test_fail "Singleton pattern - state changes not shared (debug: '$debug1', '$debug2', '$debug3')"
+            kt_test_fail "Singleton pattern - state changes not shared (debug: '$debug1', '$debug2', '$debug3')"
         fi
     else
-        kk_test_fail "Singleton pattern - configuration not shared properly"
+        kt_test_fail "Singleton pattern - configuration not shared properly"
     fi
 else
-    kk_test_fail "Singleton pattern - instances not identical ($instance1_ref, $instance2_ref, $instance3_ref)"
+    kt_test_fail "Singleton pattern - instances not identical ($instance1_ref, $instance2_ref, $instance3_ref)"
 fi
 
 $instance1_ref.delete 2>/dev/null || true
 
 # TODO: Migrate this test completely:
-# - Replace kk_test_start() with kk_test_start()
-# - Replace kk_test_pass() with kk_test_pass()
-# - Replace kk_test_fail() with kk_test_fail()
-# - Use kk_assert_* functions for better assertions
+# - Replace kt_test_start() with kt_test_start()
+# - Replace kt_test_pass() with kt_test_pass()
+# - Replace kt_test_fail() with kt_test_fail()
+# - Use kt_assert_* functions for better assertions
