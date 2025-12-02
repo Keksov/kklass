@@ -213,8 +213,24 @@ else
     kt_test_fail "Multi-level inheritance with parent.constructor syntax (gp: '$result_gp', p: '$result_p', c: '$result_c')"
 fi
 
-# TODO: Migrate this test completely:
-# - Replace kt_test_start() with kt_test_start()
-# - Replace kt_test_pass() with kt_test_pass()
-# - Replace kt_test_fail() with kt_test_fail()
-# - Use kt_assert_* functions for better assertions
+# Test 16.9: Constructor calls method on self
+kt_test_start "Constructor calls method on object itself"
+defineClass "SelfMethodCaller" "" \
+    "property" "config" \
+    "property" "initialized" \
+    "constructor" '$this.initialize "$1"' \
+    "method" "initialize" 'config="$1"; initialized="true"' \
+    "method" "getConfig" 'echo "$config"' \
+    "method" "isInitialized" 'echo "$initialized"'
+
+SelfMethodCaller.new self_caller "MyConfig"
+result_config=$(self_caller.getConfig)
+result_init=$(self_caller.isInitialized)
+
+if [[ "$result_config" == "MyConfig" ]] && [[ "$result_init" == "true" ]]; then
+    kt_test_pass "Constructor calls method on object itself"
+else
+    kt_test_fail "Constructor calls method on object itself (config: '$result_config', init: '$result_init')"
+fi
+
+
