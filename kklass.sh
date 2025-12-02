@@ -174,6 +174,7 @@ defineClass() {
                 shift 3
                 ;;
             constructor)
+                # Store constructor body for processing later (after all methods are collected)
                 constructor_body="$2"
                 shift 2
                 ;;
@@ -207,6 +208,19 @@ defineClass() {
         # Pre-populate cache: method resolves to this class
         eval "${class_name}_method_cache[\"${m}\"]=\"${class_name}\""
     done
+    
+    # Process constructor body to replace $this.METHOD calls (after all methods are collected)
+    # Note: Unlike regular methods, constructor doesn't need the local this/local __inst__ setup
+    # because __inst__ is provided by the .new() function
+    if [[ -n "$constructor_body" ]]; then
+        # Replace all $this.METHOD_NAME patterns with $__inst__.call METHOD_NAME
+        for wm in "${meths_arr[@]}"; do
+            # Replace $this.method with proper call syntax
+            constructor_body="${constructor_body//\$this.${wm}/\$__inst__.call ${wm}}"
+            # Also handle ${this}.method syntax
+            constructor_body="${constructor_body//\$\{this\}.${wm}/\$__inst__.call ${wm}}"
+        done
+    fi
 
     # Pre-generate property injection code with mutation detection (optimization: avoid subshell per method)
     # Includes: property injection, original value backup for mutation detection, and write-back for mutated properties
@@ -227,6 +241,18 @@ defineClass() {
         done
     fi
 
+    # Create constructor executor function (similar to _exec but for constructor)
+    local constructor_exec_func="
+    __INST__._constructor_exec() {
+        local target_class=\"\$1\"
+        shift
+        ${props_injection}
+        ${props_backup}
+        local method_var=\"\${target_class}_constructor_body\"
+        eval \"\${!method_var}\" 2>\&1 || true
+        ${props_writeback}
+        }"
+    
     # Build template parts as strings
     local prop_funcs=""
     for p in "${props_arr[@]}"; do
@@ -462,6 +488,7 @@ __INST__.property() {
 }
 __PROP_FUNCS__
 __EXEC_FUNC__
+__CONSTRUCTOR_EXEC_FUNC__
 __METH_FUNCS__
 __FIND_FUNC__
 __CALL_FUNC__
@@ -476,6 +503,7 @@ INSTANCE_TPL
     instance_template="${instance_template//__CLASS_NAME__/$class_name}"
     instance_template="${instance_template//__PROP_FUNCS__/$prop_funcs}"
     instance_template="${instance_template//__EXEC_FUNC__/$exec_method_func}"
+    instance_template="${instance_template//__CONSTRUCTOR_EXEC_FUNC__/$constructor_exec_func}"
     instance_template="${instance_template//__METH_FUNCS__/$meth_funcs}"
     instance_template="${instance_template//__FIND_FUNC__/$find_method_func}"
     instance_template="${instance_template//__CALL_FUNC__/$call_func}"
@@ -554,17 +582,12 @@ INSTANCE_TPL
         fi
         
         # Run constructor if defined
-        if [[ -n \"\$${class_name}_constructor_body\" ]]; then
-            # Inject properties into constructor context
-            ${props_injection}
-            # Execute constructor with passed arguments
-            eval \"\$${class_name}_constructor_body\"
-            # Save modified properties back
-            local __prop__
-            for __prop__ in ${props_arr[@]}; do
-                eval \"\${instname}_data[\\\"\$__prop__\\\"]=\"\${!__prop__}\"\"
-            done
-        fi
+         if [[ -n \"\$${class_name}_constructor_body\" ]]; then
+             # Setup __inst__ for constructor context so it can call methods
+             local __inst__=\"\$instname\"
+             # Inject properties and execute constructor
+             \${instname}._constructor_exec \"${class_name}\" \"\$@\"
+         fi
     }
     
     # Create constructor caller function for explicit parent constructor calls
