@@ -3,27 +3,25 @@
 
 KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${KKLASS_DIR}/../kkore/klib.sh"
-
-kk._var() {
-    local str="${1^^}" # Convert to upper case
-    str="${str// /_}"
-    KK_VAR="${str//./_}"
-}
-
+# kk._var() {
+#     local str="${1^^}" # Convert to upper case
+#     str="${str// /_}"
+#     KK_VAR="${str//./_}"
+# }
 kk._return() {
-    local var_name="$1"
-    local var_value="$2"
-    
-    # Automatically enable echo if we're in a subshell context
-    if [[ $BASH_SUBSHELL -gt 0 ]]; then
-        # In subshell: echo the value
-        echo -n "$var_value"
-        return
-    fi
-    
-    # In main shell: set the variable
-    kk._var "$var_name"
-    printf -v "$KK_VAR" '%s' "$var_value"
+#     local var_name="$1"
+#     local var_value="$2"
+#     
+      # Automatically enable echo if we're in a subshell context
+      if [[ $BASH_SUBSHELL -gt 0 ]]; then
+          # In subshell: echo the value
+          echo -n "$1"
+          return
+      fi
+#     
+#     # In main shell: set the variable
+#     kk._var "$var_name"
+#     printf -v "$KK_VAR" '%s' "$var_value"
 }
 
 kk._processMethodBody() {
@@ -50,7 +48,8 @@ kk._processMethodBody() {
     
     # For function type, append kk._return call
     if [[ "$meth_type" == "function" ]]; then
-        method_body+=$'\n'"kk._return \"${class_name}_${method_name}\" \"\$RESULT\""
+        #method_body+=$'\n'"kk._return \"${class_name}_${method_name}\" \"\$RESULT\""
+        method_body+=$'\n'"kk._return \"\$RESULT\""
     fi
     
     METHOD_BODY="$method_body"
@@ -664,4 +663,4 @@ defineFunction() {
     _defineMethodType "$1" "$2" "$3" "function" "Function"
 }
 
-export -f kk._processMethodBody kk._return kk._var _defineMethodType defineClass defineMethod defineProcedure defineFunction
+export -f kk._processMethodBody _defineMethodType defineClass defineMethod defineProcedure defineFunction

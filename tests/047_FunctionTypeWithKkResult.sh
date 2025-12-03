@@ -22,15 +22,15 @@ defineClass "Calculator" "" \
 Calculator.new calc
 calc.value = "10"
 
-# Test 1: Function type should inject kk._return call and set CALCULATOR_ADD variable
-kt_test_start "Function type injects kk._return"
-# The function should set RESULT and then call kk._return which sets CALCULATOR_ADD
-calc.add 5 2>&1
-# Check if kk._return was called and variable was set
-if [[ "${CALCULATOR_ADD}" == "15" ]]; then
-    kt_test_pass "Function type injects kk._return"
+# Test 1: Function type should output the RESULT value (via kk._return in subshell)
+kt_test_start "Function type outputs RESULT"
+# The function should set RESULT and call kk._return which echoes in subshell
+result=$(calc.add 5 2>&1)
+expected="15"  # 10 + 5 = 15
+if [[ "$result" == "$expected" ]]; then
+    kt_test_pass "Function type outputs RESULT"
 else
-    kt_test_fail "Function type should set CALCULATOR_ADD=15 via kk._return (got: '${CALCULATOR_ADD}')"
+    kt_test_fail "Function type should output 15 (got: '$result')"
 fi
 
 # Test 2: Verify method type doesn't inject kk._return (method should still work)
@@ -49,11 +49,11 @@ defineClass "Multiplier" "" \
 
 Multiplier.new mult
 kt_test_start "Function type with multiple arguments"
-mult.multiply 6 7
-if [[ "${MULTIPLIER_MULTIPLY}" == "42" ]]; then
+result=$(mult.multiply 6 7)
+if [[ "$result" == "42" ]]; then
     kt_test_pass "Function type with multiple arguments"
 else
-    kt_test_fail "Function type should set MULTIPLIER_MULTIPLY=42 (got: '${MULTIPLIER_MULTIPLY}')"
+    kt_test_fail "Function type should output 42 (got: '$result')"
 fi
 mult.delete
 
@@ -65,22 +65,14 @@ defineClass "StringOps" "" \
 StringOps.new str
 str.prefix = "Hello"
 kt_test_start "Function type with string operations"
-str.concat " World"
-if [[ "${STRINGOPS_CONCAT}" == "Hello World" ]]; then
+result=$(str.concat " World")
+if [[ "$result" == "Hello World" ]]; then
     kt_test_pass "Function type with string operations"
 else
-    kt_test_fail "Function type should set STRINGOPS_CONCAT='Hello World' (got: '${STRINGOPS_CONCAT}')"
+    kt_test_fail "Function type should output 'Hello World' (got: '$result')"
 fi
 str.delete
 
 # Cleanup
 calc.delete
 
-# Show results
-#show_results
-
-# TODO: Migrate this test completely:
-# - Replace kt_test_start() with kt_test_start()
-# - Replace kt_test_pass() with kt_test_pass()
-# - Replace kt_test_fail() with kt_test_fail()
-# - Use kt_assert_* functions for better assertions

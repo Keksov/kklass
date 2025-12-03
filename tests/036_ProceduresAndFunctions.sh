@@ -74,9 +74,9 @@ defineFunction "Calculator" "square" '
 
 Calculator.new calc
 calc.value = "7"
-calc.square
+result=$(calc.square)
 
-if [[ "${CALCULATOR_SQUARE}" == "49" ]]; then
+if [[ "$result" == "49" ]]; then
     kt_test_pass "Basic function with result"
 else
     kt_test_fail "Basic function with result"
@@ -97,9 +97,9 @@ defineFunction "StringUtils" "reverseString" '
 '
 
 StringUtils.new strutil
-strutil.reverseString "hello"
+result=$(strutil.reverseString "hello")
 
-if [[ "${STRINGUTILS_REVERSESTRING}" == "olleh" ]]; then
+if [[ "$result" == "olleh" ]]; then
     kt_test_pass "Function with parameter handling"
 else
     kt_test_fail "Function with parameter handling"
@@ -116,9 +116,9 @@ defineFunction "Temperature" "toFahrenheit" '
 
 Temperature.new temp
 temp.celsius = "100"
-temp.toFahrenheit
+result=$(temp.toFahrenheit)
 
-if [[ "${TEMPERATURE_TOFAHRENHEIT}" == "212" ]]; then
+if [[ "$result" == "212" ]]; then
     kt_test_pass "Function using property"
 else
     kt_test_fail "Function using property"
@@ -167,9 +167,9 @@ defineFunction "Person" "fullName" '
 Person.new person
 person.firstName = "John"
 person.lastName = "Doe"
-person.fullName
+result=$(person.fullName)
 
-if [[ "${PERSON_FULLNAME}" == "John Doe" ]]; then
+if [[ "$result" == "John Doe" ]]; then
     kt_test_pass "Function returning property"
 else
     kt_test_fail "Function returning property"
@@ -192,9 +192,9 @@ defineProcedure "Calculator2" "setup" '
 
 Calculator2.new calc2
 calc2.setup "5" "3"
-calc2.getSum
+result=$(calc2.getSum)
 
-if [[ "${CALCULATOR2_GETSUM}" == "8" ]]; then
+if [[ "$result" == "8" ]]; then
     kt_test_pass "Procedure calling function"
 else
     kt_test_fail "Procedure calling function"

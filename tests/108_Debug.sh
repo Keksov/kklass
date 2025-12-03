@@ -19,22 +19,22 @@ defineClass "DebugTest" "" \
 
 DebugTest.new debug_inst
 
-# Test 1: Main shell call
-kt_test_start "Main shell method call"
-debug_inst.GetValue
-if [[ "$RESULT" == "debug_result" ]]; then
-    kt_test_pass "Main shell method call"
-else
-    kt_test_fail "Main shell method call - got $RESULT"
-fi
-
-# Test 2: Subshell call
-kt_test_start "Subshell method call"
+# Test 1: Subshell call (function should output RESULT via kk._return)
+kt_test_start "Subshell method call with output"
 result=$(debug_inst.GetValue 2>&1)
 if [[ "$result" == "debug_result" ]]; then
-    kt_test_pass "Subshell method call"
+    kt_test_pass "Subshell method call with output"
 else
     kt_test_fail "Subshell method call - got '$result'"
+fi
+
+# Test 2: Check that RESULT is set in main shell
+kt_test_start "RESULT variable set in function"
+debug_inst.GetValue
+if [[ "$RESULT" == "debug_result" ]]; then
+    kt_test_pass "RESULT variable set in function"
+else
+    kt_test_fail "RESULT variable - got $RESULT"
 fi
 
 # Test 3: Cleanup

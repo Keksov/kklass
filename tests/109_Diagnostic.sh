@@ -16,10 +16,6 @@ kt_test_section "Testing BASH_SUBSHELL Diagnostic Behavior"
 # Test function for detecting subshell context
 test_bash_subshell() {
     echo "Inside function BASH_SUBSHELL: $BASH_SUBSHELL"
-    
-    # Test kk._return from function context
-    kk._return "diag_test" "diag_value"
-    echo "Variable DIAG_TEST: ${DIAG_TEST}"
 }
 
 # Test 1: Function call in main shell
@@ -42,13 +38,13 @@ else
     kt_test_fail "Function call in subshell - got '$output'"
 fi
 
-# Test 3: kk._return in diagnostic context
-kt_test_start "kk._return in diagnostic context"
-kk._return "diag_result" "test_value"
-if [[ "${DIAG_RESULT}" == "test_value" ]]; then
-    kt_test_pass "kk._return in diagnostic context"
+# Test 3: BASH_SUBSHELL behavior in nested context
+kt_test_start "BASH_SUBSHELL in nested context"
+nested_output=$( ( test_bash_subshell 2>&1 ) )
+if [[ "$nested_output" =~ "Inside function BASH_SUBSHELL" ]]; then
+    kt_test_pass "BASH_SUBSHELL in nested context"
 else
-    kt_test_fail "kk._return in diagnostic context - got ${DIAG_RESULT}"
+    kt_test_fail "BASH_SUBSHELL in nested context - got $nested_output"
 fi
 
 kt_test_pass "Diagnostic tests completed"
