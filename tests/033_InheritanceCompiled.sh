@@ -33,19 +33,14 @@ EOF
 fi
 
 # Ensure it's compiled
-bash -c "source '$KKLASS_DIR/kklass_autoload.sh' && kkload \"$TEST_FILE\"" >/dev/null 2>&1
+bash -c "cd '$SCRIPT_DIR' && KKLASS_DIR='$KKLASS_DIR' source '$KKLASS_DIR/kklass_autoload.sh' && kkload \"$TEST_FILE\"" >/dev/null 2>&1
 
 # Test 33: Inheritance in compiled classes
 kt_test_start "Inheritance in compiled classes"
-result=$(bash -c "source \"${TEST_FILE%.*}\".ckk.sh && Timer.new tmr && tmr.value = 5 && tmr.increment")
+result=$(bash -c "cd '$SCRIPT_DIR' && source \"${TEST_FILE%.*}\".ckk.sh && Timer.new tmr && tmr.value = 5 && tmr.increment")
 if [[ "$result" == "6" ]]; then
     kt_test_pass "Inheritance in compiled classes"
 else
     kt_test_fail "Inheritance in compiled classes (expected: 6, got: $result)"
 fi
 
-# TODO: Migrate this test completely:
-# - Replace kt_test_start() with kt_test_start()
-# - Replace kt_test_pass() with kt_test_pass()
-# - Replace kt_test_fail() with kt_test_fail()
-# - Use kt_assert_* functions for better assertions

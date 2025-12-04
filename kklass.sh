@@ -3,6 +3,7 @@
 
 KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${KKLASS_DIR}/../kkore/klib.sh"
+source "${KKLASS_DIR}/../kkore/kerr.sh"
 # kk._var() {
 #     local str="${1^^}" # Convert to upper case
 #     str="${str// /_}"

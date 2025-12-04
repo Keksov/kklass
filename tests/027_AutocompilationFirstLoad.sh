@@ -37,15 +37,9 @@ kt_test_log "Created $TEST_FILE"
 
 # Test 27: First load with autocompilation
 kt_test_start "Auto-compilation (first load)"
-output=$(bash -c "source '$KKLASS_DIR/kklass_autoload.sh' && kkload \"$TEST_FILE\"" 2>&1)
+output=$(bash -c "cd '$SCRIPT_DIR' && KKLASS_DIR='$KKLASS_DIR' source '$KKLASS_DIR/kklass_autoload.sh' && kkload \"$TEST_FILE\"" 2>&1)
 if echo "$output" | grep -q "Compilation successful" && [[ -f "${TEST_FILE%.*}.ckk.sh" ]]; then
     kt_test_pass "Auto-compilation (first load)"
 else
     kt_test_fail "Auto-compilation (first load)"
 fi
-
-# TODO: Migrate this test completely:
-# - Replace kt_test_start() with kt_test_start()
-# - Replace kt_test_pass() with kt_test_pass()
-# - Replace kt_test_fail() with kt_test_fail()
-# - Use kt_assert_* functions for better assertions
