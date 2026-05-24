@@ -29,9 +29,3 @@ if [[ "$result1" == "14" ]] && [[ "$result2" == "21" ]]; then
 else
     kt_test_fail "Property access and computation in methods (expected: '14' and '21', got: '$result1' and '$result2')"
 fi
-
-# TODO: Migrate this test completely:
-# - Replace kt_test_start() with kt_test_start()
-# - Replace kt_test_pass() with kt_test_pass()
-# - Replace kt_test_fail() with kt_test_fail()
-# - Use kt_assert_* functions for better assertions

@@ -32,9 +32,3 @@ if [[ "$(dog1.species)" == "Canine" ]] && [[ "$(dog1.breed)" == "Golden Retrieve
 else
     kt_test_fail "Single inheritance"
 fi
-
-# TODO: Migrate this test completely:
-# - Replace kt_test_start() with kt_test_start()
-# - Replace kt_test_pass() with kt_test_pass()
-# - Replace kt_test_fail() with kt_test_fail()
-# - Use kt_assert_* functions for better assertions

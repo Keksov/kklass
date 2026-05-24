@@ -52,17 +52,15 @@ defineSerializableClass() {
         # Build property values string
         local prop_values=""
         local prop_read=""
-        local prop_assign=""
         
         for prop in "${props_arr[@]}"; do
             prop_values+="\${$prop}${separator}"
             prop_read+="$prop "
-            prop_assign+="$prop=\"\$$prop\"; "
         done
         prop_values="${prop_values%$separator}"
         
         toString_method="echo \"${class_name}${separator}${prop_values}\""
-        fromString_method="local input=\"\$1\"; input=\"\${input#${class_name}${separator}}\"; input=\"\${input%$'\\n'}\"; IFS=\"${separator}\" read -r ${prop_read} <<< \"\$input\"; ${prop_assign} echo \"\$this\""
+        fromString_method="local __kk_input=\"\$1\"; __kk_input=\"\${__kk_input#${class_name}${separator}}\"; __kk_input=\"\${__kk_input%$'\\n'}\"; IFS=\"${separator}\" read -r ${prop_read} <<< \"\$__kk_input\"; echo \"\$this\""
     fi
     
     # Call defineClass with original args plus serialization methods
@@ -129,12 +127,10 @@ _addSerializable_string() {
     # Build property list for serialization
     local prop_values=""
     local prop_read=""
-    local prop_assign=""
     
     for prop in $props_list; do
         prop_values+="\${$prop}${separator}"
         prop_read+="$prop "
-        prop_assign+="$prop=\"\$$prop\"; "
     done
     prop_values="${prop_values%$separator}"
     
@@ -143,10 +139,9 @@ _addSerializable_string() {
     
     # Create fromString method
     local fromString_body="
-        local input=\"\$1\"
-        input=\"\${input#${class_name}${separator}}\"
-        IFS=\"${separator}\" read -r ${prop_read} <<< \"\$input\"
-        ${prop_assign}
+        local __kk_input=\"\$1\"
+        __kk_input=\"\${__kk_input#${class_name}${separator}}\"
+        IFS=\"${separator}\" read -r ${prop_read} <<< \"\$__kk_input\"
         echo \"\$this\"
     "
     
@@ -184,7 +179,7 @@ _addSerializable_json() {
         json_fields+="\"$prop\":\"\${$prop}\","
         prop_assign+="
             \"$prop\")
-                $prop=\${value%\\\"}
+                $prop=\${__kk_value%\\\"}
                 $prop=\${$prop#\\\"}
                 ;;
         "
@@ -196,21 +191,21 @@ _addSerializable_json() {
     
     # Create fromJSON method
     local fromJSON_body="
-        local input=\"\$1\"
-        input=\"\${input#\{}\"
-        input=\"\${input%\}}\"
+        local __kk_input=\"\$1\"
+        __kk_input=\"\${__kk_input#\{}\"
+        __kk_input=\"\${__kk_input%\}}\"
         
         local IFS=','
-        local -a pairs
-        read -ra pairs <<< \"\$input\"
+        local -a __kk_pairs
+        read -ra __kk_pairs <<< \"\$__kk_input\"
         
-        local pair key value
-        for pair in \"\${pairs[@]}\"; do
-            IFS=':' read -r key value <<< \"\$pair\"
-            key=\${key#\\\"}
-            key=\${key%\\\"}
+        local __kk_pair __kk_key __kk_value
+        for __kk_pair in \"\${__kk_pairs[@]}\"; do
+            IFS=':' read -r __kk_key __kk_value <<< \"\$__kk_pair\"
+            __kk_key=\${__kk_key#\\\"}
+            __kk_key=\${__kk_key%\\\"}
             
-            case \"\$key\" in
+            case \"\$__kk_key\" in
                 __class__)
                     ;;
                 ${prop_assign}

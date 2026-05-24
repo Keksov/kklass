@@ -33,9 +33,3 @@ if [[ "$result" == "$expected" ]]; then
 else
     kt_test_fail "Property used in inherited method (expected: '$expected', got: '$result')"
 fi
-
-# TODO: Migrate this test completely:
-# - Replace kt_test_start() with kt_test_start()
-# - Replace kt_test_pass() with kt_test_pass()
-# - Replace kt_test_fail() with kt_test_fail()
-# - Use kt_assert_* functions for better assertions

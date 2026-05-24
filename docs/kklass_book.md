@@ -149,6 +149,32 @@ defineClass "ClassName" "ParentClass" \
     "constructor" 'constructor body'
 ```
 
+### Pascal-style Declare/Implement API
+
+Kklass also supports a Pascal-flavoured two-phase API where declaration and implementation are split explicitly:
+
+```bash
+source "kklass.sh"
+
+declareClass "CounterPascal" ""
+privateSection
+field "FValue"
+publicSection
+property "Value" read "FValue" write "FValue"
+classVar "TotalCreated"
+constructor "Create"
+procedure "Increment"
+classFunction "GetTotalCreated"
+endClass
+
+implementConstructor "CounterPascal" 'FValue="${1:-0}"; TotalCreated=$((TotalCreated + 1))'
+implement "CounterPascal.Increment" 'FValue=$((FValue + ${1:-1}))'
+implement "CounterPascal.GetTotalCreated" 'RESULT="$TotalCreated"'
+endImplementation "CounterPascal"
+```
+
+This API keeps the existing runtime model, but makes class structure explicit. `defineClass` still works and is now implemented on top of the same declarative core.
+
 **Parameters:**
 - `ClassName`: Name of the class (must be valid identifier)
 - `ParentClass`: Parent class name (empty string `""` for no parent)
@@ -240,6 +266,12 @@ account.balance = "1000"
 account.deposit 500    # Output: New balance: 1500
 account.withdraw 200   # Output: New balance: 1300
 ```
+
+#### Internal Dispatch Note
+
+Method dispatch is frame-aware internally. Nested `$this.method`, `call`, and `parent` calls track the active class on a per-call frame stack, while property variables such as `$balance`, `$name`, or `$value` stay bound to the live instance state.
+
+That means the existing method syntax does not change: reading or assigning `balance` inside a method still works directly on the real property, including nested calls and inherited dispatch.
 
 ### Deleting Instances
 
@@ -491,6 +523,28 @@ db1.delete
 db2.delete
 ```
 
+### Class Variables with `classVar`
+
+In the Pascal-style API, class-level state can be declared with `classVar`:
+
+```bash
+declareClass "SessionTracker" ""
+classVar "ActiveSessions"
+classProcedure "OpenSession"
+classFunction "GetCount"
+endClass
+
+implement "SessionTracker.OpenSession" 'ActiveSessions=$((ActiveSessions + 1))'
+implement "SessionTracker.GetCount" 'RESULT="$ActiveSessions"'
+endImplementation "SessionTracker"
+
+SessionTracker.ActiveSessions = "0"
+SessionTracker.OpenSession
+echo "Sessions: $(SessionTracker.GetCount)"
+```
+
+`classVar` maps to the same shared class storage used by `static_property` in the legacy API.
+
 ### Computed Properties
 
 Computed properties calculate their value on-the-fly:
@@ -707,6 +761,66 @@ counter.delete
 4. **Force Compilation**: `kkload "file.kk" --force-compile`
 5. **Runtime Mode**: `kkload "file.kk" --no-compile` (skip compilation)
 
+### Pascal-style `.kkp` Units
+
+`kkload`, `kkrecompile`, and `kklass_compiler.sh` can also consume Pascal-style `.kkp` unit files. The parser is intentionally class-only and supports multi-line class headers, multi-line method declarations, multi-line implementation signatures, `class var`, `class procedure`, and `class function`.
+
+```pascal
+unit CounterPascal;
+
+interface
+
+type
+    CounterUnit = class
+    private
+        FValue: Integer;
+    public
+        class var TotalCreated: Integer;
+        constructor Create(
+            InitialValue: Integer
+        );
+        procedure Increment(
+            Step: Integer
+        );
+        function GetValue(
+        ): Integer;
+    end;
+
+implementation
+
+constructor CounterUnit.Create(
+    InitialValue: Integer
+);
+begin
+FValue="${1:-0}"
+TotalCreated=$((TotalCreated + 1))
+end;
+
+procedure CounterUnit.Increment(
+    Step: Integer
+);
+begin
+FValue=$((FValue + ${1:-1}))
+end;
+
+function CounterUnit.GetValue(
+): Integer;
+begin
+RESULT="$FValue"
+end;
+
+end.
+```
+
+Load it exactly like a `.kk` file:
+
+```bash
+source "kklass_autoload.sh"
+kkload "counter_pascal.kkp"
+```
+
+`--no-compile` works for `.kkp` as well and routes through the same translated runtime path instead of the compiled cache.
+
 ### Autoload Helper Functions
 
 ```bash
@@ -826,6 +940,12 @@ Serialization converts object state into a format that can be:
 Kklass supports:
 - **String serialization**: Custom delimiter-separated format
 - **JSON serialization**: Standard JSON format
+
+### Serialization Helper Names
+
+Generated serialization methods reserve the `__kk_` prefix for internal helper locals. Avoid using property names or temporary locals with that prefix in your own code.
+
+Regular names such as `key`, `value`, `input`, or other domain terms remain safe to use in your classes and methods.
 
 ### String Serialization with defineSerializableClass
 

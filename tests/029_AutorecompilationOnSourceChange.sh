@@ -31,16 +31,10 @@ fi
 # Test 29: Modify source and auto-recompile
 kt_test_start "Auto-recompilation on source change"
 sleep 1
-touch "$TEST_FILE"
+printf '\n' >> "$TEST_FILE"
 output=$(bash -c "source '$KKLASS_DIR/kklass_autoload.sh' && kkload \"$TEST_FILE\"" 2>&1)
-if echo "$output" | grep -q "newer\|Compiling"; then
+if [[ "$output" == *"newer"* || "$output" == *"Compiling"* ]]; then
     kt_test_pass "Auto-recompilation on source change"
 else
     kt_test_fail "Auto-recompilation on source change"
 fi
-
-# TODO: Migrate this test completely:
-# - Replace kt_test_start() with kt_test_start()
-# - Replace kt_test_pass() with kt_test_pass()
-# - Replace kt_test_fail() with kt_test_fail()
-# - Use kt_assert_* functions for better assertions

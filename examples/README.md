@@ -10,7 +10,7 @@ cd lib/kklass
 bash examples/demo.sh
 ```
 
-The demo script will run through all 43 examples sequentially, showing the progress and results. Use `bash examples/demo.sh --help` for more options.
+The demo script will run through all 45 examples sequentially, showing the progress and results. Use `bash examples/demo.sh --help` for more options.
 
 ### Example Runner Features
 
@@ -28,7 +28,7 @@ The examples are organized into four main sections:
 - **Section 1 (Examples 01-21)**: Core functionality tests
 - **Section 2 (Examples 22-28)**: Autoload and compilation features
 - **Section 3 (Examples 29-31)**: Edge cases and error handling
-- **Section 4 (Examples 32-43)**: Advanced design patterns and capabilities
+- **Section 4 (Examples 32-45)**: Advanced design patterns and capabilities
 
 ## Examples Index
 
@@ -94,6 +94,8 @@ The examples are organized into four main sections:
 | [41_string_serialization.sh](41_string_serialization.sh) | String Serialization | Converting objects to/from string format |
 | [42_json_serialization.sh](42_json_serialization.sh) | JSON Serialization | Converting objects to/from JSON format |
 | [43_nested_serialization.sh](43_nested_serialization.sh) | Nested Serialization | Serialization of nested objects and complex structures |
+| [44_pascal_declare_implement.sh](44_pascal_declare_implement.sh) | Pascal-style Declare/Implement | Class declaration and implementation split with `classVar` |
+| [45_pascal_unit_kkp.sh](45_pascal_unit_kkp.sh) | Pascal-style `.kkp` Unit | Loading a Pascal-like unit with multiline signatures through `kkload` |
 
 ## Running the Examples
 
@@ -116,7 +118,7 @@ for file in examples/[0-9]*.sh; do
 done
 ```
 
-**Note**: The demo script runs all 43 examples sequentially and shows:
+**Note**: The demo script runs all 45 examples sequentially and shows:
 - ✅ **Progress indicators** for each example
 - ✅ **Success/failure status** for each example
 - ✅ **Automatic cleanup** after each example
@@ -164,7 +166,7 @@ For new users, we recommend following this learning sequence:
 3. **Explore advanced features**: 09-21
 4. **Try compilation features**: 22-28
 5. **Handle edge cases**: 29-31
-6. **Master design patterns**: 32-43
+6. **Master design patterns**: 32-45
 
 Each example builds on previous concepts while being standalone.
 
@@ -179,3 +181,4 @@ For users interested in advanced OOP patterns, consider this specialized sequenc
 - **Advanced properties**: 37 (Computed and Lazy Properties)
 - **Behavioral patterns**: 38 (Observer), 39 (Strategy)
 - **Data management**: 41 (String Serialization), 42 (JSON Serialization), 43 (Nested Serialization)
+- **Pascal-style API**: 44 (Declare/Implement), 45 (`.kkp` Unit)

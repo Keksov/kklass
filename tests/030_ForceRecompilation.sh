@@ -35,14 +35,8 @@ fi
 # Test 30: Force compilation
 kt_test_start "Force recompilation"
 output=$(bash -c "source '$KKLASS_DIR/kklass_autoload.sh' && kkrecompile \"$TEST_FILE\"" 2>&1)
-if echo "$output" | grep -q "Force\|Compiling"; then
+if [[ "$output" == *"Force"* || "$output" == *"Compiling"* ]]; then
     kt_test_pass "Force recompilation"
 else
     kt_test_fail "Force recompilation"
 fi
-
-# TODO: Migrate this test completely:
-# - Replace kt_test_start() with kt_test_start()
-# - Replace kt_test_pass() with kt_test_pass()
-# - Replace kt_test_fail() with kt_test_fail()
-# - Use kt_assert_* functions for better assertions

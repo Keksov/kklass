@@ -14,7 +14,8 @@ KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 
 TEST_NUM=$(basename "${BASH_SOURCE[0]}" | cut -d'_' -f1)
-TEST_FILE="$SCRIPT_DIR/.ckk/test_${TEST_NUM}.kk"
+TEST_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TEST_FILE="$TEST_SCRIPT_DIR/.ckk/test_${TEST_NUM}.kk"
 
 # Clean up any previous test files
 mkdir -p "$SCRIPT_DIR/.ckk"

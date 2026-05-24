@@ -36,14 +36,8 @@ fi
 kt_test_start "Runtime mode (--no-compile)"
 rm -f .ckk/\"$TEST_FILE\".sh
 output=$(bash -c "source '$KKLASS_DIR/kklass_autoload.sh' && kkload \"$TEST_FILE\" --no-compile" 2>&1)
-if echo "$output" | grep -q "runtime\|No compiled"; then
+if [[ "$output" == *"runtime"* || "$output" == *"No compiled"* ]]; then
     kt_test_pass "Runtime mode (--no-compile)"
 else
     kt_test_fail "Runtime mode (--no-compile)"
 fi
-
-# TODO: Migrate this test completely:
-# - Replace kt_test_start() with kt_test_start()
-# - Replace kt_test_pass() with kt_test_pass()
-# - Replace kt_test_fail() with kt_test_fail()
-# - Use kt_assert_* functions for better assertions

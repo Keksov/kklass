@@ -29,9 +29,3 @@ if [[ "$result1" == "15" ]] && [[ "$result2" == "30" ]]; then
 else
     kt_test_fail "Method with multiple parameters and property access"
 fi
-
-# TODO: Migrate this test completely:
-# - Replace kt_test_start() with kt_test_start()
-# - Replace kt_test_pass() with kt_test_pass()
-# - Replace kt_test_fail() with kt_test_fail()
-# - Use kt_assert_* functions for better assertions

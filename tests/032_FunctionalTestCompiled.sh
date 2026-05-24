@@ -14,7 +14,8 @@ KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 
 TEST_NUM=$(basename "${BASH_SOURCE[0]}" | cut -d'_' -f1)
-TEST_FILE="$SCRIPT_DIR/.ckk/test_${TEST_NUM}.kk"
+TEST_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TEST_FILE="$TEST_SCRIPT_DIR/.ckk/test_${TEST_NUM}.kk"
 
 # Setup: Ensure $TEST_FILE exists
 mkdir -p .ckk
@@ -41,9 +42,3 @@ if [[ "$result" == "8" ]]; then
 else
 kt_test_fail "Functional test with compiled classes (expected: 8, got: $result)"
 fi
-
-# TODO: Migrate this test completely:
-# - Replace kt_test_start() with kt_test_start()
-# - Replace kt_test_pass() with kt_test_pass()
-# - Replace kt_test_fail() with kt_test_fail()
-# - Use kt_assert_* functions for better assertions

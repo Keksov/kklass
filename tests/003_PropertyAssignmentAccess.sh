@@ -32,9 +32,3 @@ if [[ "$(myobj.name)" == "TestObject" ]] && [[ "$(myobj.value)" == "42" ]]; then
 else
     kt_test_fail "Property assignment and access"
 fi
-
-# TODO: Migrate this test completely:
-# - Replace kt_test_start() with kt_test_start()
-# - Replace kt_test_pass() with kt_test_pass()
-# - Replace kt_test_fail() with kt_test_fail()
-# - Use kt_assert_* functions for better assertions

@@ -4,8 +4,22 @@
 # Get the directory where this script is located
 KKLASS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+autoloadClasses_runtime_source() {
+    local source_file="$1"
+    local runtime_file="$2"
+
+    source "$KKLASS_LIB_DIR/kklass.sh"
+
+    if [[ "$source_file" == *.kkp ]]; then
+        bash "$KKLASS_LIB_DIR/kklass_kkp.sh" "$source_file" "$runtime_file" || return 1
+        source "$runtime_file"
+    else
+        source "$source_file"
+    fi
+}
+
 # Auto-load classes with transparent compilation
-# Usage: autoloadClasses <source.kk> [--force-compile] [--no-compile]
+# Usage: autoloadClasses <source.kk|source.kkp> [--force-compile] [--no-compile]
 autoloadClasses() {
     local source_file="$1"
     local force_compile=false
@@ -39,14 +53,31 @@ autoloadClasses() {
     # Generate compiled filename (.kk -> .ckk/filename.ckk.sh)
     local source_dir="$(dirname "$source_file")"
     local source_name="$(basename "$source_file")"
+    local source_stem="$source_name"
     local ckk_dir="$(pwd)/.ckk"
-    local compiled_file="$ckk_dir/${source_name%.kk}.ckk.sh"
+    local runtime_file=""
+
+    case "$source_name" in
+        *.kk)
+            source_stem="${source_name%.kk}"
+            ;;
+        *.kkp)
+            source_stem="${source_name%.kkp}"
+            ;;
+        *)
+            source_stem="${source_name%.*}"
+            ;;
+    esac
+
+    local compiled_file="$ckk_dir/${source_stem}.ckk.sh"
+    runtime_file="$ckk_dir/${source_stem}.runtime.sh"
     
     # Create .ckk directory if it doesn't exist
     if [[ ! -d "$ckk_dir" ]]; then
         mkdir -p "$ckk_dir" 2>/dev/null || {
             echo "Warning: Could not create $ckk_dir, using source directory" >&2
-            compiled_file="${source_file%.kk}.ckk.sh"
+            compiled_file="${source_dir}/${source_stem}.ckk.sh"
+            runtime_file="${source_dir}/${source_stem}.runtime.sh"
         }
     fi
     
@@ -60,9 +91,8 @@ autoloadClasses() {
         needs_compilation=false
         if [[ ! -f "$compiled_file" ]]; then
             echo "[autoload] No compiled file found, using runtime mode" >&2
-            source "$KKLASS_LIB_DIR/kklass.sh"
-            source "$source_file"
-            return 0
+            autoloadClasses_runtime_source "$source_file" "$runtime_file"
+            return $?
         fi
     elif [[ ! -f "$compiled_file" ]]; then
         needs_compilation=true
@@ -93,9 +123,8 @@ autoloadClasses() {
         
         if [[ $? -ne 0 ]]; then
             echo "[autoload] Compilation failed! Falling back to runtime mode" >&2
-            source "$KKLASS_LIB_DIR/kklass.sh"
-            source "$source_file"
-            return 0
+            autoloadClasses_runtime_source "$source_file" "$runtime_file"
+            return $?
         fi
         
         echo "[autoload] Compilation successful" >&2
@@ -141,6 +170,7 @@ kkinfo() {
 
 # Export functions
 export -f autoloadClasses
+export -f autoloadClasses_runtime_source
 export -f kkload
 export -f kkrecompile
 export -f kkinfo
