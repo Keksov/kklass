@@ -955,6 +955,8 @@ finalizeImplementation() {
     endImplementation "$@"
 }
 
-export -f declareClass privateSection protectedSection publicSection virtual override abstract
-export -f field property classVar procedure declareProcedure func declareFunction classProcedure classFunction constructor
-export -f endClass finalizeClass implement implementConstructor endImplementation finalizeImplementation
+if [[ "${KKLASS_EXPORT_FUNCTIONS:-0}" == "1" ]]; then
+    export -f declareClass privateSection protectedSection publicSection virtual override abstract
+    export -f field property classVar procedure declareProcedure func declareFunction classProcedure classFunction constructor
+    export -f endClass finalizeClass implement implementConstructor endImplementation finalizeImplementation
+fi

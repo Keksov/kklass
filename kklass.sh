@@ -995,6 +995,42 @@ defineFunction() {
     _defineMethodType "$1" "$2" "$3" "function" "Function"
 }
 
+kk.register_static_methods() {
+    local class_name="$1"
+    local public_prefix="$2"
+    local display_name="${3:-$1}"
+    shift 3
+
+    local -a method_names=("$@")
+    local -a class_args=()
+    local method_name public_name impl_name method_decl
+
+    for method_name in "${method_names[@]}"; do
+        public_name="${public_prefix}.${method_name}"
+        impl_name="${public_prefix}.__impl_${method_name}"
+
+        if ! declare -F "$public_name" >/dev/null; then
+            echo "Error: ${display_name} method '$public_name' is not defined" >&2
+            return 1
+        fi
+
+        method_decl="$(declare -f "$public_name")"
+        method_decl="${method_decl#*$'\n'}"
+        eval "${impl_name}() ${method_decl}"
+        class_args+=("static_method" "$method_name" "${impl_name} \"\$@\"")
+    done
+
+    defineClass "$class_name" "" "${class_args[@]}" || return 1
+
+    for method_name in "${method_names[@]}"; do
+        public_name="${public_prefix}.${method_name}"
+        impl_name="${public_prefix}.__impl_${method_name}"
+        eval "${public_name}() { ${impl_name} \"\$@\"; }"
+    done
+}
+
 source "${KKLASS_DIR}/kklass_decl.sh"
 
-export -f kk._processMethodBody kk._class_derives_from kk._warn_visibility kk._build_class_runtime _defineMethodType defineClass defineMethod defineProcedure defineFunction
+if [[ "${KKLASS_EXPORT_FUNCTIONS:-0}" == "1" ]]; then
+    export -f kk._processMethodBody kk._class_derives_from kk._warn_visibility kk._build_class_runtime _defineMethodType defineClass defineMethod defineProcedure defineFunction kk.register_static_methods
+fi
