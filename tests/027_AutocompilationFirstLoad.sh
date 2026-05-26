@@ -18,8 +18,8 @@ TEST_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEST_FILE="$TEST_SCRIPT_DIR/.ckk/test_${TEST_NUM}.kk"
 
 # Clean up any previous test files
-mkdir -p "$SCRIPT_DIR/.ckk"
-rm -f "$TEST_FILE" "$SCRIPT_DIR/.ckk/${TEST_FILE%.*}.ckk.sh"
+mkdir -p "$TEST_SCRIPT_DIR/.ckk"
+rm -f "$TEST_FILE" "${TEST_FILE%.*}.ckk.sh"
 
 # Create test class file
 cat > "$TEST_FILE" <<'EOF'
@@ -38,7 +38,7 @@ kt_test_log "Created $TEST_FILE"
 
 # Test 27: First load with autocompilation
 kt_test_start "Auto-compilation (first load)"
-output=$(bash -c "cd '$SCRIPT_DIR' && KKLASS_DIR='$KKLASS_DIR' source '$KKLASS_DIR/kklass_autoload.sh' && kkload \"$TEST_FILE\"" 2>&1)
+output=$(bash -c "cd '$TEST_SCRIPT_DIR' && KKLASS_DIR='$KKLASS_DIR' source '$KKLASS_DIR/kklass_autoload.sh' && kkload \"$TEST_FILE\"" 2>&1)
 if echo "$output" | grep -q "Compilation successful" && [[ -f "${TEST_FILE%.*}.ckk.sh" ]]; then
     kt_test_pass "Auto-compilation (first load)"
 else

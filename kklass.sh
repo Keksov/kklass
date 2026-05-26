@@ -28,6 +28,33 @@ kk._return() {
     fi
 }
 
+kk.call_silent() {
+    local instance_name="$1"
+    local method_name="$2"
+    shift 2
+
+    local had_silent=0
+    local previous_silent=""
+    if [[ ${__kk_return_silent+x} ]]; then
+        had_silent=1
+        previous_silent="$__kk_return_silent"
+    fi
+
+    __kk_return_silent=1
+    "${instance_name}.call" "$method_name" "$@"
+    local call_status=$?
+    local call_result="$RESULT"
+
+    if (( had_silent )); then
+        __kk_return_silent="$previous_silent"
+    else
+        unset __kk_return_silent
+    fi
+
+    RESULT="$call_result"
+    return "$call_status"
+}
+
 kk._processMethodBody() {
     local class_name="$1"
     local method_name="$2"
@@ -703,6 +730,12 @@ __INST__.delete() {
 INSTANCE_TPL
 
     # Replace compile-time placeholders (pure bash, no subprocess)
+    local __kk_patsub_replacement_enabled=0
+    if shopt -q patsub_replacement 2>/dev/null; then
+        __kk_patsub_replacement_enabled=1
+        shopt -u patsub_replacement
+    fi
+
     instance_template="${instance_template//__CLASS_NAME__/$class_name}"
     instance_template="${instance_template//__PROP_FUNCS__/$prop_funcs}"
     instance_template="${instance_template//__RUN_FRAME_BODY_FUNC__/$run_frame_body_func}"
@@ -713,6 +746,10 @@ INSTANCE_TPL
     instance_template="${instance_template//__FIND_FUNC__/$find_method_func}"
     instance_template="${instance_template//__CALL_FUNC__/$call_func}"
     instance_template="${instance_template//__PARENT_FUNC__/$parent_func}"
+
+    if (( __kk_patsub_replacement_enabled )); then
+        shopt -s patsub_replacement
+    fi
 
     # Store template for this class (for compiler support)
     eval "${class_name}_instance_template=\$instance_template"
@@ -1032,5 +1069,5 @@ kk.register_static_methods() {
 source "${KKLASS_DIR}/kklass_decl.sh"
 
 if [[ "${KKLASS_EXPORT_FUNCTIONS:-0}" == "1" ]]; then
-    export -f kk._processMethodBody kk._class_derives_from kk._warn_visibility kk._build_class_runtime _defineMethodType defineClass defineMethod defineProcedure defineFunction kk.register_static_methods
+    export -f kk._processMethodBody kk.call_silent kk._class_derives_from kk._warn_visibility kk._build_class_runtime _defineMethodType defineClass defineMethod defineProcedure defineFunction kk.register_static_methods
 fi

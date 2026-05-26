@@ -18,7 +18,7 @@ TEST_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEST_FILE="$TEST_SCRIPT_DIR/.ckk/test_${TEST_NUM}.kk"
 
 # Setup: Ensure $TEST_FILE exists and is compiled
-mkdir -p .ckk
+mkdir -p "$TEST_SCRIPT_DIR/.ckk"
 if [[ ! -f "$TEST_FILE" ]]; then
     cat > "$TEST_FILE" <<'EOF'
 defineClass Counter "" \
@@ -34,7 +34,7 @@ EOF
 fi
 
 # Ensure it's compiled
-bash -c "cd '$SCRIPT_DIR' && KKLASS_DIR='$KKLASS_DIR' source '$KKLASS_DIR/kklass_autoload.sh' && kkload \"$TEST_FILE\"" >/dev/null 2>&1
+bash -c "cd '$TEST_SCRIPT_DIR' && KKLASS_DIR='$KKLASS_DIR' source '$KKLASS_DIR/kklass_autoload.sh' && kkload \"$TEST_FILE\"" >/dev/null 2>&1
 
 # Test 33: Inheritance in compiled classes
 kt_test_start "Inheritance in compiled classes"

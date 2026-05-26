@@ -18,7 +18,7 @@ TEST_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEST_FILE="$TEST_SCRIPT_DIR/.ckk/test_${TEST_NUM}.kk"
 
 # Setup: Ensure $TEST_FILE exists
-mkdir -p .ckk
+mkdir -p "$TEST_SCRIPT_DIR/.ckk"
 if [[ ! -f "$TEST_FILE" ]]; then
     cat > "$TEST_FILE" <<'EOF'
 defineClass Counter "" \
@@ -35,7 +35,7 @@ fi
 
 # Test 32: Functional test with compiled classes
 kt_test_start "Functional test with compiled classes"
-bash -c "source '$KKLASS_DIR/kklass_autoload.sh' && kkload \"$TEST_FILE\" --force-compile" >/dev/null 2>&1
+bash -c "cd '$TEST_SCRIPT_DIR' && source '$KKLASS_DIR/kklass_autoload.sh' && kkload \"$TEST_FILE\" --force-compile" >/dev/null 2>&1
  result=$(bash -c "source \"${TEST_FILE%.*}\".ckk.sh && Counter.new cnt && cnt.value = 7 && cnt.increment")
 if [[ "$result" == "8" ]]; then
     kt_test_pass "Functional test with compiled classes"
