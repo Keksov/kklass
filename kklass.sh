@@ -5,6 +5,10 @@ KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${KKLASS_DIR}/../kkore/klib.sh"
 source "${KKLASS_DIR}/../kkore/kerr.sh"
 source "${KKLASS_DIR}/../kkore/kvar.sh"
+
+# Scratch global used by instance ._find_method to return the resolving class
+# without forking a subshell (replaces the previous $(...) capture).
+declare -g __kk_find_class=""
 # kk._var() {
 #     local str="${1^^}" # Convert to upper case
 #     str="${str// /_}"
@@ -585,10 +589,11 @@ kk._build_class_runtime() {
     __INST__._find_method() {
         local method_name=\"\$1\" search_class=\"\$2\"
         local method_var=\"\${search_class}_method_body_\${method_name}\"
-        
+        __kk_find_class=\"\"
+
         # Check current class
         if [[ -n \"\${!method_var}\" ]]; then
-            echo -e \"\$search_class\"
+            __kk_find_class=\"\$search_class\"
             return 0
         fi
         
@@ -599,7 +604,7 @@ kk._build_class_runtime() {
         while [[ -n \"\$parent_class\" ]]; do
             method_var=\"\${parent_class}_method_body_\${method_name}\"
             if [[ -n \"\${!method_var}\" ]]; then
-                echo -e \"\$parent_class\"
+                __kk_find_class=\"\$parent_class\"
                 return 0
             fi
             parent_var=\"\${parent_class}_parent_class\"
@@ -629,8 +634,9 @@ kk._build_class_runtime() {
         local found_class=\"\${!cache_var}\"
         
         if [[ -z \"\$found_class\" ]]; then
-            # Cache miss: search hierarchy and populate cache
-            found_class=\$(__INST__._find_method \"\$method_name\" \"\$search_class\")
+            # Cache miss: search hierarchy and populate cache (fork-free)
+            __INST__._find_method \"\$method_name\" \"\$search_class\"
+            found_class=\"\$__kk_find_class\"
             
             if [[ -z \"\$found_class\" ]]; then
                 echo \"Error: Method '\$method_name' not found in class hierarchy\" >&2
@@ -681,8 +687,9 @@ kk._build_class_runtime() {
         local found_class=\"\${!parent_cache_var}\"
         
         if [[ -z \"\$found_class\" ]]; then
-            # Cache miss: search parent hierarchy
-            found_class=\$(__INST__._find_method \"\$method_name\" \"\$parent_of_current\")
+            # Cache miss: search parent hierarchy (fork-free)
+            __INST__._find_method \"\$method_name\" \"\$parent_of_current\"
+            found_class=\"\$__kk_find_class\"
             
             if [[ -z \"\$found_class\" ]]; then
                 echo \"Error: Parent method '\$method_name' not found\" >&2
@@ -786,6 +793,14 @@ INSTANCE_TPL
         done
         
         # Create static methods: Class.method args
+        # Detect funsub support (bash 5.3+): `REPLY=${ cmds; }` runs in the current
+        # shell with no subshell/fork and captures stdout, so static property
+        # mutations persist AND output is captured without any temp file.
+        local __kk_has_funsub=0
+        if (( BASH_VERSINFO[0] > 5 || (BASH_VERSINFO[0] == 5 && BASH_VERSINFO[1] >= 3) )); then
+            __kk_has_funsub=1
+        fi
+
         for sm in "${static_meths_arr[@]}"; do
             # Get the actual method body
             local sm_body="${static_meth_bodies[$sm]}"
@@ -797,25 +812,45 @@ INSTANCE_TPL
                 local static_owner="${static_prop_owner[$sp]:-$class_name}"
                 static_namerefs+="local -n $sp=${static_owner}_static_${sp}; "
             done
-            
-            # Create the static method function with name references
-            # Execute in current shell and capture stdout to REPLY to preserve static property mutations
-            eval "${class_name}.${sm}() {
-                ${static_namerefs}
-                local __tmp_out=\"\$(mktemp)\"
-                local __kk_return_set=0
-                local __kk_return_value=\"\"
-                local __kk_return_silent=1
-                {
-                    ${sm_body}
-                    if (( __kk_return_set )); then
-                        printf \"%s\" \"\$__kk_return_value\"
-                    fi
-                } >\"\$__tmp_out\"
-                REPLY=\"\$(cat \"\$__tmp_out\")\"
-                rm -f \"\$__tmp_out\"
-                printf \"%s\" \"\$REPLY\"
-            }"
+
+            if (( __kk_has_funsub )); then
+                # bash 5.3+: capture stdout in-process with a function substitution.
+                # The body runs in the current shell (no fork, no temp file) so static
+                # property mutations persist and the return value is captured into REPLY.
+                eval "${class_name}.${sm}() {
+                    ${static_namerefs}
+                    local __kk_return_set=0
+                    local __kk_return_value=\"\"
+                    local __kk_return_silent=1
+                    REPLY=\${
+                        ${sm_body}
+                        if (( __kk_return_set )); then
+                            printf \"%s\" \"\$__kk_return_value\"
+                        fi
+                    }
+                    printf \"%s\" \"\$REPLY\"
+                }"
+            else
+                # bash 5.2 fallback: there is no in-memory capture for current-shell
+                # code, so a scratch file is used, but without spawning mktemp/cat:
+                # the name is generated in shell and $(<file) reads it without a fork.
+                eval "${class_name}.${sm}() {
+                    ${static_namerefs}
+                    local __kk_return_set=0
+                    local __kk_return_value=\"\"
+                    local __kk_return_silent=1
+                    local __kk_static_out=\"\${TMPDIR:-/tmp}/.kk_static_\${BASHPID}_\${RANDOM}\${RANDOM}\"
+                    {
+                        ${sm_body}
+                        if (( __kk_return_set )); then
+                            printf \"%s\" \"\$__kk_return_value\"
+                        fi
+                    } >\"\$__kk_static_out\"
+                    REPLY=\"\$(<\"\$__kk_static_out\")\"
+                    rm -f \"\$__kk_static_out\"
+                    printf \"%s\" \"\$REPLY\"
+                }"
+            fi
         done
     fi
     

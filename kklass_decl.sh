@@ -18,6 +18,8 @@ kk.decl._remember_static_property() {
         kk.decl._error "static property metadata requires class and property name"
         return 1
     }
+    kk.decl._validate_ident "$class_name" "class name" || return 1
+    kk.decl._validate_ident "$property_name" "static property name" || return 1
 
     kk.decl._append_unique "$static_props_var" "$property_name"
 }
@@ -33,6 +35,8 @@ kk.decl._remember_static_method() {
         kk.decl._error "static method metadata requires class and method name"
         return 1
     }
+    kk.decl._validate_ident "$class_name" "class name" || return 1
+    kk.decl._validate_ident "$method_name" "static method name" || return 1
 
     kk.decl._append_unique "$static_methods_var" "$method_name"
     local -n static_bodies_ref="$static_bodies_var"
@@ -55,6 +59,9 @@ kk.decl._remember_lazy_property() {
         kk.decl._error "lazy property metadata requires class, property, and init method"
         return 1
     }
+    kk.decl._validate_ident "$class_name" "class name" || return 1
+    kk.decl._validate_ident "$property_name" "lazy property name" || return 1
+    kk.decl._validate_ident "$init_method" "lazy init method name" || return 1
 
     kk.decl._append_unique "$props_var" "$property_name"
     vis_ref["$property_name"]="$KK_DECL_CURRENT_VISIBILITY"
@@ -65,6 +72,22 @@ kk.decl._remember_lazy_property() {
 kk.decl._error() {
     echo "$1" >&2
     return 1
+}
+
+# Validate that a name is a safe bash identifier before it is interpolated into
+# generated code / variable names (defense against code injection via class,
+# property or method names). Empty values are allowed here so callers can keep
+# their own "required" checks; only non-empty invalid names are rejected.
+kk.decl._validate_ident() {
+    local name="$1"
+    local label="${2:-name}"
+
+    if [[ -n "$name" && ! "$name" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+        kk.decl._error "Invalid ${label}: '${name}' (must be a valid identifier: letters, digits, underscore; not starting with a digit)"
+        return 1
+    fi
+
+    return 0
 }
 
 kk.decl._reset_next_modifiers() {
@@ -379,6 +402,7 @@ kk.decl._declare_method() {
         kk.decl._error "Method name is required"
         return 1
     }
+    kk.decl._validate_ident "$method_name" "method name" || return 1
 
     local methods_var="${class_name}_decl_methods"
     local abstract_var="${class_name}_decl_method_abstract"
@@ -440,6 +464,8 @@ declareClass() {
         kk.decl._error "declareClass: CLASS_NAME is required"
         return 1
     }
+    kk.decl._validate_ident "$class_name" "class name" || return 1
+    kk.decl._validate_ident "$parent_class" "parent class name" || return 1
 
     eval "declare -ga ${class_name}_decl_fields=()"
     eval "declare -ga ${class_name}_decl_properties=()"
@@ -502,6 +528,7 @@ classVar() {
         kk.decl._error "classVar: PROPERTY_NAME is required"
         return 1
     }
+    kk.decl._validate_ident "$property_name" "class variable name" || return 1
 
     if [[ ${#KK_DECL_NEXT_MODIFIERS[@]} -gt 0 ]]; then
         kk.decl._error "classVar: Modifiers are not supported for class variables"
@@ -535,6 +562,7 @@ field() {
         kk.decl._error "field: FIELD_NAME is required"
         return 1
     }
+    kk.decl._validate_ident "$field_name" "field name" || return 1
 
     if [[ ${#KK_DECL_NEXT_MODIFIERS[@]} -gt 0 ]]; then
         kk.decl._error "field: Modifiers are not supported for fields"
@@ -559,6 +587,7 @@ property() {
         kk.decl._error "property: PROPERTY_NAME is required"
         return 1
     }
+    kk.decl._validate_ident "$property_name" "property name" || return 1
 
     if [[ ${#KK_DECL_NEXT_MODIFIERS[@]} -gt 0 ]]; then
         kk.decl._error "property: Modifiers are not supported for properties in this phase"
