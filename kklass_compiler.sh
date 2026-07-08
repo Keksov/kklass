@@ -233,7 +233,9 @@ ${class_name}.new() {
         return 1
     fi
     local instance_template=$(printf '%q' "$template_val")
-    source <(sed "s/__INST__/\$instname/g" <<< "\$instance_template")
+    # Fork-free instance materialization (pure-bash substitution + eval),
+    # replacing 'source <(sed ...)' which forked sed per .new().
+    eval "\${instance_template//__INST__/\$instname}"
 
     local __kk_constructor_var="${class_name}_constructor_body"
     if [[ -n "\${!__kk_constructor_var:-}" ]]; then

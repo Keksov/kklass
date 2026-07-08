@@ -1,7 +1,7 @@
 #!/bin/bash
 # Тесты для kklass_cnfh.sh
 
-source ./kklass_cnfh.sh
+source "$(dirname "${BASH_SOURCE[0]}")/kklass_cnfh.sh"
 
 # Цвета для вывода
 GREEN='\033[0;32m'

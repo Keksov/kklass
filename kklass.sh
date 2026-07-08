@@ -173,6 +173,19 @@ kk._build_class_runtime() {
     local parent_class="$2"
     shift 2
 
+    # SECURITY: class_name, parent_class and every member name below are
+    # interpolated into eval'd metadata assignments and generated function
+    # names. The declarative defineClass path validates these before calling
+    # us, but this function is also reachable directly and via other builders,
+    # so validate here too (defense in depth). Reject anything that is not a
+    # plain bash identifier.
+    if [[ -z "$class_name" ]]; then
+        echo "kk._build_class_runtime: class name is required" >&2
+        return 1
+    fi
+    kk.decl._validate_ident "$class_name" "class name" || return 1
+    kk.decl._validate_ident "$parent_class" "parent class name" || return 1
+
     # Collect properties and methods (including inherited)
     local -a props_arr=()
     local -a meths_arr=()
@@ -286,6 +299,7 @@ kk._build_class_runtime() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
             static_property)
+                kk.decl._validate_ident "$2" "static property name" || return 1
                 has_static_members=true
                 if [[ -z "${static_prop_index[$2]+x}" ]]; then
                     static_props_arr+=("$2")
@@ -295,6 +309,7 @@ kk._build_class_runtime() {
                 shift 2
                 ;;
             static_method)
+                kk.decl._validate_ident "$2" "static method name" || return 1
                 has_static_members=true
                 if [[ -z "${static_meth_index[$2]+x}" ]]; then
                     static_meths_arr+=("$2")
@@ -305,6 +320,7 @@ kk._build_class_runtime() {
                 shift 3
                 ;;
             property)
+                kk.decl._validate_ident "$2" "property name" || return 1
                 local prop_name="$2"
                 props_arr+=("$prop_name")
                 shift 2
@@ -326,10 +342,12 @@ kk._build_class_runtime() {
                     # Allows both "get"/"set" and "_get"/"_set"
                     case "$peek_arg" in
                         get* | _get*)
+                            kk.decl._validate_ident "$peek_arg" "getter name" || return 1
                             computed_getters["$prop_name"]="$peek_arg"
                             shift
                             ;;
                         set* | _set*)
+                            kk.decl._validate_ident "$peek_arg" "setter name" || return 1
                             computed_setters["$prop_name"]="$peek_arg"
                             shift
                             ;;
@@ -342,11 +360,14 @@ kk._build_class_runtime() {
                 ;;
             lazy_property)
                 # usage: lazy_property PROP INIT_METHOD
+                kk.decl._validate_ident "$2" "lazy property name" || return 1
+                kk.decl._validate_ident "$3" "lazy init method name" || return 1
                 props_arr+=("$2")
                 lazy_inits["$2"]="$3"
                 shift 3
                 ;;
             method|procedure|function)
+                kk.decl._validate_ident "$2" "method name" || return 1
                 local meth_type="$1"
                 # Check if method already exists (override) using fast lookup
                 if [[ -z "${meth_index[$2]}" ]]; then
@@ -643,10 +664,12 @@ kk._build_class_runtime() {
                 return 1
             fi
             
-            # Populate cache for next call
-            eval \"\${search_class}_method_cache[\\\"\${method_name}\\\"]=\"\$found_class\"\"
+            # Populate cache for next call (nameref, not eval: method_name is a
+            # call argument and must never be interpolated into evaluated code)
+            local -n __kk_cache_ref=\"\${search_class}_method_cache\"
+            __kk_cache_ref[\"\$method_name\"]=\"\$found_class\"
         fi
-        
+
         # Get method body from found class
         local method_var=\"\${found_class}_method_body_\${method_name}\"
         local method_body=\"\${!method_var}\"
@@ -696,8 +719,9 @@ kk._build_class_runtime() {
                 return 1
             fi
             
-            # Populate cache with special parent key
-            eval \"\${active_class}_method_cache[\\\"\${parent_cache_key}\\\"]=\"\$found_class\"\"
+            # Populate cache with special parent key (nameref, not eval)
+            local -n __kk_pcache_ref=\"\${active_class}_method_cache\"
+            __kk_pcache_ref[\"\$parent_cache_key\"]=\"\$found_class\"
         fi
 
         # Get method body
@@ -718,7 +742,10 @@ __INST__.property() {
     if [ "$2" == "=" ]; then
         __INST___data["$1"]="$3"
     else
-        echo -e "${__INST___data["$1"]}"
+        # printf, not echo -e: property values are data and must round-trip
+        # verbatim. echo -e would interpret backslash escapes (e.g. a Windows
+        # path 'C:\new' or a literal '\t') and mangle the stored value.
+        printf '%s\n' "${__INST___data["$1"]}"
     fi
 }
 __PROP_FUNCS__
@@ -859,7 +886,11 @@ INSTANCE_TPL
         local instname=\"\$1\"
         shift
         [[ \"\$instname\" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || { echo \"Invalid instance name: \$instname\" >&2; return 1; }
-        source <(sed \"s/__INST__/\$instname/g\" <<< \"\$${class_name}_instance_template\")
+        # Materialize the instance by substituting the (validated) instance name
+        # into the class template with a pure-bash replacement and eval'ing it.
+        # Replaces the previous 'source <(sed ...)' which forked sed + a process
+        # substitution on every .new() — the dominant object-creation cost.
+        eval \"\${${class_name}_instance_template//__INST__/\$instname}\"
         
         # If methods were added via defineMethod, create them on the instance
         if [[ \"\$${class_name}_has_dynamic_methods\" == \"1\" ]]; then
