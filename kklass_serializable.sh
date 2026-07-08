@@ -176,7 +176,11 @@ _addSerializable_json() {
     local prop_assign=""
     
     for prop in $props_list; do
-        json_fields+="\"$prop\":\"\${$prop}\","
+        # Escape the quotes so they survive being embedded in the double-quoted
+        # echo of toJSON_body (matching the \"__class__\" part). Without this the
+        # field quotes were dropped and the output was invalid JSON (id:1 instead
+        # of "id":"1").
+        json_fields+="\\\"$prop\\\":\\\"\${$prop}\\\","
         prop_assign+="
             \"$prop\")
                 $prop=\${__kk_value%\\\"}

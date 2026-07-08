@@ -12,7 +12,7 @@ echo
 # Define a class with methods that call each other
 defineClass "Nested" "" \
     "property" "name" \
-    "method" "a" 'echo "A"' \
+    "method" "a" 'echo -n "A"' \
     "method" "b" 'echo -n "B:"; $this.a' \
     "method" "c" 'echo -n "C:"; $this.b' \
     "method" "d" 'echo -n "D:"; $this.c; echo " (from $name)"'
@@ -41,7 +41,7 @@ fi
 
 # Demonstrate more complex nesting
 defineClass "ChainDemo" "" \
-    "method" "one" 'echo "1"' \
+    "method" "one" 'echo -n "1"' \
     "method" "two" 'echo -n "2:"; $this.one' \
     "method" "three" 'echo -n "3:"; $this.two' \
     "method" "four" 'echo -n "4:"; $this.three; echo " (done)"'

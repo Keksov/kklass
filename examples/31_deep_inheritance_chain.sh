@@ -20,7 +20,7 @@ defineClass "B" "A" \
 
 defineClass "C" "B" \
     "property" "propC" \
-    "method" "showAll" '$this.showA; $this.showB; echo "C:$propC"'
+    "method" "showAll" 'echo "$($this.showA)$($this.showB)C:$propC"'
 
 # Create instance of the deepest class
 C.new obj_c

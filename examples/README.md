@@ -10,7 +10,7 @@ cd lib/kklass
 bash examples/demo.sh
 ```
 
-The demo script will run through all 45 examples sequentially, showing the progress and results. Use `bash examples/demo.sh --help` for more options.
+The demo script will run through all 46 examples sequentially, showing the progress and results. Use `bash examples/demo.sh --help` for more options.
 
 ### Example Runner Features
 
@@ -28,7 +28,7 @@ The examples are organized into four main sections:
 - **Section 1 (Examples 01-21)**: Core functionality tests
 - **Section 2 (Examples 22-28)**: Autoload and compilation features
 - **Section 3 (Examples 29-31)**: Edge cases and error handling
-- **Section 4 (Examples 32-45)**: Advanced design patterns and capabilities
+- **Section 4 (Examples 32-46)**: Advanced design patterns and capabilities
 
 ## Examples Index
 
@@ -96,6 +96,7 @@ The examples are organized into four main sections:
 | [43_nested_serialization.sh](43_nested_serialization.sh) | Nested Serialization | Serialization of nested objects and complex structures |
 | [44_pascal_declare_implement.sh](44_pascal_declare_implement.sh) | Pascal-style Declare/Implement | Class declaration and implementation split with `classVar` |
 | [45_pascal_unit_kkp.sh](45_pascal_unit_kkp.sh) | Pascal-style `.kkp` Unit | Loading a Pascal-like unit with multiline signatures through `kkload` |
+| [46_visibility_modifiers.sh](46_visibility_modifiers.sh) | Visibility Modifiers | `private`/`protected`/`public` sections and access warnings for out-of-class member access |
 
 ## Running the Examples
 
@@ -118,7 +119,7 @@ for file in examples/[0-9]*.sh; do
 done
 ```
 
-**Note**: The demo script runs all 45 examples sequentially and shows:
+**Note**: The demo script runs all 46 examples sequentially and shows:
 - ✅ **Progress indicators** for each example
 - ✅ **Success/failure status** for each example
 - ✅ **Automatic cleanup** after each example

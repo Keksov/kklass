@@ -20,7 +20,7 @@ defineClass "Vehicle" "" \
 defineClass "Car" "Vehicle" \
     "property" "brand" \
     "property" "model" \
-    "method" "info" 'echo "Brand: $brand, Model: $model"; $this.getSpeed; $this.getMake' \
+    "method" "info" 'echo "Brand: $brand, Model: $model$($this.getSpeed)$($this.getMake)"' \
     "method" "fullDescription" 'echo "This is a $brand $model made by $make, traveling at $speed km/h"'
 
 # Create car instance

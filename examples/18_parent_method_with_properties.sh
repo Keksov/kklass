@@ -19,7 +19,7 @@ defineClass "Shape" "" \
 defineClass "Rectangle" "Shape" \
     "property" "width" \
     "property" "height" \
-    "method" "describe" 'echo -n "Rectangle "; $this.parent describe; echo -n " ($width x $height)"' \
+    "method" "describe" 'echo "Rectangle $($this.parent describe) ($width x $height)"' \
     "method" "area" 'echo $((width * height))' \
     "method" "perimeter" 'echo $((2 * (width + height)))'
 

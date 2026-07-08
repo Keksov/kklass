@@ -12,15 +12,15 @@ echo
 # Define a three-level inheritance hierarchy
 defineClass "GrandParent" "" \
     "property" "grandparent_prop" \
-    "method" "generation" 'echo "GrandParent"'
+    "method" "generation" 'echo -n "GrandParent"'
 
 defineClass "Parent" "GrandParent" \
     "property" "parent_prop" \
-    "method" "generation" 'echo "Parent"; $this.parent generation'
+    "method" "generation" 'echo -n "Parent"; $this.parent generation'
 
 defineClass "Child" "Parent" \
     "property" "child_prop" \
-    "method" "generation" 'echo "Child"; $this.parent generation'
+    "method" "generation" 'echo -n "Child"; $this.parent generation'
 
 # Create instance of the deepest derived class
 Child.new child1

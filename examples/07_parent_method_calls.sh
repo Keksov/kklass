@@ -18,7 +18,7 @@ defineClass "Animal" "" \
 defineClass "Cat" "Animal" \
     "property" "name" \
     "method" "speak" 'echo "Meow!"' \
-    "method" "speakAsAnimal" 'echo -n "Cat sound: "; $this.speak; echo -n " - Animal sound: "; $this.parent speak'
+    "method" "speakAsAnimal" 'echo "Cat sound: $($this.speak) - Animal sound: $($this.parent speak)"'
 
 # Create instance
 Cat.new cat1
