@@ -45,10 +45,11 @@ Kklass is a comprehensive object-oriented programming (OOP) system for Bash that
 
 ### System Requirements
 
-- Bash 4.3 or higher (for name references)
-- Standard Unix utilities (sed, mktemp, stat)
-- Optional: bc (for computed properties with arithmetic)
-- Optional: md5sum/sha256sum (for serialization examples)
+- Bash 4.3 or higher (for name references). On Bash 5.3+ a faster, fork-free
+  path is used automatically for static methods (with a temp-file fallback on 5.2).
+- Standard Unix utilities: `mktemp` and `stat` (used by the compiler and autoloader).
+  Object creation and method dispatch are pure Bash — no `sed`/`awk` fork per instance.
+- Optional: `md5sum`/`sha256sum` (only for some serialization examples)
 
 ---
 
@@ -545,15 +546,103 @@ echo "Sessions: $(SessionTracker.GetCount)"
 
 `classVar` maps to the same shared class storage used by `static_property` in the legacy API.
 
+### Access Control and Method Modifiers
+
+The declarative API adds Pascal-style access-control sections and method
+modifiers that the runtime is aware of.
+
+#### Visibility: private / protected / public
+
+`privateSection`, `protectedSection`, and `publicSection` set the visibility of
+every member declared after them (the default is public). Accessing a `private`
+or `protected` member from **outside** its class prints a warning to stderr — it
+is a diagnostic, not a hard block (the value is still returned), so existing code
+keeps working while misuse is surfaced. Accessing the same member from within a
+method of the owning class produces no warning (dispatch is frame-aware and knows
+the active class).
+
+```bash
+declareClass "BankAccount" ""
+privateSection
+    field "balance"
+publicSection
+    constructor "Create"
+    procedure "deposit"
+    func "getBalance"
+endClass
+
+implementConstructor "BankAccount" 'balance="${1:-0}"'
+implement "BankAccount.deposit" 'balance=$((balance + $1))'
+implement "BankAccount.getBalance" 'RESULT="$balance"'
+endImplementation "BankAccount"
+
+BankAccount.new account 100
+account.deposit 50
+echo "$(account.getBalance)"   # 150 — public method, no warning
+account.balance                # prints 150 AND warns on stderr:
+                               # [kk] warning: private property 'BankAccount.balance' accessed from 'external'
+```
+
+- `private`: intended for use only from methods of the same class.
+- `protected`: also available to descendant classes.
+- `public` (default): available from anywhere.
+
+See `examples/46_visibility_modifiers.sh` for a complete runnable example.
+
+#### Method modifiers: virtual / override / abstract
+
+`virtual`, `override`, and `abstract` are written on their own line immediately
+before the method they modify:
+
+- `abstract` — declares a method with no body. A class that still has an
+  unimplemented abstract method is **abstract** and cannot be instantiated
+  (`ClassName.new` fails). Implement it in a descendant to make the class concrete.
+- `virtual` — marks a method as overridable.
+- `override` — overrides a `virtual`/`abstract` parent method. Overriding a
+  non-virtual parent method is rejected at `endClass`.
+
+```bash
+declareClass "Shape" ""
+publicSection
+    virtual
+    func "area"
+    abstract
+    procedure "draw"
+endClass
+implement "Shape.area" 'RESULT="0"'
+endImplementation "Shape"
+
+Shape.new s        # Error: Abstract class 'Shape' cannot be instantiated
+
+declareClass "Circle" "Shape"
+publicSection
+    property "radius"
+    override
+    func "area"
+    override
+    procedure "draw"
+endClass
+implement "Circle.area" 'RESULT=$(( radius * radius * 3 ))'
+implement "Circle.draw" 'echo "drawing circle r=$radius"'
+endImplementation "Circle"
+
+Circle.new c       # OK — the abstract method is now implemented
+c.radius = "5"
+echo "$(c.area)"   # 75
+c.draw             # drawing circle r=5
+```
+
 ### Computed Properties
 
-Computed properties calculate their value on-the-fly:
+Computed properties calculate their value on-the-fly. A property becomes computed
+when it is followed by getter/setter method names — a name starting with `get`/`_get`
+is used as the read accessor and one starting with `set`/`_set` as the write accessor:
 
 ```bash
 defineClass "Rectangle" "" \
     "property" "width" \
     "property" "height" \
-    "computed_property" "area" "getArea" "-" \
+    "property" "area" "getArea" \
     "method" "getArea" 'echo $((width * height))'
 
 Rectangle.new rect
@@ -574,7 +663,7 @@ rect.delete
 defineClass "User" "" \
     "property" "first_name" \
     "property" "last_name" \
-    "computed_property" "full_name" "get_full_name" "set_full_name" \
+    "property" "full_name" "get_full_name" "set_full_name" \
     "method" "get_full_name" 'echo "$first_name $last_name"' \
     "method" "set_full_name" '
         local full="$1"
@@ -1623,12 +1712,14 @@ defineClass CLASS_NAME PARENT_CLASS DEFINITIONS...
 
 **Definitions:**
 - `"property" NAME`: Define a property
+- `"property" NAME GETTER [SETTER]`: Define a computed property. Accessor names
+  are detected by prefix — `get*`/`_get*` is the read accessor, `set*`/`_set*` the
+  write accessor. (There is no `computed_property` keyword.)
 - `"method" NAME BODY`: Define a method
 - `"constructor" BODY`: Define constructor
 - `"static_property" NAME`: Define static property
 - `"static_method" NAME BODY`: Define static method
-- `"computed_property" NAME GETTER SETTER`: Define computed property
-- `"lazy_property" NAME INIT`: Define lazy property
+- `"lazy_property" NAME INIT`: Define lazy property (computed once, on first access)
 
 **Returns:** Echoes confirmation message
 
@@ -2103,8 +2194,8 @@ obj.delete
 
 ### Getting Help
 
-- Check examples in `lib/kklass/examples/`
-- Review test suite in `lib/kklass/tests/test_kklass_full.sh`
+- Check examples in `kklass/examples/` (run them all with `bash examples/demo.sh`)
+- Review the test suite in `kklass/tests/` (numbered `NNN_*.sh` files, run via `bash tests/tests.sh`)
 - Search for similar patterns in examples
 - Verify Bash version: `bash --version` (need 4.3+)
 
@@ -2124,18 +2215,20 @@ Kklass brings powerful object-oriented programming to Bash, enabling:
 ### Next Steps
 
 1. **Explore examples**: Run `bash examples/demo.sh`
-2. **Read tests**: See `tests/test_kklass_full.sh` for comprehensive usage
+2. **Read tests**: See `tests/` (numbered `NNN_*.sh` files) for comprehensive usage
 3. **Build something**: Create your own classes
 4. **Optimize**: Use compilation for production scripts
 
 ### Resources
 
-- **Examples**: `lib/kklass/examples/` (43 examples)
-- **Tests**: `lib/kklass/tests/test_kklass_full.sh` (46 tests)
-- **Core Library**: `lib/kklass/kklass.sh`
-- **Compiler**: `lib/kklass/kklass_compiler.sh`
-- **Autoloader**: `lib/kklass/kklass_autoload.sh`
-- **Serialization**: `lib/kklass/kklass_serializable.sh`
+- **Examples**: `kklass/examples/` (46 examples; `demo.sh` runs them all)
+- **Tests**: `kklass/tests/` (numbered `NNN_*.sh`; run with `tests/tests.sh`)
+- **Core Library**: `kklass/kklass.sh`
+- **Declarative API**: `kklass/kklass_decl.sh`
+- **Compiler**: `kklass/kklass_compiler.sh`
+- **Autoloader**: `kklass/kklass_autoload.sh`
+- **Serialization**: `kklass/kklass_serializable.sh`
+- **`.kkp` unit translator**: `kklass/kklass_kkp.sh`
 
 ---
 
@@ -2143,6 +2236,6 @@ Kklass brings powerful object-oriented programming to Bash, enabling:
 
 ---
 
-*Document Version: 1.0*  
-*Last Updated: 2024*  
+*Document Version: 1.1*  
+*Last Updated: 2026-07-09*  
 *For Kklass System v1.0+*
