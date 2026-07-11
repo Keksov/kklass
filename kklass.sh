@@ -168,6 +168,19 @@ kk._warn_visibility() {
     echo "[kk] warning: ${visibility} ${member_type%_*} '${owner_class}.${member_name}' accessed from '${current_class:-external}'" >&2
 }
 
+# Run a class's constructor body in the CURRENT frame (used by parent-constructor
+# chaining). The body is looked up indirectly and eval'd — never embedded into a
+# generated function, so a body containing quotes/semicolons is safe. Extra args
+# become the constructor's positional parameters ($1, $2, ...).
+kk._invoke_constructor() {
+    local __kk_ctor_cls="$1"
+    shift
+    local __kk_ctor_var="${__kk_ctor_cls}_constructor_body"
+    if [[ -n "${!__kk_ctor_var}" ]]; then
+        eval "${!__kk_ctor_var}"
+    fi
+}
+
 kk._build_class_runtime() {
     local class_name="$1"
     local parent_class="$2"
@@ -191,6 +204,7 @@ kk._build_class_runtime() {
     local -a meths_arr=()
     local -A meth_bodies
     local -A meth_index  # For fast lookup
+    local -A meth_owner=()  # method -> DEFINING class (Pascal 'inherited' semantics)
     local constructor_body=""
     
     # Static members support (lazy initialization)
@@ -223,11 +237,15 @@ kk._build_class_runtime() {
             local -n parent_meths_ref="$parent_meths_var"
             meths_arr+=("${parent_meths_ref[@]}")
 
-            # Copy parent method bodies and index
+            # Copy parent method bodies and index. The OWNER (defining class)
+            # travels along: for a method the parent itself inherited, keep the
+            # original defining class, not the parent.
             for m in "${parent_meths_ref[@]}"; do
                 local parent_body_var="${parent_class}_method_body_${m}"
                 meth_bodies["$m"]="${!parent_body_var}"
                 meth_index["$m"]=1
+                local parent_owner_var="${parent_class}_class_method_owner[$m]"
+                meth_owner["$m"]="${!parent_owner_var:-$parent_class}"
             done
         fi
 
@@ -374,6 +392,8 @@ kk._build_class_runtime() {
                     meths_arr+=("$2")
                     meth_index["$2"]=1
                 fi
+                # Declared (or overridden) here: this class is the defining one.
+                meth_owner["$2"]="$class_name"
 
                 # Process method body using shared logic
                 #local processed_method=$(kk._processMethodBody "$class_name" "$2" "$3" "$meth_type" "meths_arr")
@@ -406,6 +426,12 @@ kk._build_class_runtime() {
     for m in "${!static_meth_owner[@]}"; do
         eval "${class_name}_class_static_method_owner[\"$m\"]=\"${static_meth_owner[$m]}\""
     done
+    # Instance-method owners (defining class of each body) — the anchor for
+    # Pascal-correct `inherited`/.parent resolution.
+    eval "declare -gA ${class_name}_class_method_owner=()"
+    for m in "${!meth_owner[@]}"; do
+        eval "${class_name}_class_method_owner[\"$m\"]=\"${meth_owner[$m]}\""
+    done
     
     # Store computed property getters/setters
     eval "declare -gA ${class_name}_computed_getters"
@@ -426,9 +452,12 @@ kk._build_class_runtime() {
     
     for m in "${meths_arr[@]}"; do
         eval "${class_name}_method_body_${m}=\${meth_bodies[\$m]}"
-        
-        # Pre-populate cache: method resolves to this class
-        eval "${class_name}_method_cache[\"${m}\"]=\"${class_name}\""
+
+        # Pre-populate cache: method resolves to its DEFINING class (owner), so
+        # dispatch pushes the owner as the frame class and `inherited`/.parent
+        # inside the body walks up from where the body was defined (Pascal
+        # semantics), not from the instance's class.
+        eval "${class_name}_method_cache[\"${m}\"]=\"${meth_owner[$m]:-$class_name}\""
     done
 
     for m in "${static_meths_arr[@]}"; do
@@ -599,9 +628,13 @@ kk._build_class_runtime() {
 
     local meth_funcs=""
     for m in "${meths_arr[@]}"; do
+        # Dispatch with the method's DEFINING class (owner): the frame then
+        # carries the class the body belongs to, so `inherited`/.parent inside
+        # an inherited (non-overridden) body resolves from the right level
+        # instead of re-running the same body from the instance's class.
         meth_funcs+="
         __INST__.$m() {
-            __INST__._exec \"$m\" \"$class_name\" \"\$@\"
+            __INST__._exec \"$m\" \"${meth_owner[$m]:-$class_name}\" \"\$@\"
         }"
     done
 
@@ -635,35 +668,39 @@ kk._build_class_runtime() {
         return 1
     }"
 
-    # Add call method to invoke methods in current class context
+    # Add call method to invoke methods in current class context.
+    # Resolution is VIRTUAL (Pascal semantics): always from the instance's own
+    # class, so subclass overrides win even when the call happens inside an
+    # inherited body. (Static, defining-class resolution is what .parent /
+    # `inherited` does.) The resolved class is then mapped to the method's
+    # DEFINING class (owner) so the pushed frame lets nested `inherited`
+    # continue from the right level.
     local call_func="
     __INST__.call() {
         local method_name=\"\$1\"
         shift
-        local current_frame=\"\"
         local search_class=\"\${__INST___class}\"
 
-        kv.frameCurrent >/dev/null 2>&1 || true
-        current_frame=\"\$RESULT\"
-        if [[ -n \"\$current_frame\" ]]; then
-            kv.frameClass \"\$current_frame\"
-            search_class=\"\$RESULT\"
-        fi
-        
-        # Check cache first (optimization: avoid repeated hierarchy traversal)
+        # Check cache first (optimization: avoid repeated hierarchy traversal).
+        # The cache stores the OWNER class (pre-populated at class build).
         local cache_var=\"\${search_class}_method_cache[\${method_name}]\"
         local found_class=\"\${!cache_var}\"
-        
+
         if [[ -z \"\$found_class\" ]]; then
             # Cache miss: search hierarchy and populate cache (fork-free)
             __INST__._find_method \"\$method_name\" \"\$search_class\"
             found_class=\"\$__kk_find_class\"
-            
+
             if [[ -z \"\$found_class\" ]]; then
                 echo \"Error: Method '\$method_name' not found in class hierarchy\" >&2
                 return 1
             fi
-            
+
+            # Map to the defining class (bodies are copied down the hierarchy,
+            # so _find_method reports the first class holding a copy).
+            local __kk_owner_var=\"\${found_class}_class_method_owner[\${method_name}]\"
+            [[ -n \"\${!__kk_owner_var}\" ]] && found_class=\"\${!__kk_owner_var}\"
+
             # Populate cache for next call (nameref, not eval: method_name is a
             # call argument and must never be interpolated into evaluated code)
             local -n __kk_cache_ref=\"\${search_class}_method_cache\"
@@ -685,6 +722,8 @@ kk._build_class_runtime() {
     __INST__.parent() {
         local method_name=\"\$1\"
         shift
+        # Internal dispatch (see .call): result via RESULT, no echo.
+        local __kk_return_silent=1
         local current_frame=\"\"
         local active_class=\"\${__INST___class}\"
 
@@ -713,12 +752,18 @@ kk._build_class_runtime() {
             # Cache miss: search parent hierarchy (fork-free)
             __INST__._find_method \"\$method_name\" \"\$parent_of_current\"
             found_class=\"\$__kk_find_class\"
-            
+
             if [[ -z \"\$found_class\" ]]; then
                 echo \"Error: Parent method '\$method_name' not found\" >&2
                 return 1
             fi
-            
+
+            # Map to the defining class (bodies are copied down the hierarchy):
+            # the frame must carry where the body was DEFINED so that a nested
+            # 'inherited' inside it continues from the right level.
+            local __kk_powner_var=\"\${found_class}_class_method_owner[\${method_name}]\"
+            [[ -n \"\${!__kk_powner_var}\" ]] && found_class=\"\${!__kk_powner_var}\"
+
             # Populate cache with special parent key (nameref, not eval)
             local -n __kk_pcache_ref=\"\${active_class}_method_cache\"
             __kk_pcache_ref[\"\$parent_cache_key\"]=\"\$found_class\"
@@ -758,6 +803,9 @@ __FIND_FUNC__
 __CALL_FUNC__
 __PARENT_FUNC__
 __INST__.delete() {
+    local __kk_dtor_var="${__INST___class}_destructor_name"
+    local __kk_dtor="${!__kk_dtor_var}"
+    [[ -n "$__kk_dtor" ]] && __INST__.call "$__kk_dtor"
     unset __INST___data __INST___class
     unset -f $(compgen -A function __INST__.)
 }
@@ -840,7 +888,27 @@ INSTANCE_TPL
                 static_namerefs+="local -n $sp=${static_owner}_static_${sp}; "
             done
 
-            if (( __kk_has_funsub )); then
+            if (( ${#static_props_arr[@]} == 0 )); then
+                # No static properties: the body has no shared state that would need
+                # to survive a $(...) subshell, so there is nothing to capture. Run it
+                # directly as a thin wrapper — no funsub, no scratch file — which is
+                # fast on EVERY bash version (5.2 and 5.3 alike). This is the path a
+                # pure static-utility class (e.g. the string.* helpers) takes, and it
+                # matches the zero-overhead dispatch of kk.register_static_methods.
+                # Body stdout flows straight through; a `func` result recorded via
+                # kk._return (silent) is printed once at the end.
+                eval "${class_name}.${sm}() {
+                    local __kk_return_set=0
+                    local __kk_return_value=\"\"
+                    local __kk_return_silent=1
+                    ${sm_body}
+                    local __kk_status=\$?
+                    if (( __kk_return_set )); then
+                        printf \"%s\" \"\$__kk_return_value\"
+                    fi
+                    return \$__kk_status
+                }"
+            elif (( __kk_has_funsub )); then
                 # bash 5.3+: capture stdout in-process with a function substitution.
                 # The body runs in the current shell (no fork, no temp file) so static
                 # property mutations persist and the return value is captured into REPLY.
@@ -897,7 +965,11 @@ INSTANCE_TPL
             for __meth_nm in \"\${${class_name}_class_methods[@]}\"; do
                 # Skip if method already in template
                 if ! declare -f \${instname}.\$__meth_nm >/dev/null 2>&1; then
-                    eval \"\${instname}.\${__meth_nm}() { \${instname}._exec \\\"\${__meth_nm}\\\" \\\"${class_name}\\\" \\\"\\\$@\\\"; }\"
+                    # Dispatch with the defining class (owner) when known — see
+                    # the template methods above.
+                    local __kk_dyn_owner_var=\"${class_name}_class_method_owner[\${__meth_nm}]\"
+                    local __kk_dyn_owner=\"\${!__kk_dyn_owner_var:-${class_name}}\"
+                    eval \"\${instname}.\${__meth_nm}() { \${instname}._exec \\\"\${__meth_nm}\\\" \\\"\${__kk_dyn_owner}\\\" \\\"\\\$@\\\"; }\"
                 fi
             done
         fi
@@ -909,16 +981,12 @@ INSTANCE_TPL
              # Inject properties and execute constructor
              \${instname}._constructor_exec \"${class_name}\" \"\$@\"
          fi
-    }
-    
-    # Create constructor caller function for explicit parent constructor calls
-    eval \"${class_name}.constructor() {
-        # This function executes the constructor body for use in derived classes
-        # Properties should already be injected by the caller
-        if [[ -n \\\"\$${class_name}_constructor_body\\\" ]]; then
-            eval \\\"\$${class_name}_constructor_body\\\"
-        fi
-    }\""
+    }"
+
+    # Constructor caller for explicit parent-constructor chaining. A thin wrapper
+    # to the generic helper — the body is never embedded here (a body with quotes
+    # or semicolons would otherwise corrupt this generated function).
+    eval "${class_name}.constructor() { kk._invoke_constructor ${class_name} \"\$@\"; }"
 
     if [[ "${VERBOSE_KKLASS:-1}" == "debug" ]]; then echo "$class_name class created"; fi
 }

@@ -11,12 +11,13 @@
 4. [Basic Class Operations](#basic-class-operations)
 5. [Inheritance](#inheritance)
 6. [Advanced Features](#advanced-features)
-7. [Compilation and Autoloading](#compilation-and-autoloading)
-8. [Serialization](#serialization)
-9. [Design Patterns](#design-patterns)
-10. [Best Practices](#best-practices)
-11. [API Reference](#api-reference)
-12. [Troubleshooting](#troubleshooting)
+7. [Pascal DSL: class ... end with Real Function Bodies](#pascal-dsl-class--end-with-real-function-bodies)
+8. [Compilation and Autoloading](#compilation-and-autoloading)
+9. [Serialization](#serialization)
+10. [Design Patterns](#design-patterns)
+11. [Best Practices](#best-practices)
+12. [API Reference](#api-reference)
+13. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -774,6 +775,183 @@ echo "Port: $(config.property "port")"
 
 config.delete
 ```
+
+---
+
+## Pascal DSL: class ... end with Real Function Bodies
+
+### Why a Second Front-End?
+
+The classic `defineClass` API stores method bodies inside quoted strings. That
+works, but strings have three practical costs:
+
+1. **No syntax highlighting** — the editor sees one long string, not code.
+2. **Quote nesting** — a body that itself uses quotes needs careful escaping.
+3. **Structure and code are interleaved** — Pascal programmers expect the
+   *interface* first and the *implementation* after it.
+
+`kklass_pascal.sh` is a thin, opt-in front-end that removes all three costs.
+You declare the class STRUCTURE first (the Pascal "interface"), then write the
+method BODIES as **real bash functions**, then `build` the class:
+
+```bash
+source "kklass/kklass_pascal.sh"      # pulls in kklass.sh itself
+
+class TGreeter
+    public
+        var         Name
+        constructor Create
+        proc        Greet
+        func        Salutation
+end
+
+TGreeter.Create()     { Name="${1:-World}"; }
+TGreeter.Greet()      { echo "Hello, $Name!"; }
+TGreeter.Salutation() { RESULT="Greetings from $Name"; }
+build TGreeter
+
+TGreeter.new g "Alice"
+g.Greet                       # Hello, Alice!
+echo "$(g.Salutation)"        # Greetings from Alice
+g.delete
+```
+
+`build` extracts each body with `declare -f`, feeds it to the normal kklass
+runtime (the same declarative core that `defineClass` uses), and removes the
+scratch functions. Everything you know about instances, properties and dispatch
+still applies — the DSL changes how classes are *written*, not how they *run*.
+
+### Grammar Reference
+
+```text
+class N [: P] ... end            class, optional inheritance (: Parent)
+public | private | protected     visibility sections (repeatable, any order)
+var X                            stored field                ->  obj.X
+property X read G write S        computed property (G/S are declared members)
+proc X                           method with no return value
+func X                           method returning via RESULT
+constructor [C]                  constructor (default name Create)
+destructor  [D]                  destructor (default Destroy); runs on obj.delete
+static <var|proc|func> X         class-level (shared) member, not per-instance
+abstract <proc|func> X           no body; class not instantiable until overridden
+override <proc|func> X           guard: build errors unless an ancestor has X
+build N                          extract bodies + finalize the class
+```
+
+Notes:
+
+- **`proc` vs `func`**: a `func` returns through `RESULT` (and is echoed when
+  called in a `$(...)` subshell); a `proc` returns nothing (or just an exit
+  status). Mapping from the old API: `method` → `proc`, `function` → `func`.
+- **`property X read G write S`**: `read`/`write` targets are declared members
+  (or the property name itself for a stored read — see below). A property with
+  only `read` is read-only: writes print an error and fail.
+- **Stored read + computed write** (the TList pattern):
+  `property capacity read capacity write _setCapacity` — reading returns the
+  stored value directly; writing goes through the `_setCapacity` method.
+- **`static var`**: exactly one shared slot per class. IMPORTANT: a class with
+  NO static vars gets thin, capture-free static dispatchers (fast on every
+  bash); a class WITH static vars needs stdout-capturing dispatchers so that
+  `$(Class.method)` still persists mutations (funsub on bash 5.3+, a scratch
+  file on 5.2). Do not declare constants as `static var` — keep them as plain
+  file-scope globals (see kcl/tpath/tpath.sh for the worked example).
+- **`override`** is a build-time typo-guard only — all kklass dispatch is
+  already dynamic. `virtual` does not exist: every method is virtual.
+- Bodies are extracted with `declare -f`, which normalizes formatting and
+  **strips comments** — write comments freely; they just don't survive into
+  the stored body (the source file keeps them, and that is what people read).
+
+### inherited — Pascal-Style Parent Calls
+
+Inside a body, `inherited` calls the parent's implementation — in methods,
+constructors and destructors, just like Pascal:
+
+```bash
+class TAnimal
+    public
+        var         Name
+        constructor Create
+        proc        Speak
+        func        Describe
+end
+TAnimal.Create()   { Name="$1"; }
+TAnimal.Speak()    { echo "$Name makes a sound"; }
+TAnimal.Describe() { RESULT="$Name"; }
+build TAnimal
+
+class TDog : TAnimal
+    public
+        var           Breed
+        constructor   Create
+        override proc Speak
+        override func Describe
+end
+TDog.Create()   { inherited; Breed="${2:-mutt}"; }   # parent ctor, args forwarded
+TDog.Speak()    { echo "$Name barks"; inherited Speak; }
+TDog.Describe() { inherited; RESULT="$RESULT, a $Breed"; }  # func chain
+build TDog
+```
+
+- **Bare `inherited`** calls the parent's version of the *current* member.
+  In a constructor it becomes `parent.constructor "$@"` (all arguments
+  forwarded); in a method/destructor it becomes `inherited <Name>`.
+- **`inherited Name args...`** calls a specific parent method with arguments.
+- **Constructors are inherited** (Pascal semantics): a class that declares no
+  constructor uses its parent's.
+- **Destructors run on `obj.delete`** and are inherited; an overriding
+  destructor chains to the parent with `inherited`.
+
+### Dispatch Semantics: Virtual Calls vs inherited
+
+kklass follows the Delphi `virtual; override;` model — with two complementary
+resolution rules:
+
+- **`$this.Method` (and `$this.call Method`) is VIRTUAL**: it resolves from
+  the instance's actual class, so subclass overrides win — even when the call
+  happens inside an inherited body (the template-method pattern).
+- **`inherited` / `$this.parent` is STATIC**: it resolves upward from the class
+  where the *currently executing body* is defined — not from the instance's
+  class. This is what makes `inherited` chains terminate correctly even when a
+  subclass does not override the intermediate method.
+
+```bash
+# TBase.Run calls $this.call Step   ->  child's Step wins (virtual)
+# TMid.Describe calls inherited     ->  TBase.Describe, one level up (static)
+# leaf.Describe (no leaf override)  ->  runs TMid's body; its inherited still
+#                                       goes to TBase — the body never re-runs.
+```
+
+### Porting from defineClass
+
+The translation is mechanical (all seven kcl classes were ported this way):
+
+| old string API                          | Pascal DSL                              |
+|-----------------------------------------|-----------------------------------------|
+| `defineClass N ""`                      | `class N ... end` + `build N`           |
+| `defineClass N P`                       | `class N : P ... end` + `build N`       |
+| `"property" "x"`                        | `var x`                                 |
+| `"property" "x" "_setX"`                | `property x read x write _setX`         |
+| `"method" "M" '...'`                    | `proc M` + `N.M() { ... }`              |
+| `"function" "F" '...'`                  | `func F` + `N.F() { ... }`              |
+| `"constructor" '...'`                   | `constructor Create` + `N.Create()`     |
+| `"static_method" "S" '...'`             | `static proc S` (or `static func S`)    |
+| `$this.parent M ...` in a body          | `inherited M ...`                       |
+| `parent.constructor "$@"` in a ctor     | `inherited`                             |
+
+A pure static-utility namespace (every member `static`, no state) ports to
+`class name ... static proc ... end` + `build name` and keeps the exact
+same `name.method` public API — see kcl/tstringhelper, tpath, tfile,
+tdirectory for real examples; kcl/tlist and tstringlist show instantiable
+classes with properties, overrides and `inherited`.
+
+### Worked Examples and Tests
+
+- `examples/47_pascal_dsl.sh` — every DSL feature in eight short sections.
+- `examples/48_deep_inheritance_scopes.sh` — a four-level hierarchy with
+  constructor/func chains, independent instances across scopes, cross-instance
+  calls and shared static state.
+- `tests/116..118_PascalDsl*.sh` — the regression suite for the DSL;
+  `tests/114..115` pin the static-dispatch fast path and build status fixes.
 
 ---
 
@@ -2221,10 +2399,11 @@ Kklass brings powerful object-oriented programming to Bash, enabling:
 
 ### Resources
 
-- **Examples**: `kklass/examples/` (46 examples; `demo.sh` runs them all)
+- **Examples**: `kklass/examples/` (48 examples; `demo.sh` runs them all)
 - **Tests**: `kklass/tests/` (numbered `NNN_*.sh`; run with `tests/tests.sh`)
 - **Core Library**: `kklass/kklass.sh`
 - **Declarative API**: `kklass/kklass_decl.sh`
+- **Pascal DSL front-end**: `kklass/kklass_pascal.sh`
 - **Compiler**: `kklass/kklass_compiler.sh`
 - **Autoloader**: `kklass/kklass_autoload.sh`
 - **Serialization**: `kklass/kklass_serializable.sh`

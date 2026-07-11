@@ -10,7 +10,7 @@ cd lib/kklass
 bash examples/demo.sh
 ```
 
-The demo script will run through all 46 examples sequentially, showing the progress and results. Use `bash examples/demo.sh --help` for more options.
+The demo script will run through all 48 examples sequentially, showing the progress and results. Use `bash examples/demo.sh --help` for more options.
 
 ### Example Runner Features
 
@@ -23,12 +23,13 @@ The demo script will run through all 46 examples sequentially, showing the progr
 
 ## Overview
 
-The examples are organized into four main sections:
+The examples are organized into five main sections:
 
 - **Section 1 (Examples 01-21)**: Core functionality tests
 - **Section 2 (Examples 22-28)**: Autoload and compilation features
 - **Section 3 (Examples 29-31)**: Edge cases and error handling
 - **Section 4 (Examples 32-46)**: Advanced design patterns and capabilities
+- **Section 5 (Examples 47-48)**: Pascal DSL (`class ... end` + real function bodies)
 
 ## Examples Index
 
@@ -54,7 +55,7 @@ The examples are organized into four main sections:
 | [16_constructor_functionality.sh](16_constructor_functionality.sh) | Constructor Functionality | Class constructors and initialization |
 | [17_property_inherited_method.sh](17_property_inherited_method.sh) | Property Used in Inherited Method | Accessing inherited properties within methods |
 | [18_parent_method_with_properties.sh](18_parent_method_with_properties.sh) | Method Calling Parent and Using Properties | Methods that call parent methods while accessing instance properties |
-| [19_this_method_context.sh](19_this_method_context.sh) | `$this.method` Ensures Current Class Context | `$this.method` calls methods in the current class context |
+| [19_this_method_context.sh](19_this_method_context.sh) | Dispatch: virtual `$this` vs static `$this.parent` | `$this.method` dispatches virtually (overrides win inside parent bodies); `$this.parent`/`inherited` resolves statically from the defining class |
 | [20_multiple_parameters_property_access.sh](20_multiple_parameters_property_access.sh) | Method with Multiple Parameters and Property Access | Methods that accept multiple parameters and access instance properties |
 | [21_property_method_access.sh](21_property_method_access.sh) | Property Access via `.property` Method | Accessing properties using the `.property` method syntax |
 
@@ -97,6 +98,13 @@ The examples are organized into four main sections:
 | [44_pascal_declare_implement.sh](44_pascal_declare_implement.sh) | Pascal-style Declare/Implement | Class declaration and implementation split with `classVar` |
 | [45_pascal_unit_kkp.sh](45_pascal_unit_kkp.sh) | Pascal-style `.kkp` Unit | Loading a Pascal-like unit with multiline signatures through `kkload` |
 | [46_visibility_modifiers.sh](46_visibility_modifiers.sh) | Visibility Modifiers | `private`/`protected`/`public` sections and access warnings for out-of-class member access |
+
+### Section 5: Pascal DSL
+
+| Example | Title | Description |
+|---------|-------|-------------|
+| [47_pascal_dsl.sh](47_pascal_dsl.sh) | Pascal-style DSL | `class ... end` interface + method bodies as real bash functions + `build`; var/property/proc/func, visibility, `inherited`, abstract/override/static, destructors |
+| [48_deep_inheritance_scopes.sh](48_deep_inheritance_scopes.sh) | Deep Inheritance and Scopes | Four-level hierarchy with `inherited` constructor/func chains; independent instances across scopes, cross-instance calls, subshell isolation, shared static state |
 
 ## Running the Examples
 
