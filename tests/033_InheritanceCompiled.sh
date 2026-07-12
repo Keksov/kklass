@@ -38,7 +38,7 @@ bash -c "cd '$TEST_SCRIPT_DIR' && KKLASS_DIR='$KKLASS_DIR' source '$KKLASS_DIR/k
 
 # Test 33: Inheritance in compiled classes
 kt_test_start "Inheritance in compiled classes"
-result=$(bash -c "cd '$SCRIPT_DIR' && source \"${TEST_FILE%.*}\".ckk.sh && Timer.new tmr && tmr.value = 5 && tmr.increment")
+result=$(bash -c "cd '$TEST_SCRIPT_DIR' && source \"${TEST_FILE%.*}\".ckk.sh && Timer.new tmr && tmr.value = 5 && tmr.increment")
 if [[ "$result" == "6" ]]; then
     kt_test_pass "Inheritance in compiled classes"
 else
