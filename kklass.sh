@@ -6,6 +6,47 @@ source "${KKLASS_DIR}/../kkore/klib.sh"
 source "${KKLASS_DIR}/../kkore/kerr.sh"
 source "${KKLASS_DIR}/../kkore/kvar.sh"
 
+# Registry of class name -> the source file that defined (finalized) it. Used
+# to refuse an accidental SECOND definition of the same class name from a
+# DIFFERENT file (a real bug: e.g. TStopwatch defined in two files, or a user
+# class colliding with a library one). A re-registration from the SAME file is
+# allowed — the diamond-include case (e.g. tstringlist.sh + tlist.sh both
+# pulling in tlist.sh) is legitimate and must keep working. Declared
+# idempotently so a re-source of this framework never wipes it.
+[[ -v _KKLASS_CLASS_SOURCE ]] || declare -gA _KKLASS_CLASS_SOURCE
+
+# Resolve the innermost call-stack entry that is NOT a kklass framework file —
+# i.e. the unit/user script that invoked the class-building verb — CANONICALIZED
+# so the same file reached through different path spellings compares equal.
+# Result in __kk_caller_src; falls back to "(unknown)".
+#
+# Canonicalization matters: tstringlist.sh sources tlist.sh as
+# "$DIR/../tlist/tlist.sh" while a test may source "kcl/tlist/tlist.sh" — the
+# SAME file, different strings. Comparing raw strings would raise a false
+# "collision" and break legitimate diamond includes. The cd+pwd idiom (the one
+# every unit header already uses) resolves .., relative paths, and MSYS vs
+# Windows drive forms to one canonical path. The single subshell runs only at
+# class-build time — load time, never a runtime path (unit headers fork the
+# same way). A false NEGATIVE here merely degrades to no-protection; a false
+# POSITIVE would break working code, so we err toward matching.
+kk._caller_source_file() {
+    local __i __src __base __d __b
+    __kk_caller_src="(unknown)"
+    for (( __i = 0; __i < ${#BASH_SOURCE[@]}; __i++ )); do
+        __src="${BASH_SOURCE[__i]}"
+        __base="${__src##*/}"
+        case "$__base" in
+            kklass.sh|kklass_decl.sh|kklass_pascal.sh|kklass_kkp.sh) continue ;;
+        esac
+        __d="${__src%/*}"; __b="${__src##*/}"
+        [[ "$__d" == "$__src" ]] && __d="."     # no slash -> current dir
+        __kk_caller_src="$( cd "$__d" 2>/dev/null && printf '%s/%s' "$PWD" "$__b" )" \
+            || __kk_caller_src="$__src"
+        return 0
+    done
+    return 0
+}
+
 # Scratch global used by instance ._find_method to return the resolving class
 # without forking a subshell (replaces the previous $(...) capture).
 declare -g __kk_find_class=""
@@ -198,6 +239,21 @@ kk._build_class_runtime() {
     fi
     kk.decl._validate_ident "$class_name" "class name" || return 1
     kk.decl._validate_ident "$parent_class" "parent class name" || return 1
+
+    # Duplicate-name protection. Refuse to build over a class that a DIFFERENT
+    # file already registered — an accidental second definition (same class in
+    # two files) or a user class colliding with a library one. This check runs
+    # BEFORE any runtime state is created/replaced below, so the already-built
+    # original class is left fully intact. A rebuild from the SAME file (a
+    # diamond include, or a deliberate re-source) is allowed to proceed.
+    local __kk_caller_src
+    kk._caller_source_file
+    if [[ -n "${_KKLASS_CLASS_SOURCE[$class_name]+x}" \
+          && "${_KKLASS_CLASS_SOURCE[$class_name]}" != "$__kk_caller_src" ]]; then
+        echo "kklass: class '${class_name}' is already registered (from ${_KKLASS_CLASS_SOURCE[$class_name]}); refusing to redefine it from ${__kk_caller_src}" >&2
+        return 1
+    fi
+    _KKLASS_CLASS_SOURCE["$class_name"]="$__kk_caller_src"
 
     # Collect properties and methods (including inherited)
     local -a props_arr=()
