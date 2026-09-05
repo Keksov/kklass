@@ -87,6 +87,23 @@ kk.decl._validate_ident() {
         return 1
     fi
 
+    # Reserved (decision D2): names a method body sees by contract (this,
+    # __inst__, __class__), the result channels (RESULT, REPLY) and IFS. A
+    # member with one of these names would shadow it and silently break
+    # dispatch or word splitting. `state` is deliberately NOT reserved: the
+    # instance-data nameref is shadowed by a property of that name (test 066,
+    # a well-defined choice of the class author).
+    case "$name" in
+        this|__inst__|__class__|RESULT|REPLY|IFS)
+            kk.decl._error "Reserved ${label}: '${name}' (this, __inst__, __class__, RESULT, REPLY and IFS are visible inside method bodies by contract and cannot be member names)"
+            return 1
+            ;;
+        __kk_*)
+            kk.decl._error "Reserved ${label}: '${name}' (the __kk_ prefix belongs to the kklass runtime's own locals)"
+            return 1
+            ;;
+    esac
+
     return 0
 }
 
@@ -238,6 +255,26 @@ kk.decl._rewrite_inherited() {
     printf '%s' "$method_body"
 }
 
+# Is METHOD (as declared in CLASS or an ancestor) a `function`, i.e. does it
+# return through RESULT? Walks the declarative parent chain.
+kk.decl._method_kind_is_function() {
+    local class_name="$1"
+    local method_name="$2"
+    local kind_cell
+
+    while [[ -n "$class_name" ]]; do
+        kind_cell="${class_name}_decl_method_kind[$method_name]"
+        if [[ -n "${!kind_cell+x}" ]]; then
+            [[ "${!kind_cell}" == "function" ]]
+            return
+        fi
+        kk.decl._parent_of "$class_name"
+        class_name="$RESULT"
+    done
+
+    return 1
+}
+
 kk.decl._build_property_getter_body() {
     local class_name="$1"
     local property_name="$2"
@@ -255,6 +292,17 @@ kk.decl._build_property_getter_body() {
 
     if kk.decl._field_declared "$class_name" "$read_target"; then
         printf 'RESULT="$%s"' "$read_target"
+        return 0
+    fi
+
+    # F7/D1: a RESULT-returning (`function`) getter runs in the CURRENT shell —
+    # no subshell, so its side effects persist and no fork is paid per read
+    # (the fork cost 16-45 ms once the shell held a few hundred objects).
+    # RESULT is cleared first so a getter that sets nothing yields "" rather
+    # than a stale value. An echo-style (`procedure`/legacy `method`) getter
+    # still needs its stdout captured.
+    if kk.decl._method_kind_is_function "$class_name" "$read_target"; then
+        printf 'RESULT=""; $__inst__.call %s' "$read_target"
         return 0
     fi
 
@@ -466,6 +514,12 @@ declareClass() {
     }
     kk.decl._validate_ident "$class_name" "class name" || return 1
     kk.decl._validate_ident "$parent_class" "parent class name" || return 1
+
+    # F2: refuse a cross-file redefinition HERE, before any of the declarative
+    # tables below are reset — otherwise a refused build still wiped the
+    # original's abstract flag and member visibility.
+    local __kk_caller_src
+    kk._check_class_owner "$class_name" || return 1
 
     eval "declare -ga ${class_name}_decl_fields=()"
     eval "declare -ga ${class_name}_decl_properties=()"
@@ -976,6 +1030,18 @@ kk._return \"\$RESULT\"")
         runtime_visibility_ref["$method_name"]="${visibility_ref[$method_name]:-public}"
         runtime_method_owner_ref["$method_name"]="$class_name"
     done
+
+    # P4b: hot-path gate for kk._warn_visibility. 0 = every method and
+    # property (own and inherited) is public, so the dispatcher skips the
+    # visibility lookup altogether; 1 = at least one non-public member.
+    local __kk_np=0 __kk_vis
+    for __kk_vis in "${runtime_visibility_ref[@]}" "${runtime_property_visibility_ref[@]}"; do
+        if [[ "$__kk_vis" != "public" && -n "$__kk_vis" ]]; then
+            __kk_np=1
+            break
+        fi
+    done
+    eval "${class_name}_has_nonpublic=$__kk_np"
 
     kk.decl._install_new_wrapper "$class_name"
 }

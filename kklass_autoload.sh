@@ -50,11 +50,14 @@ autoloadClasses() {
         return 1
     fi
     
-    # Generate compiled filename (.kk -> .ckk/filename.ckk.sh)
+    # Generate compiled filename (.kk -> .ckk/filename.ckk.sh). The cache dir is
+    # $(pwd)/.ckk by contract (tests 027-033, 063); KKLASS_CKK_DIR overrides it
+    # so that e.g. two test runs on different bash versions do not race on the
+    # same compiled file.
     local source_dir="$(dirname "$source_file")"
     local source_name="$(basename "$source_file")"
     local source_stem="$source_name"
-    local ckk_dir="$(pwd)/.ckk"
+    local ckk_dir="${KKLASS_CKK_DIR:-$(pwd)/.ckk}"
     local runtime_file=""
 
     case "$source_name" in

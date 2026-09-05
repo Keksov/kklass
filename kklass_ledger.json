@@ -1,0 +1,239 @@
+{
+  "schema_version": 1,
+  "project": "kklass — fix & optimization plan from the 2026-09-05 review (6 confirmed bugs, 6 design/perf notes)",
+  "created": "2026-09-05",
+  "updated": "2026-09-05",
+  "status": "ALL PHASES P0-P5 DONE 2026-09-05. All 12 findings closed. kklass 273/273 and master sweep 21/21 suites green on 5.2.37 AND 5.3.9. vs P0 baseline: .new 4.8x, method call 1.9x, prop read 2.9x, .delete 1.8 s -> 0.2 ms, computed read 16 ms -> 0.65 ms, template 6970 -> 1110 B. UNCOMMITTED: kklass.sh, kklass_decl.sh, kklass_serializable.sh, kklass_compiler.sh, kklass_autoload.sh, OPTIMIZATION.md, docs/kklass_book.md, examples/10_method_parameters.sh modified; PLAN.md, kklass_ledger.json, bench/, tests 120-126 new. Next: owner review, then commit in kklass + submodule bump in kbool (on explicit owner instruction). Decisions D1 (amended P3), D2 (amended P1 + __kk_ prefix at P4a), D3, D4 recorded.",
+  "owner": "keksov",
+  "notes": "Single source of truth for kklass fix/optimization status. Plan: kklass/PLAN.md. Workflow: phase -> kklass suite -> kcl suites -> bench vs baseline -> STOP -> owner 'go'; commits gated.",
+  "conventions": {
+    "status_values": ["todo", "in_progress", "blocked", "done", "wontfix"],
+    "severity_values": ["critical", "high", "medium", "low", "arch"]
+  },
+  "baseline": {
+    "measured": "2026-09-05",
+    "bash_primary": "GNU bash 5.2.37 (MSYS2)",
+    "bash_secondary": "GNU bash 5.3.9 (cygwin) — C:/bin/msys64/usr/bin/bash.exe",
+    "bash_secondary_run_recipe": "PATH=\"/c/bin/msys64/usr/bin:$PATH\" /c/bin/msys64/usr/bin/bash.exe tests/tests.sh — cygwin bin MUST be first in PATH, otherwise the runner's child `bash` resolves to the msys 5.2 binary, exported functions are lost and the suite reports 0 tests / 'run_test: command not found'",
+    "suites_green": {
+      "kklass_5.2.37": "271 total = 244 legacy+sanity green, 27 RED by design (new tests 120-126) — all 232 legacy assertions green",
+      "kklass_5.3.9": "271 total = 245 green, 26 RED by design (124 has one fewer assertion RED on the funsub path)",
+      "note": "run the two bash versions SEQUENTIALLY — concurrent runs race on tests/.ckk (test 063 then fails in both; green alone). See P3."
+    },
+    "bench": {
+      "script": "bench/kklass_bench.sh (P0, 2026-09-05; sequential run, idle machine)",
+      "class": "3 props (one computed, function getter) + 10 methods",
+      "template_bytes": 6970,
+      "functions_with_1000_live_instances": 24087,
+      "bash_5.2.37": {
+        "new_us": { "first_60": 790, "61_to_1010": 904 },
+        "delete_us": { "at_50_live_1527_fns": 16941, "at_1000_live_24087_fns": 1797140 },
+        "method_call_us": 383,
+        "inst_call_us": 399,
+        "prop_read_us": 117,
+        "prop_write_us": 120,
+        "computed_read_us": { "at_50_live": 16243, "at_1000_live": 39197 }
+      },
+      "bash_5.3.9": {
+        "new_us": { "first_60": 366, "61_to_1010": 423 },
+        "delete_us": { "at_50_live_1527_fns": 15843, "at_1000_live_24087_fns": 1679207 },
+        "method_call_us": 331,
+        "inst_call_us": 361,
+        "prop_read_us": 105,
+        "prop_write_us": 95,
+        "computed_read_us": { "at_50_live": 15984, "at_1000_live": 29125 }
+      },
+      "review_probe_fork_free_delete_us_at_10385_fns": 2600,
+      "headline": "the two fork paths dominate everything: .delete (F1) and computed-property read (F7) cost 16 ms EACH already at 50 live instances — ~140x a plain property read — and grow with shell size. Everything else is sub-millisecond."
+    },
+    "f5_on_5.3": "funsub path loses the status COMPLETELY: a static method body with `return 3` reports 0 (5.2 brace-group path reports 3 but leaks the scratch file). Both variants must be covered by test 124."
+  },
+  "decisions": {
+    "D1": "Decided: computed property called bare prints like a plain property. AMENDED at P3 (2026-09-05) on evidence: kcl/tstopwatch/tests/004_ZeroFork.sh pins direct call = 0 bytes + RESULT, and kcl uses the `obj.x >/dev/null; $RESULT` idiom 51x. Final: computed property follows kk._return — direct call silent + RESULT, $(obj.prop) prints once. Perf half stands: function-kind getters run without a subshell; method-kind getters keep capture. Owner may override.",
+    "D2": "Reserved member names: this __inst__ __class__ RESULT REPLY IFS. Internal _run_frame_body locals renamed to __kk_*. AMENDED at P1 (2026-09-05): `state` removed from the list — kcl/tcustomapplication uses the state[...] nameref as an API and test 066 declares a property `state`; both pinned by test 125.",
+    "D3": "Compiled mode kept; compiler rewritten as a declare -p / declare -f dumper.",
+    "D4": "P4 in two steps: P4a template shrink (behaviour-preserving), P4b call-path trim."
+  },
+  "findings": [
+    { "id": "F1", "severity": "high", "where": "kklass.sh:866 .delete", "summary": ".delete forks + scans all shell functions via compgen; O(total functions)", "fix_phase": "P1", "status": "done" },
+    { "id": "F2", "severity": "high", "where": "kklass_decl.sh:499 declareClass via defineClass", "summary": "refused cross-file redefinition still resets _decl_*/_method_visibility/_class_abstract", "fix_phase": "P1", "status": "done" },
+    { "id": "F3", "severity": "medium", "where": "kklass.sh:1206 _defineMethodType", "summary": "defineMethod cannot override an inherited method (wrapper + cache keep parent owner)", "fix_phase": "P2", "status": "done" },
+    { "id": "F4", "severity": "medium", "where": "kklass_compiler.sh:133", "summary": "compiler drift: cache by class not owner, missing tables, old static path, silent source", "fix_phase": "P3", "status": "done" },
+    { "id": "F5", "severity": "medium", "where": "kklass.sh static wrappers", "summary": "return inside { } >file leaks scratch file; failing last command reports status 0", "fix_phase": "P1", "status": "done" },
+    { "id": "F6", "severity": "medium", "where": "kklass.sh:635 _run_frame_body", "summary": "property named method_body has its value eval'd; this breaks $this.call; no reserved-name validation", "fix_phase": "P1", "status": "done" },
+    { "id": "F7", "severity": "high", "where": "kklass_decl.sh:261", "summary": "computed getter forks a subshell per read; fork copies the whole shell -> 45 ms/read (5.2) / 32 ms (5.3) at 1000 live instances vs 0.12 ms plain property; kcl `count` properties are computed. Bare obj.computed prints nothing. Severity raised low->high by the P0 bench.", "fix_phase": "P2", "status": "done" },
+    { "id": "F8", "severity": "low", "where": "kklass.sh:597 lazy props", "summary": "inst_lazy_<p> survives .delete", "fix_phase": "P1", "status": "done" },
+    { "id": "F9", "severity": "low", "where": "kklass.sh:39 guard skip-list", "summary": "kklass_serializable.sh not skipped; serializable classes registered as library-owned", "fix_phase": "P1", "status": "done" },
+    { "id": "F10", "severity": "low", "where": "kklass_serializable.sh:243", "summary": "_regenerateConstructor uses class name instead of owner; dead sep_escaped", "fix_phase": "P2", "status": "done" },
+    { "id": "F11", "severity": "low", "where": "kk._processMethodBody", "summary": "$this.m rewrite only sees earlier-declared methods", "fix_phase": "P1", "status": "done" },
+    { "id": "F12", "severity": "arch", "where": "instance template", "summary": "full per-instance copies of dispatch machinery; 20k functions per 1000 instances", "fix_phase": "P4a/P4b", "status": "done" }
+  ],
+  "phases": {
+    "P0": {
+      "title": "Safety net: regression tests 120-126 + bench/kklass_bench.sh + baseline",
+      "size": "S",
+      "status": "done",
+      "done": "2026-09-05",
+      "tests": {
+        "120_DeleteForkFree": { "findings": ["F1", "F8"], "red_now": { "5.2": 2, "5.3": 2 }, "fixed_by": "P1" },
+        "121_GuardKeepsMetadata": { "findings": ["F2", "F9"], "red_now": { "5.2": 4, "5.3": 4 }, "fixed_by": "P1" },
+        "122_DefineMethodOverride": { "findings": ["F3"], "red_now": { "5.2": 3, "5.3": 3 }, "fixed_by": "P2" },
+        "123_CompiledParity": { "findings": ["F4"], "red_now": { "5.2": 2, "5.3": 2 }, "fixed_by": "P3" },
+        "124_StaticMethodStatus": { "findings": ["F5"], "red_now": { "5.2": 3, "5.3": 2 }, "fixed_by": "P1", "note": "5.2 brace-group path: scratch leak + lost stdout on return + false->0; 5.3 funsub path: return 3 -> 0, false -> 0" },
+        "125_ReservedNames": { "findings": ["F6", "D2"], "red_now": { "5.2": 10, "5.3": 10 }, "fixed_by": "P1" },
+        "126_ComputedPropertyOutput": { "findings": ["F7", "D1"], "red_now": { "5.2": 3, "5.3": 3 }, "fixed_by": "P2" }
+      },
+      "bench": "bench/kklass_bench.sh — numbers under baseline.bench"
+    },
+    "P1": {
+      "title": "Runtime point fixes: F1 F2 F5 F6 F8 F9 F11",
+      "size": "M",
+      "status": "done",
+      "done": "2026-09-05",
+      "targets": { "delete_ms_at_1000_instances": "<= 3" },
+      "gate": {
+        "kklass_5.2.37": "272 total: 264 green, 8 RED by design (122 x3, 123 x2, 126 x3 — P2/P3 findings)",
+        "kklass_5.3.9": "same 264/8",
+        "master_5.2.37": "19/20 suites green; the only red suite is kklass itself (the 8 by-design assertions); every kcl suite green",
+        "master_5.3.9": "same 19/20",
+        "now_green": ["120_DeleteForkFree", "121_GuardKeepsMetadata", "124_StaticMethodStatus", "125_ReservedNames"]
+      },
+      "bench_after": {
+        "template_bytes": 7858,
+        "bash_5.2.37": { "new_us": 1014, "delete_us": { "at_50_live": 180, "at_1000_live": 205 }, "method_call_us": 401, "prop_read_us": 127, "computed_read_us": { "at_50_live": 17115, "at_1000_live": 42316 } },
+        "bash_5.3.9": { "new_us": 434, "delete_us": { "at_50_live": 135, "at_1000_live": 218 }, "method_call_us": 348, "prop_read_us": 107, "computed_read_us": { "at_50_live": 16289, "at_1000_live": 30983 } },
+        "delta": ".delete 1.8 s -> 0.2 ms at 1000 live (target <=3 ms met by 15x); flat vs instance count. .new +10% (template +888 B for the baked delete list; P4a shrinks it). Everything else within noise. Computed read (F7) untouched — P2."
+      },
+      "notes": [
+        "First F5 attempt unified the static dispatchers and broke 026 (REPLY channel) + 114 (dispatcher-selection pin); reverted to two shapes with a shared impl function.",
+        "D2 amended: `state` not reserved (tcustomapplication nameref API + test 066 property).",
+        "implement/implementConstructor deliberately do not run the owner check (message spam vs. a decl-table-only clobber in the imposter-then-re-source edge case)."
+      ]
+    },
+    "P2": {
+      "title": "defineMethod override (F3), serializable on defineMethod (F10), computed output D1 (F7)",
+      "size": "M",
+      "status": "done",
+      "done": "2026-09-05",
+      "gate": {
+        "kklass_5.2.37": "272 green, 2 RED by design (123_CompiledParity — P3)",
+        "kklass_5.3.9": "same 272/2",
+        "master_5.2.37": "CORRECTED at P3: NOT fully green — tstopwatch/004_ZeroFork failed (D1 print broke the direct-call-is-silent contract); missed when reading the sweep output. Fixed at P3 by the D1 amendment.",
+        "master_5.3.9": "same failure, same fix",
+        "now_green": ["122_DefineMethodOverride", "126_ComputedPropertyOutput"]
+      },
+      "bench_after": {
+        "template_bytes": 8009,
+        "bash_5.2.37": { "new_us": 1083, "delete_us": { "at_50_live": 157, "at_1000_live": 154 }, "method_call_us": 427, "prop_read_us": 146, "computed_read_us": { "at_50_live": 1231, "at_1000_live": 1189 } },
+        "bash_5.3.9": { "new_us": 481, "delete_us": { "at_50_live": 216, "at_1000_live": 187 }, "method_call_us": 426, "prop_read_us": 115, "computed_read_us": { "at_50_live": 1147, "at_1000_live": 1102 } },
+        "delta": "computed read 16 ms -> 1.2 ms (13x) at 50 live and 42/31 ms -> 1.2/1.1 ms (35x/28x) at 1000 live, now FLAT vs instance count = one nested method call. Everything else within noise of P1."
+      },
+      "notes": [
+        "Bench artifact found and fixed: with `fcount=$(compgen -A function | wc -l)` between steps, the per-op numbers after the 1000-instance step came out ~1.7x worse (747 us/call) in three runs, while identical code measured in a probe without that step gave 410-470 us. A plain $(true) fork does NOT cause it; the compgen|wc subshell over 24k functions does (persistent for the rest of the process on cygwin/msys). bench/kklass_bench.sh now counts functions fork-free (compgen > file; mapfile). Rule for every bench here: NO forks between measured steps.",
+        "Lazy properties still fork once at first read ($(inst.init)); left for P4b."
+      ]
+    },
+    "P3": {
+      "title": "Compiler as declare -p/-f dumper (F4), loud errors, KKLASS_CKK_DIR, parity test",
+      "size": "M",
+      "status": "done",
+      "done": "2026-09-05",
+      "gate": {
+        "kklass_5.2.37": "273/273 green — no RED-by-design tests left",
+        "kklass_5.3.9": "273/273 green",
+        "master_5.2.37": "21/21 suites, 'All test suites passed' (every [FAIL] line checked, none)",
+        "master_5.3.9": "21/21 suites, 'All test suites passed'",
+        "now_green": ["123_CompiledParity", "kcl/tstopwatch/004_ZeroFork (regression from P2's D1, fixed by the D1 amendment)"]
+      },
+      "notes": [
+        "kklass_compiler.sh 294 -> 155 lines; compile = source input in-process, then `declare -p` (rewritten -g) of every <Class>_* variable and `declare -f` of every <Class>.* function. No generator to keep in sync with the runtime any more.",
+        ".ckk default stays $(pwd)/.ckk (contract pinned by 027-033 and 063); KKLASS_CKK_DIR overrides it — that is the fix for the concurrent-suite race.",
+        "D1 amended here (see decisions.D1): direct computed read is silent + RESULT, $() prints once; the P2 'print bare' accessor had broken tstopwatch 004 and that failure was missed in the P2 sweep readout. Test 126 rewritten to the amended contract and gained a write-only-property and an inside-a-method assertion.",
+        "Stale tests/.ckk/*.ckk.sh and examples/.ckk/*.ckk.sh from the old generator deleted (gitignored).",
+        "Bench methodology, refined: the P2 'fork' diagnosis was incomplete — ENUMERATING the function table (`compgen -A function`, forked or not) in a ~24k-function shell makes every later function call ~1.7x slower for the rest of the process (445 -> 693 us/call, persistent), while a plain $(true) fork does not. bench/kklass_bench.sh now enumerates only while the shell is small and derives the big count arithmetically (24 functions per instance). Two consecutive 5.2 runs agree within 3%."
+      ],
+      "bench_after": {
+        "template_bytes": 8113,
+        "bash_5.2.37": { "new_us": 1058, "delete_us": { "at_50_live": 160, "at_1000_live": 159 }, "method_call_us": 432, "prop_read_us": 131, "computed_read_us": { "at_50_live": 1226, "at_1000_live": 1932 } },
+        "bash_5.3.9": { "new_us": 493, "delete_us": { "at_50_live": 195, "at_1000_live": 129 }, "method_call_us": 356, "prop_read_us": 117, "computed_read_us": { "at_50_live": 1100, "at_1000_live": 1094 } },
+        "delta": "no change vs P2 within noise (P3 touched the compiler and the accessor's echo rule only). Computed read at 1000 live on 5.2 is ~1.5x its 50-live cost — nested-call overhead grows with shell size; P4a/P4b territory."
+      }
+    },
+    "P4a": {
+      "title": "Template shrink: dispatch machinery to FRAMEWORK level (one copy per shell), one-line instance wrappers",
+      "size": "L",
+      "status": "done",
+      "done": "2026-09-05",
+      "targets": { "template_bytes_per_member": "~60", "new_speedup": ">= 3x", "functions_per_instance": "members + 4" },
+      "gate": {
+        "kklass_5.2.37": "273/273 (first run after the rewrite)",
+        "kklass_5.3.9": "273/273",
+        "master_5.2.37": "21/21 suites, 'All test suites passed', every [FAIL] line checked",
+        "master_5.3.9": "21/21 suites, 'All test suites passed'"
+      },
+      "bench_after": {
+        "template_bytes": 1110,
+        "template_bytes_per_member": "~74 (15 members) — target ~60 nearly met; the rest is the 3 fixed lines",
+        "functions_per_instance": "19 = 15 members + 4 (target met; was 24)",
+        "bash_5.2.37": { "new_us": 206, "delete_us": { "at_50_live": 347, "at_1000_live": 310 }, "method_call_us": 457, "inst_call_us": 495, "prop_read_us": 116, "computed_read_us": { "at_50_live": 1342, "at_1000_live": 1368 } },
+        "bash_5.3.9": { "new_us": 133, "delete_us": { "at_50_live": 173, "at_1000_live": 163 }, "method_call_us": 387, "inst_call_us": 439, "prop_read_us": 108, "computed_read_us": { "at_50_live": 1157, "at_1000_live": 1271 } },
+        "delta": ".new 1058 -> 206 us on 5.2 (5.1x) and 493 -> 133 us on 5.3 (3.7x) — target >=3x met. Template 8113 -> 1110 B (7.3x). Method call +6-9% (432 -> 457 / 356 -> 387 us): the property namerefs are now built by a loop over the class tables at call time instead of baked text — P4b trims this. .delete 159 -> 310 us on 5.2 (wrapper list built at run time; still 5800x better than the P0 1.8 s). Computed read at 1000 live is now FLAT (1.37 ms vs 1.34 at 50; P3 had 1.9 vs 1.2)."
+      },
+      "notes": [
+        "Went one level beyond the plan: framework-level kk._* runtime instead of per-class functions — zero generated dispatch code; property namerefs from the class tables at call time.",
+        "__kk_* prefix now rejected for member names (extends D2) since every runtime local uses it.",
+        "P1's baked __DELETE_FUNCS__/__LAZY_VARS__ placeholders are superseded by kk._delete deriving the list from class tables; .new lost its dynamic-methods loop; _has_dynamic_methods no longer set."
+      ]
+    },
+    "P4b": {
+      "title": "Call-path trim: visibility gate flag, inlined frame push/pop, static namerefs only when present, kk._return -v",
+      "size": "M",
+      "status": "done",
+      "done": "2026-09-05",
+      "targets": { "method_call_ms": "~0.3", "prop_read_ms": "<= 0.1" },
+      "gate": {
+        "kklass_5.2.37": "273/273",
+        "kklass_5.3.9": "273/273",
+        "master_5.2.37": "21/21 suites, 'All test suites passed', every [FAIL] line checked",
+        "master_5.3.9": "21/21 suites, 'All test suites passed'"
+      },
+      "bench_after": {
+        "template_bytes": 1110,
+        "bash_5.2.37": { "new_us": 188, "delete_us": { "at_50_live": 196, "at_1000_live": 187 }, "method_call_us": 206, "inst_call_us": 232, "prop_read_us": 41, "prop_write_us": 27, "computed_read_us": { "at_50_live": 654, "at_1000_live": 632 } },
+        "bash_5.3.9": { "new_us": 152, "delete_us": { "at_50_live": 175, "at_1000_live": 235 }, "method_call_us": 180, "inst_call_us": 202, "prop_read_us": 37, "prop_write_us": 25, "computed_read_us": { "at_50_live": 571, "at_1000_live": 582 } },
+        "delta_vs_P4a": "method call 457 -> 206 us (5.2) / 387 -> 180 (5.3); property read 116 -> 41 / 108 -> 37; property write 108 -> 27 / 104 -> 25; computed read 1342 -> 654 / 1157 -> 571. Targets (~300 us call, <=100 us prop read) met with margin.",
+        "delta_vs_P0_baseline": "method call 383 -> 206 us (1.9x); property read 117 -> 41 (2.9x); .new 904 -> 188 (4.8x); .delete 1.8 s -> 0.19 ms; computed read 16 ms -> 0.65 ms (25x) and flat vs instance count; template 6970 -> 1110 B; 24 -> 19 functions per instance."
+      },
+      "notes": [
+        "Biggest single cost was kk._warn_visibility's `declare -p <table> &>/dev/null` on every call (formats the whole table). Gated by <Class>_has_nonpublic (set at endImplementation; unset = full check).",
+        "Frame push/pop inlined into kk._invoke on kkore's __KLIB_FRAME_* arrays (exact kv.framePush/framePop code); kv.frameCurrent/frameClass unchanged and still consistent.",
+        "kk._exec NOT fused into kk._invoke: target met, and the body must stay in its own function so a `return` inside it still pops the frame."
+      ]
+    },
+    "P5": {
+      "title": "Docs (book, OPTIMIZATION.md), experimental/ decision, dead code",
+      "size": "S",
+      "status": "done",
+      "done": "2026-09-05",
+      "gate": {
+        "kklass_5.2.37": "273/273",
+        "kklass_5.3.9": "273/273 in the master sweep; the standalone run in the chain reported 2 transient failures (028_UsingCachedCompiledVersion, 029_AutorecompilationOnSourceChange) that passed on 4 immediate re-runs (2x 5.3, 2x 5.2). Both tests compare mtimes with 1-second granularity right after the 5.2 run wrote the same tests/.ckk files — a timing flake of the autoload freshness check, not a runtime regression (P5 changed no runtime behaviour). Left as an observation; a per-run KKLASS_CKK_DIR in the runner would remove it.",
+        "master_5.2.37": "21/21 suites, 'All test suites passed', every [FAIL] line checked",
+        "master_5.3.9": "21/21 suites, 'All test suites passed'",
+        "bench": "unchanged vs P4b within noise (5.2: call 209 us, prop 42, new 188, delete 0.2 ms, computed 661 us)"
+      },
+      "notes": [
+        "kklass_book.md: requirements corrected; .delete semantics; static-method return channels (stdout/status/REPLY, why $() loses state); computed-property output table (D1 as amended) + getter-kind cost; NEW sections defineMethod (both limitations), Reserved Member Names (D2 as amended, state explicitly allowed), kk.call_silent; compilation chapter rewritten as the honest dump description, KKLASS_CKK_DIR + loud failures; Singleton example was broken ($() lost static state) — rewritten on the REPLY channel and verified by running.",
+        "OPTIMIZATION.md rewritten: before/after architecture, the numbers table, the two bench rules; experimental/ marked as history and KEPT (deletion left to the owner as a separate commit).",
+        "kklass.sh dead code: kk._var comment block removed; property-peek keyword_str now includes static_method.",
+        "examples/10_method_parameters.sh: pre-existing bug (decimals in $(( ))) fixed; all 49 examples run clean."
+      ]
+    }
+  },
+  "gates": [
+    "kklass tests: 232 + new, 0 failures",
+    "kcl suites using kklass green: tlist tobjectlist tstringlist tdictionary tqueuestack tstopwatch tregex tarray tinifile tcustomapplication thashset",
+    "bench/kklass_bench.sh: no metric slower than previous phase; P1/P4 targets met",
+    "P4a/P4b also on bash 5.3"
+  ]
+}

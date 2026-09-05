@@ -105,12 +105,7 @@ addSerializable() {
             ;;
     esac
     
-    # Force regeneration of instance template by calling defineClass constructor update
-    # This is a hack: we rebuild the constructor with updated method lists
-    _regenerateConstructor "$class_name"
-    
     if [[ "${VERBOSE_KKLASS:-1}" == "debug" ]]; then echo "Serialization methods added to $class_name (format: $format)"; fi
-    
 }
 
 # Internal: Add string-based serialization
@@ -118,12 +113,7 @@ _addSerializable_string() {
     local class_name="$1"
     local separator="$2"
     local props_list="$3"
-    
-    # Escape separator for use in regex
-    local sep_escaped="${separator//\\/\\\\}"
-    sep_escaped="${sep_escaped//\//\\/}"
-    sep_escaped="${sep_escaped//./\\.}"
-    
+
     # Build property list for serialization
     local prop_values=""
     local prop_read=""
@@ -145,25 +135,10 @@ _addSerializable_string() {
         echo \"\$this\"
     "
     
-    # Add methods to class
-    local meths_var="${class_name}_class_methods"
-    local -n meths_ref="$meths_var"
-    
-    # Add toString if not exists
-    if [[ ! " ${meths_ref[*]} " =~ " toString " ]]; then
-        meths_ref+=("toString")
-    fi
-    eval "${class_name}_method_body_toString=\$toString_body"
-    
-    # Add fromString if not exists
-    if [[ ! " ${meths_ref[*]} " =~ " fromString " ]]; then
-        meths_ref+=("fromString")
-    fi
-    eval "${class_name}_method_body_fromString=\$fromString_body"
-    
-    # Update method cache
-    eval "${class_name}_method_cache[\"toString\"]=\"${class_name}\""
-    eval "${class_name}_method_cache[\"fromString\"]=\"${class_name}\""
+    # Register through the one dynamic-method path (F10): owner, cache and the
+    # instance template are all updated there.
+    defineMethod "$class_name" toString "$toString_body" || return 1
+    defineMethod "$class_name" fromString "$fromString_body" || return 1
 }
 
 # Internal: Add JSON-based serialization
@@ -218,57 +193,11 @@ _addSerializable_json() {
         echo \"\$this\"
     "
     
-    # Add methods to class
-    local meths_var="${class_name}_class_methods"
-    local -n meths_ref="$meths_var"
-    
-    # Add toJSON if not exists
-    if [[ ! " ${meths_ref[*]} " =~ " toJSON " ]]; then
-        meths_ref+=("toJSON")
-    fi
-    eval "${class_name}_method_body_toJSON=\$toJSON_body"
-    
-    # Add fromJSON if not exists
-    if [[ ! " ${meths_ref[*]} " =~ " fromJSON " ]]; then
-        meths_ref+=("fromJSON")
-    fi
-    eval "${class_name}_method_body_fromJSON=\$fromJSON_body"
-    
-    # Update method cache
-    eval "${class_name}_method_cache[\"toJSON\"]=\"${class_name}\""
-    eval "${class_name}_method_cache[\"fromJSON\"]=\"${class_name}\""
-}
-
-# Internal: Regenerate constructor after adding methods
-_regenerateConstructor() {
-    local class_name="$1"
-    
-    # Get updated method list
-    local meths_var="${class_name}_class_methods"
-    local props_var="${class_name}_class_properties"
-    local -n meths_ref="$meths_var"
-    local -n props_ref="$props_var"
-    
-    # Build new method functions
-    local new_meth_funcs=""
-    for m in "${meths_ref[@]}"; do
-        new_meth_funcs+="
-__INST__.$m() {
-    __INST__._exec \"$m\" \"$class_name\" \"\$@\"
-}
-"
-    done
-    
-    # Get existing template and update it with new methods
-    local template_var="${class_name}_instance_template"
-    local existing_template="${!template_var}"
-    
-    # Find where methods section ends (__INST__.delete)
-    # Insert new method functions before delete
-    local updated_template="${existing_template//__INST__.delete()/${new_meth_funcs}__INST__.delete()}"
-    
-    # Store updated template
-    eval "${class_name}_instance_template=\$updated_template"
+    # Register through the one dynamic-method path (F10). The former
+    # _regenerateConstructor re-emitted EVERY wrapper with this class as owner,
+    # which broke `inherited` inside inherited methods.
+    defineMethod "$class_name" toJSON "$toJSON_body" || return 1
+    defineMethod "$class_name" fromJSON "$fromJSON_body" || return 1
 }
 
 # Utility: Serialize multiple objects to a file
@@ -325,6 +254,5 @@ export -f defineSerializableClass
 export -f addSerializable
 export -f _addSerializable_string
 export -f _addSerializable_json
-export -f _regenerateConstructor
 export -f saveObjects
 export -f loadObjects
