@@ -46,10 +46,13 @@ Kklass is a comprehensive object-oriented programming (OOP) system for Bash that
 
 ### System Requirements
 
-- Bash 4.3 or higher (for name references). On Bash 5.3+ a faster, fork-free
-  path is used automatically for static methods (with a temp-file fallback on 5.2).
-- Standard Unix utilities: `mktemp` and `stat` (used by the compiler and autoloader).
-  Object creation and method dispatch are pure Bash — no `sed`/`awk` fork per instance.
+- Bash 4.3 or higher (for name references). Tested on 5.2 and 5.3. Static
+  methods of a class WITH static properties capture their output with a
+  fork-free function substitution on Bash 5.3+ and with a scratch file on 5.2;
+  everything else (object creation, dispatch, property access, `.delete`,
+  computed properties) is pure Bash with no fork on any version.
+- Standard Unix utilities: `stat` (autoloader freshness check), `mktemp` (only
+  when compiling a `.kkp` unit), `rm` (the 5.2 static-method scratch file).
 - Optional: `md5sum`/`sha256sum` (only for some serialization examples)
 
 ---
@@ -286,7 +289,22 @@ account.delete
 calc.delete
 ```
 
-This removes all functions and data associated with the instance.
+This removes all functions and data associated with the instance. Precisely,
+`obj.delete`:
+
+1. runs the destructor first, if the class declares one (Pascal DSL
+   `destructor`, inherited by subclasses);
+2. unsets the data array `obj_data`, the class variable `obj_class` and every
+   lazy-property cache `obj_lazy_<name>`;
+3. unsets every per-instance function: one per property, one per method
+   (including methods added later with `defineMethod`), plus `obj.property`,
+   `obj.call`, `obj.parent` and `obj.delete` itself.
+
+The list of functions comes from the class tables, so `.delete` costs the same
+whether the shell holds ten objects or ten thousand — no fork, no scan of the
+shell's function table. After `.delete` the name is free: `obj.anything` is
+"command not found", and a second `obj.delete` fails the same way (guard it with
+`declare -F obj.delete` if double-free must be a no-op, as `TObjectList` does).
 
 ### Complete Example
 
@@ -525,6 +543,30 @@ db1.delete
 db2.delete
 ```
 
+**Return channels and exit status of a static method.** The body's stdout is
+the method's stdout, and the body's exit status (`return N`, or the status of
+its last command) is the method's exit status — a static method that fails
+propagates its failure. A `func`-style static method may also set `RESULT`
+via `kk._return`; that value is appended to the output.
+
+Two dispatcher shapes exist and you never choose them by hand:
+
+- A class with **no** static properties gets a thin pass-through wrapper: the
+  body's stdout flows straight to the caller, nothing is captured.
+- A class **with** static properties gets a capturing wrapper: the body's
+  stdout is captured into `REPLY` and then printed. `REPLY` matters because a
+  *stateful* static method cannot be called as `$(Class.method)` — the
+  substitution runs it in a subshell and the state mutation is lost. Call it
+  directly and read `REPLY` (or `RESULT` for a `func`):
+
+```bash
+Database.incrementConnections           # state mutated in THIS shell
+Database.getConnectionCount >/dev/null  # direct call: output also lands in REPLY
+echo "Connections: $REPLY"              # Output: Connections: 3
+```
+
+The Singleton pattern below is the canonical use of that channel.
+
 ### Class Variables with `classVar`
 
 In the Pascal-style API, class-level state can be declared with `classVar`:
@@ -658,6 +700,27 @@ echo "Area: $(rect.area)"  # Output: Area: 80 (automatically recalculated)
 rect.delete
 ```
 
+**How a computed property returns its value.** It follows the same contract as
+a `function`/`func` method (`kk._return`), which every kcl unit relies on:
+
+| Call form | Prints | Sets `RESULT` |
+|---|---|---|
+| `$(rect.area)` (subshell capture) | the value, exactly once | — (subshell) |
+| `rect.area` (direct call) | nothing | yes |
+
+So inside a method body you read a computed property of the same object with
+`$this.area; echo "$RESULT"`, with no stdout pollution; from the shell you
+either capture it with `$(...)` or call it directly and use `$RESULT`. This is
+deliberately *different* from a plain stored property, whose direct call prints
+the value (`rect.width` prints `10`).
+
+**Getter kinds and cost.** If the getter is declared as a `function`/`func`
+(returns through `RESULT`), the read runs in the current shell: no subshell,
+no fork, and side effects inside the getter (counters, caches) persist. If the
+getter is an echo-style `method`/`proc`, its stdout has to be captured, which
+costs a subshell per read. Prefer `RESULT`-returning getters for anything read
+in a loop.
+
 ### Computed Properties with Getters and Setters
 
 ```bash
@@ -777,6 +840,69 @@ config.delete
 ```
 
 ---
+
+### Adding Methods After Definition: defineMethod
+
+`defineMethod`, `defineProcedure` and `defineFunction` add — or replace — a
+method on an already built class. New instances get the method; the class's
+dispatch tables and instance template are updated in place:
+
+```bash
+defineClass "Greeter" "" \
+    "property" "name" \
+    "method" "greet" 'echo "Hello, $name"'
+
+defineFunction "Greeter" "shout" 'RESULT="${name^^}!"'   # new method
+
+defineClass "PoliteGreeter" "Greeter" "property" "title"
+defineMethod "PoliteGreeter" "greet" 'echo "Good day, $title $name"'   # overrides the INHERITED greet
+
+PoliteGreeter.new pg
+pg.title = "Dr."; pg.name = "Who"
+pg.greet         # Output: Good day, Dr. Who   (the override wins, also via $this.greet and pg.call greet)
+pg.shout; echo "$RESULT"   # Output: WHO!
+pg.delete
+```
+
+Two limitations, both reported as `[kk] warning` where they apply:
+
+- Instances created *before* the `defineMethod` call do not get the new
+  wrapper function; create instances after the class is complete.
+- A **subclass that was built before** `defineMethod` ran on its parent keeps
+  its own copy of the method table and does not see the addition or override.
+  Define methods top-down: finish a class before deriving from it.
+
+### Reserved Member Names
+
+A method body runs with a few names already bound, so they cannot be used as
+property, field, method or class names — the declaration fails with a clear
+error:
+
+| Name | Meaning inside a body |
+|---|---|
+| `this`, `__inst__` | the instance name (`$this.method`, `$__inst__.call`) |
+| `__class__` | the class whose body is running (frame class) |
+| `RESULT`, `REPLY` | the return channels |
+| `IFS` | word splitting — shadowing it would break every `read` in the runtime |
+| `__kk_*` | prefix of the runtime's own locals |
+
+`state` is *not* reserved: it is the name of the data-array reference
+(`${state[key]}` reads any property by name, as `TCustomApplication` does), and
+a property called `state` simply shadows it inside that class. Internal locals
+of the dispatcher are all `__kk_`-prefixed, so ordinary names such as
+`method_body` or `frame_id` are safe.
+
+### Silent Calls: kk.call_silent
+
+A `function` method echoes its `RESULT` when it runs in a subshell (that is how
+`$(obj.method)` works). When you call a method *from inside another method
+that is itself being captured* and only want the `RESULT`, wrap the call:
+
+```bash
+kk.call_silent obj methodName arg1 arg2   # runs obj.call methodName; RESULT set, nothing echoed
+```
+
+It saves and restores the silent flag, so nesting is safe.
 
 ## Pascal DSL: class ... end with Real Function Bodies
 
@@ -959,10 +1085,24 @@ classes with properties, overrides and `inherited`.
 
 ### Why Compile?
 
-Compilation converts class definitions into optimized bash code that:
-- **Loads faster**: No runtime class definition overhead
-- **Runs faster**: Optimized function calls
-- **Distributes easily**: Single compiled file
+"Compiling" a `.kk`/`.kkp` file means: build the classes once with the normal
+runtime, then **dump** everything the build produced — every `<Class>_*`
+table (method bodies, owner maps, pre-filled caches, the instance template,
+static state, declarative metadata) with `declare -p` and every `<Class>.*`
+function (`.new`, `.constructor`, static accessors and methods) with
+`declare -f` — into one bash file. Loading that file is a plain `source`.
+
+- **Loads faster**: the class-definition code (parsing, inheritance
+  resolution, template generation, DSL processing) does not run again.
+- **Identical behaviour**: there is no second code generator. Compiled classes
+  use exactly the same `kk._*` runtime as classes defined at run time, so a
+  runtime-vs-compiled parity test (`tests/123_CompiledParity.sh`) holds by
+  construction. Method calls are not faster in compiled mode — dispatch is the
+  same.
+- **Distributes easily**: single file (it still `source`s `kklass.sh`).
+
+Compile files that only *define* classes; instances created inside the input
+would be dumped too, as bare data arrays without their functions.
 
 ### Manual Compilation
 
@@ -1022,11 +1162,17 @@ counter.delete
 
 **Autoload Features:**
 
-1. **First Load**: Compiles `.kk` file to `.ckk/filename.ckk.sh`
+1. **First Load**: Compiles `.kk` file to `.ckk/filename.ckk.sh`. The cache
+   directory is `$(pwd)/.ckk` by default; set `KKLASS_CKK_DIR=/some/dir` to
+   put it elsewhere (for example a private directory per test run, so two
+   runs never race on the same compiled file).
 2. **Subsequent Loads**: Uses cached compiled version
 3. **Smart Recompilation**: Recompiles if source is newer
 4. **Force Compilation**: `kkload "file.kk" --force-compile`
 5. **Runtime Mode**: `kkload "file.kk" --no-compile` (skip compilation)
+6. **Loud failures**: a source file that fails to `source` (syntax error, a
+   refused class redefinition, an unknown command) aborts the compile with the
+   original error on stderr; the autoloader then falls back to runtime mode.
 
 ### Pascal-style `.kkp` Units
 
@@ -1515,9 +1661,9 @@ defineClass "DatabaseConnection" "" \
             DatabaseConnection.new db_singleton
             instance="db_singleton"
             exists="true"
-            echo "New connection created"
+            echo "New connection created" >&2
         else
-            echo "Using existing connection"
+            echo "Using existing connection" >&2
         fi
         echo "$instance"
     ' \
@@ -1526,17 +1672,20 @@ defineClass "DatabaseConnection" "" \
 # Initialize
 DatabaseConnection.exists = "false"
 
-# Get instance (creates new)
-conn1=$(DatabaseConnection.getInstance)
-eval "$conn1.host = \"localhost\""
-eval "$conn1.port = \"5432\""
-eval "$conn1.connect"
+# Get instance (creates new). NOT $(DatabaseConnection.getInstance): that would
+# run the method in a subshell and lose the `instance`/`exists` mutation, so
+# every call would create a fresh object. Call it directly and read REPLY
+# (a class with static properties captures its stdout into REPLY).
+DatabaseConnection.getInstance >/dev/null; conn1=$REPLY
+$conn1.host = "localhost"
+$conn1.port = "5432"
+$conn1.connect
 
 # Get instance again (returns existing)
-conn2=$(DatabaseConnection.getInstance)
-eval "$conn2.connect"  # Uses same connection
+DatabaseConnection.getInstance >/dev/null; conn2=$REPLY
+$conn2.connect  # Uses same connection
 
-eval "$conn1.delete"
+$conn1.delete
 ```
 
 ### Observer Pattern

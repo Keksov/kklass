@@ -43,10 +43,12 @@ else
     exit 1
 fi
 
-# Test with different parameter types
-echo "Testing with decimal numbers:"
-echo "10.5 + 2.3 = $(calc.add 10.5 2.3)"
-echo "7 * 3.5 = $(calc.multiply 7 3.5)"
+# Test with different parameter values. Bash arithmetic ($(( ))) is integer
+# only, so the methods above take integers; negative values and expressions are
+# fine. (For decimals use kcl/math or a string-based method body.)
+echo "Testing with negative numbers:"
+echo "10 + (-3) = $(calc.add 10 -3)"
+echo "7 * (-2) = $(calc.multiply 7 -2)"
 
 # Clean up
 calc.delete
