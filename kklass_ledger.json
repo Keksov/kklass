@@ -3,7 +3,7 @@
   "project": "kklass — fix & optimization plan from the 2026-09-05 review (6 confirmed bugs, 6 design/perf notes)",
   "created": "2026-09-05",
   "updated": "2026-09-05",
-  "status": "ALL PHASES P0-P5 DONE 2026-09-05. All 12 findings closed. kklass 273/273 and master sweep 21/21 suites green on 5.2.37 AND 5.3.9. vs P0 baseline: .new 4.8x, method call 1.9x, prop read 2.9x, .delete 1.8 s -> 0.2 ms, computed read 16 ms -> 0.65 ms, template 6970 -> 1110 B. UNCOMMITTED: kklass.sh, kklass_decl.sh, kklass_serializable.sh, kklass_compiler.sh, kklass_autoload.sh, OPTIMIZATION.md, docs/kklass_book.md, examples/10_method_parameters.sh modified; PLAN.md, kklass_ledger.json, bench/, tests 120-126 new. Next: owner review, then commit in kklass + submodule bump in kbool (on explicit owner instruction). Decisions D1 (amended P3), D2 (amended P1 + __kk_ prefix at P4a), D3, D4 recorded.",
+  "status": "ALL PHASES P0-P5 DONE + COMMITTED 2026-09-05 (kklass ac5979f code+tests+bench+PLAN+ledger, 31d9e94 docs; parent kbool befec0e submodule bump; NOT PUSHED). All 12 findings closed. kklass 273/273 and master sweep 21/21 suites green on 5.2.37 AND 5.3.9. vs P0 baseline: .new 4.8x, method call 1.9x, prop read 2.9x, .delete 1.8 s -> 0.2 ms, computed read 16 ms -> 0.65 ms, template 6970 -> 1110 B. Next: push on owner instruction (submodule before parent, as for the kcl units). Decisions D1 (amended P3), D2 (amended P1 + __kk_ prefix at P4a), D3, D4 recorded.",
   "owner": "keksov",
   "notes": "Single source of truth for kklass fix/optimization status. Plan: kklass/PLAN.md. Workflow: phase -> kklass suite -> kcl suites -> bench vs baseline -> STOP -> owner 'go'; commits gated.",
   "conventions": {
