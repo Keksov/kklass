@@ -107,7 +107,51 @@ Four changes, all semantics-preserving:
 - `OPTIMIZATION.md` rewritten: former architecture, what P4a/P4b did, the before/after table, the two bench rules (no forks in hot paths; never enumerate a big function table), `experimental/` marked as history (idea adopted; folder kept, deletable in a separate commit — not deleted here, owner's call).
 - Dead code removed from `kklass.sh`: the `kk._var` comment block; the property-peek `keyword_str` in `kk._build_class_runtime` now includes `static_method` like the one in `defineClass`.
 - Verified by running: the rewritten Singleton and defineMethod book examples, `kk.call_silent`, examples 35/36 (REPLY users), all 49 `examples/*.sh`. One pre-existing example bug found and fixed on the way: `10_method_parameters.sh` fed decimals to `$(( ))` (bash arithmetic is integer-only) and printed syntax errors; it now demonstrates negative integers and says so.
-- **DONE 2026-09-05.** Gate: kklass 273/273 on 5.2; master 21/21 on both versions; bench unchanged vs P4b. The standalone 5.3 kklass run in the chain showed two transient failures (028, 029 — autoload freshness check, 1-second mtime granularity right after the 5.2 run wrote the same `tests/.ckk` files); both passed on four immediate re-runs and in the master sweep. Not a runtime regression; a per-run `KKLASS_CKK_DIR` in the runner would remove the flake.
+- **DONE 2026-09-05.** Gate: kklass 273/273 on 5.2; master 21/21 on both versions; bench unchanged vs P4b. The standalone 5.3 kklass run in the chain showed two transient failures (028, 029 — autoload freshness check, 1-second mtime granularity right after the 5.2 run wrote the same `tests/.ckk` files); both passed on four immediate re-runs and in the master sweep. Not a runtime regression. **Fixed 2026-09-05 (follow-up):** 028 and 029 are now hermetic — private fixture and cache dir per run via `KKLASS_CKK_DIR` under the ktests temp dir, rebuilt on every run, mtime ordering pinned with `touch -d` instead of `sleep 1` and whatever an earlier run (or the other bash) left in `tests/.ckk`. On the way: the 029 fixture had no line continuations, so it never compiled and the test passed through the "Compilation failed" path; it now asserts a real recompile ("Source file is newer" + "Compilation successful" + compiled not older than source). A runner-wide `KKLASS_CKK_DIR` was rejected: 027 and 030–033 pin the `$(pwd)/.ckk` contract.
+
+### P6 — changes made for kcl review P0 (2026-09-06)
+Not a kklass phase of this plan: these edits were requested by **kcl's** review plan
+(`kcl/PLAN.md` P0, `kcl/kcl_ledger.json`, findings G1-13 / G2-03 / G1-14 / G8-01 / G8-04
+and decisions D1 / D6 / D7 / R15). Recorded here so a later kklass session knows where
+they came from. They also touch kkore and ktests, which kklass loads.
+- **`kk._return`: `echo -n "$v"` → `printf '%s' "$v"`** (G1-13/G2-03). Values that bash's
+  `echo` parses as options (`-e`, `-n`, `-E`, `-en`, `-neE`, `-nEe`) were silently lost
+  under `$( )` by every `func` and every `function`-kind computed property, while the
+  direct-call `RESULT` path was correct — so the whole corpus stayed green. Test
+  `tests/127_ReturnValueFidelity.sh` (24 assertions; 6 red before the fix).
+- **`set -u` contract** (G1-14 + G8-01, kcl decision D7 — a kcl unit must be sourceable
+  from a script running `set -eu`). `${!var:-}` on every indirect metadata read (~36 sites
+  in `kklass.sh`, `kklass_pascal.sh`, `kklass_decl.sh`, `kklass_serializable.sh`), plus
+  `${meth_index[$2]:-}` in `defineClass`, `${6:-}` in `kk._prop_computed`/`kk._prop_plain`
+  and `${2:-}` in `class()`; re-source guards read `${_X_SOURCED:-}` in `kklass_pascal.sh`,
+  `kklass_decl.sh`, `kklass_kkp.sh`. Same fix in **kkore** (`klib/kerr/kvar/kcfg/kuse`,
+  including `kerr.sh`'s re-source branch, which read a bare `$1` — that one bites for real:
+  `kklass.sh` loads kkore, and `tlist.sh`/`tdictionary.sh`/`tstopwatch.sh` then source
+  `kerr.sh` again, taking that branch) and in **ktests** (all five files, plus
+  `${KTESTS_LIB_DIR:-}` and `${KK_OUTPUT_COUNTS:-}`). Test `tests/128_SetUContract.sh`
+  (31 assertions: every entry point sourced once AND twice, the kklass→unit re-source
+  shape, both class DSLs, full instance lifecycle, rc-booleans under `set -eu`).
+- **Builder namespace** (G8-04): `local m p sm sp wm` in `kk._build_class_runtime`,
+  `local wm` in `kk._processMethodBody`, `local m` in `_defineMethodType`. Every
+  `defineClass` used to clobber the caller's one-letter variables, and kcl units define
+  their classes at source time. Test `tests/129_BuilderNamespace.sh`.
+- **Tests 030/031/063/065 made hermetic** (kcl R15): private fixture dir plus
+  `KKLASS_CKK_DIR` under the ktests temp dir, so no test writes `.ckk` into `$PWD` any
+  more — a sweep started from a kcl unit directory used to leave a stray `<unit>/.ckk`
+  behind (four of them were in the tree). This revises the P5 note above ("a runner-wide
+  `KKLASS_CKK_DIR` was rejected"): the pin is **per test**, not runner-wide, and 027/032/033
+  still exercise the default `$(pwd)/.ckk` contract (they `cd` into `kklass/tests` first).
+  Their weak asserts went too: 030 accepted "Force **or** Compiling" and 031 "runtime **or**
+  No compiled", both of which also pass on the failure path.
+- **kkore gained `kk.isInt` / `kk.isNum` / `kk._setOut`** (kcl D1) — shared numeric guards,
+  fork-free, silent, never expanding their argument. Not used by kklass itself.
+- **ktests pins `LC_ALL=LANG=C.UTF-8`** (kcl D6) in `ktest.sh`, so the whole corpus runs
+  under UTF-8 instead of the C locale. Test `ktests/tests/030_LocaleContract.sh`.
+- **DONE 2026-09-06.** Gate: kklass 335/335, kkore 334/334, ktests 308/308, master sweep
+  20 suites / 3238 tests / 0 FAIL — all on bash 5.2.37 AND 5.3.9, run sequentially, every
+  `[FAIL]` line grepped (0). Bench not re-run: no runtime path
+  changed except `kk._return` (printf where echo was, same cost) and nothing was added to a
+  hot path. The old 028/029 5.3 timing flake did not recur.
 
 ---
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-if [[ -n "$_KKLASS_DECL_SOURCED" ]]; then
+if [[ -n "${_KKLASS_DECL_SOURCED:-}" ]]; then
     return
 fi
 declare -g _KKLASS_DECL_SOURCED=1
@@ -176,9 +176,9 @@ kk.decl._parent_of() {
     local runtime_parent_var="${class_name}_parent_class"
 
     if declare -p "$decl_parent_var" &>/dev/null; then
-        RESULT="${!decl_parent_var}"
+        RESULT="${!decl_parent_var:-}"
     elif declare -p "$runtime_parent_var" &>/dev/null; then
-        RESULT="${!runtime_parent_var}"
+        RESULT="${!runtime_parent_var:-}"
     else
         RESULT=""
     fi
@@ -265,7 +265,7 @@ kk.decl._method_kind_is_function() {
     while [[ -n "$class_name" ]]; do
         kind_cell="${class_name}_decl_method_kind[$method_name]"
         if [[ -n "${!kind_cell+x}" ]]; then
-            [[ "${!kind_cell}" == "function" ]]
+            [[ "${!kind_cell:-}" == "function" ]]
             return
         fi
         kk.decl._parent_of "$class_name"
@@ -814,7 +814,7 @@ endImplementation() {
     fi
 
     local parent_var="${class_name}_decl_parent"
-    local parent_class="${!parent_var}"
+    local parent_class="${!parent_var:-}"
     if [[ -n "$parent_class" ]]; then
         local parent_ready=0
         if declare -f "${parent_class}.new" >/dev/null 2>&1; then
@@ -937,8 +937,8 @@ kk._return \"\$RESULT\"")
         class_args+=("static_method" "$method_name" "${static_bodies_ref[$method_name]}")
     done
 
-    if [[ -n "${!constructor_var}" ]]; then
-        class_args+=("constructor" "${!constructor_var}")
+    if [[ -n "${!constructor_var:-}" ]]; then
+        class_args+=("constructor" "${!constructor_var:-}")
     fi
 
     kk._build_class_runtime "${class_args[@]}" || return 1

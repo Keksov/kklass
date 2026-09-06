@@ -1,5 +1,11 @@
 #!/bin/bash
 # KkpMultilineSignatures
+#
+# Hermetic since 2026-09-06 (kcl review "task 6" / decision R15): the autoload
+# cache is this test's private dir via KKLASS_CKK_DIR, and the work dir is the
+# fixture temp dir (auto-removed at teardown) instead of a bare mktemp -d. The
+# old version hard-coded $(pwd)/.ckk, so a sweep started from a kcl unit
+# directory left a stray <unit>/.ckk behind.
 
 KTESTS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../ktests" && pwd)"
 source "$KTESTS_LIB_DIR/ktest.sh"
@@ -8,11 +14,14 @@ kt_test_init "KkpMultilineSignatures" "$(dirname "$0")" "$@"
 
 KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-workdir="$(mktemp -d)"
+workdir="$(cd "$(kt_fixture_tmpdir)" && pwd)"
+ckk_dir="$workdir/ckk"
+export KKLASS_CKK_DIR="$ckk_dir"
+mkdir -p "$ckk_dir"
 unit_file="$workdir/multiline_counter.kkp"
 translated_file="$workdir/multiline_counter.runtime.sh"
 compiled_file="$workdir/multiline_counter.ckk.sh"
-autoload_compiled_file="$(pwd)/.ckk/multiline_counter.ckk.sh"
+autoload_compiled_file="$ckk_dir/multiline_counter.ckk.sh"
 
 cat > "$unit_file" <<'EOF'
 unit MultilineCounter;
@@ -110,4 +119,3 @@ else
     kt_test_fail "kkp multiline compiler and autoload (compiled: '$result_compiled', autoload: '$result_autoload')"
 fi
 
-rm -rf "$workdir"

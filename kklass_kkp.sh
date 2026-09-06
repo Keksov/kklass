@@ -1,6 +1,6 @@
 #!/bin/bash
 
-if [[ -n "$_KKLASS_KKP_SOURCED" ]]; then
+if [[ -n "${_KKLASS_KKP_SOURCED:-}" ]]; then
     return
 fi
 declare -g _KKLASS_KKP_SOURCED=1

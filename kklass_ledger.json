@@ -3,7 +3,7 @@
   "project": "kklass — fix & optimization plan from the 2026-09-05 review (6 confirmed bugs, 6 design/perf notes)",
   "created": "2026-09-05",
   "updated": "2026-09-05",
-  "status": "ALL PHASES P0-P5 DONE + COMMITTED 2026-09-05 (kklass ac5979f code+tests+bench+PLAN+ledger, 31d9e94 docs; parent kbool befec0e submodule bump; NOT PUSHED). All 12 findings closed. kklass 273/273 and master sweep 21/21 suites green on 5.2.37 AND 5.3.9. vs P0 baseline: .new 4.8x, method call 1.9x, prop read 2.9x, .delete 1.8 s -> 0.2 ms, computed read 16 ms -> 0.65 ms, template 6970 -> 1110 B. Next: push on owner instruction (submodule before parent, as for the kcl units). Decisions D1 (amended P3), D2 (amended P1 + __kk_ prefix at P4a), D3, D4 recorded.",
+  "status": "ALL PHASES P0-P5 DONE + COMMITTED 2026-09-05; plus P6_kcl_review_P0 (2026-09-06, requested by kcl/PLAN.md P0, UNCOMMITTED at the time of writing) (kklass ac5979f code+tests+bench+PLAN+ledger, 31d9e94 docs; parent kbool befec0e submodule bump; NOT PUSHED). All 12 findings closed. kklass 273/273 and master sweep 21/21 suites green on 5.2.37 AND 5.3.9. vs P0 baseline: .new 4.8x, method call 1.9x, prop read 2.9x, .delete 1.8 s -> 0.2 ms, computed read 16 ms -> 0.65 ms, template 6970 -> 1110 B. Next: push on owner instruction (submodule before parent, as for the kcl units). Decisions D1 (amended P3), D2 (amended P1 + __kk_ prefix at P4a), D3, D4 recorded.",
   "owner": "keksov",
   "notes": "Single source of truth for kklass fix/optimization status. Plan: kklass/PLAN.md. Workflow: phase -> kklass suite -> kcl suites -> bench vs baseline -> STOP -> owner 'go'; commits gated.",
   "conventions": {
@@ -210,6 +210,22 @@
         "kk._exec NOT fused into kk._invoke: target met, and the body must stay in its own function so a `return` inside it still pops the frame."
       ]
     },
+    "P6_kcl_review_P0": {
+      "title": "Changes requested by the kcl review plan (kcl/PLAN.md P0) — NOT a phase of this plan: kk._return printf, set -u contract across kklass+kkore+ktests, builder locals, hermetic .ckk tests, kkore numeric guards, ktests UTF-8 pin",
+      "source": "kcl/PLAN.md P0 + kcl/kcl_ledger.json (findings G1-13, G2-03, G1-14, G8-01, G8-04; decisions D1, D6, D7, R15)",
+      "status": "done",
+      "done": "2026-09-06",
+      "changes": [
+        "kklass.sh kk._return: 'echo -n' -> printf '%s' (G1-13/G2-03). echo parses -e/-n/-E/-en/-neE/-nEe as its own options, so every func and every function-kind computed property silently returned '' for such a value under $( ), while the direct-call RESULT path was correct — which is why the whole corpus stayed green. Test tests/127_ReturnValueFidelity.sh: 24 assertions, 6 red before the fix.",
+        "set -u contract (G1-14 + G8-01, kcl decision D7 — a kcl unit must be sourceable from a script running 'set -eu'): default-guard every indirect metadata read (~36 sites in kklass.sh, kklass_pascal.sh, kklass_decl.sh, kklass_serializable.sh), the meth_index lookup in defineClass, the optional '=' positional in kk._prop_computed/kk._prop_plain, the optional parent positional in class(), and the re-source guards in kklass_pascal.sh/kklass_decl.sh/kklass_kkp.sh. Test tests/128_SetUContract.sh: 31 assertions.",
+        "Same set -u fix in kkore (klib, kerr, kvar, kcfg, kuse) and ktests (all five files, plus the KTESTS_LIB_DIR and KK_OUTPUT_COUNTS reads). kerr.sh's RE-SOURCE branch read a bare positional $1: that one bites in production, because kklass.sh loads kkore and tlist.sh / tdictionary.sh / tstopwatch.sh then source kerr.sh a second time, taking exactly that branch. Caught only after adding a 'source every file TWICE' case to 128.",
+        "Builder namespace (G8-04): local m p sm sp wm in kk._build_class_runtime, local wm in kk._processMethodBody, local m in _defineMethodType. Every defineClass used to clobber the caller's one-letter variables, and kcl units define their classes at source time. Test tests/129_BuilderNamespace.sh.",
+        "Tests 030/031/063/065 made hermetic (kcl R15): private fixture dir + KKLASS_CKK_DIR under the ktests temp dir, so no test writes .ckk into $PWD any more (a sweep started from a kcl unit directory used to leave a stray <unit>/.ckk; four were in the tree). REVISES the P5 note that a runner-wide KKLASS_CKK_DIR was rejected: the pin is PER TEST, not runner-wide, and 027/032/033 still exercise the default cwd/.ckk contract because they cd into kklass/tests first. Their weak asserts were rewritten too: 030 accepted 'Force OR Compiling' and 031 'runtime OR No compiled', both of which pass on the failure path as well.",
+        "kkore/klib.sh gained kk.isInt / kk.isNum / kk._setOut (kcl decision D1, shared numeric guards; locals carry the __kk_ prefix and that prefix is refused as an output-variable name, because bash scopes locals dynamically). ktests/ktest.sh pins LC_ALL=LANG=C.UTF-8 (kcl decision D6). Neither is used by kklass itself."
+      ],
+      "gate": "kklass 335/335, kkore 334/334, ktests 308/308, master sweep 20 suites / 3238 tests / 0 FAIL — all on bash 5.2.37 AND 5.3.9, run sequentially, every [FAIL] line grepped (0)",
+      "commit": "uncommitted at the time of writing; commit order kklass, kkore, ktests, kcl, kbool"
+    },
     "P5": {
       "title": "Docs (book, OPTIMIZATION.md), experimental/ decision, dead code",
       "size": "S",
@@ -217,7 +233,7 @@
       "done": "2026-09-05",
       "gate": {
         "kklass_5.2.37": "273/273",
-        "kklass_5.3.9": "273/273 in the master sweep; the standalone run in the chain reported 2 transient failures (028_UsingCachedCompiledVersion, 029_AutorecompilationOnSourceChange) that passed on 4 immediate re-runs (2x 5.3, 2x 5.2). Both tests compare mtimes with 1-second granularity right after the 5.2 run wrote the same tests/.ckk files — a timing flake of the autoload freshness check, not a runtime regression (P5 changed no runtime behaviour). Left as an observation; a per-run KKLASS_CKK_DIR in the runner would remove it.",
+        "kklass_5.3.9": "273/273 in the master sweep; the standalone run in the chain reported 2 transient failures (028_UsingCachedCompiledVersion, 029_AutorecompilationOnSourceChange) that passed on 4 immediate re-runs (2x 5.3, 2x 5.2). Both tests compare mtimes with 1-second granularity right after the 5.2 run wrote the same tests/.ckk files — a timing flake of the autoload freshness check, not a runtime regression (P5 changed no runtime behaviour). FIXED 2026-09-05 as a follow-up: 028 and 029 rewritten hermetic (private fixture + KKLASS_CKK_DIR under the ktests temp dir, rebuilt every run, mtimes pinned with touch -d, no sleep 1). The old 029 fixture lacked line continuations and never compiled — the test passed via the Compilation-failed path; it now asserts a real recompile. Verified: 3 alternating rounds 5.2/5.3 green, full kklass suite green on both.",
         "master_5.2.37": "21/21 suites, 'All test suites passed', every [FAIL] line checked",
         "master_5.3.9": "21/21 suites, 'All test suites passed'",
         "bench": "unchanged vs P4b within noise (5.2: call 209 us, prop 42, new 188, delete 0.2 ms, computed 661 us)"

@@ -39,7 +39,7 @@
 #   override <proc|func>         guard: errors unless an ancestor has the method
 #   build N                      extract bodies + finalize the class
 
-if [[ -n "$_KKLASS_PASCAL_SOURCED" ]]; then
+if [[ -n "${_KKLASS_PASCAL_SOURCED:-}" ]]; then
     return
 fi
 declare -g _KKLASS_PASCAL_SOURCED=1
@@ -55,10 +55,10 @@ declare -g __KK_PASCAL_OVERRIDE=""
 
 class() {
     local name="$1" parent=""
-    if [[ "$2" == ":" ]]; then
+    if [[ "${2:-}" == ":" ]]; then
         parent="$3"          # class TDog : TAnimal
     else
-        parent="$2"          # class TDog TAnimal  (positional, also allowed)
+        parent="${2:-}"     # class TDog TAnimal  (positional, also allowed)
     fi
 
     declareClass "$name" "$parent" || return 1
@@ -208,7 +208,7 @@ build() {
 
     # Constructor body (declared name, default Create).
     local ctor_var="${class_name}_decl_constructor_name"
-    local ctor="${!ctor_var}"
+    local ctor="${!ctor_var:-}"
     if [[ -n "$ctor" ]] && declare -F "${class_name}.${ctor}" >/dev/null; then
         body="$(kk.pascal._body "${class_name}.${ctor}")"
         body="$(kk.pascal._ctor_inherited "$body" "$ctor")"
@@ -221,12 +221,12 @@ build() {
     # Pascal semantics: a class that declares no constructor inherits its
     # parent's (kklass does not inherit constructors on its own).
     local cbody_var="${class_name}_constructor_body"
-    if [[ -z "${!cbody_var}" ]]; then
+    if [[ -z "${!cbody_var:-}" ]]; then
         local cpvar="${class_name}_parent_class"
-        local cparent="${!cpvar}"
+        local cparent="${!cpvar:-}"
         if [[ -n "$cparent" ]]; then
             local pcbody_var="${cparent}_constructor_body"
-            [[ -n "${!pcbody_var}" ]] && eval "${class_name}_constructor_body=\${${cparent}_constructor_body}"
+            [[ -n "${!pcbody_var:-}" ]] && eval "${class_name}_constructor_body=\${${cparent}_constructor_body}"
         fi
     fi
 
@@ -245,18 +245,18 @@ build() {
     # Register the destructor name for the runtime .delete hook, inheriting the
     # parent's destructor if this class did not declare its own.
     local dtor_decl_var="${class_name}_decl_destructor_name"
-    if [[ -n "${!dtor_decl_var}" ]]; then
-        eval "${class_name}_destructor_name=\"${!dtor_decl_var}\""
+    if [[ -n "${!dtor_decl_var:-}" ]]; then
+        eval "${class_name}_destructor_name=\"${!dtor_decl_var:-}\""
     else
         local pvar="${class_name}_parent_class"
-        local parent="${!pvar}"
+        local parent="${!pvar:-}"
         if [[ -n "$parent" ]]; then
             local pdtor_var="${parent}_destructor_name"
             # A plain `[[ -n ]] && eval` here would leak status 1 out of build
             # when the parent has NO destructor (child of a destructor-less
             # parent) — build must succeed in that case, hence the full `if`.
-            if [[ -n "${!pdtor_var}" ]]; then
-                eval "${class_name}_destructor_name=\"${!pdtor_var}\""
+            if [[ -n "${!pdtor_var:-}" ]]; then
+                eval "${class_name}_destructor_name=\"${!pdtor_var:-}\""
             fi
         fi
     fi
@@ -267,12 +267,12 @@ build() {
 kk.pascal._ancestor_has_method() {
     local class="$1" method="$2"
     local pvar="${class}_parent_class"
-    local parent="${!pvar}"
+    local parent="${!pvar:-}"
     while [[ -n "$parent" ]]; do
         local bvar="${parent}_method_body_${method}"
-        [[ -n "${!bvar}" ]] && return 0
+        [[ -n "${!bvar:-}" ]] && return 0
         pvar="${parent}_parent_class"
-        parent="${!pvar}"
+        parent="${!pvar:-}"
     done
     return 1
 }

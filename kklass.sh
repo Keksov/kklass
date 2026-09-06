@@ -92,10 +92,13 @@ kk._return() {
 
     RESULT="$return_value"
 
-    # Automatically enable echo if we're in a subshell context
+    # Automatically emit the value if we're in a subshell context.
+    # printf, not `echo -n`: a returned value is DATA and must round-trip
+    # verbatim. `echo` parses leading `-e`/`-n`/`-E`/`-neE` as its own options
+    # and prints nothing, so `$(L.Get 0)` lost every such element while the
+    # direct-call RESULT path stayed correct (kcl review 2026-09-06, G1-13/G2-03).
     if [[ $BASH_SUBSHELL -gt 0 && "${__kk_return_silent:-0}" != "1" ]]; then
-        # In subshell: echo the value
-        echo -n "$return_value"
+        printf '%s' "$return_value"
         return
     fi
 }
@@ -133,7 +136,8 @@ kk._processMethodBody() {
     local method_body="$3"
     local meth_type="${4:-method}"
     local -n meths_array="$5"  # Reference to methods array
-    
+    local wm                   # loop var — never leak it (G8-04)
+
     # Replace all $this.METHOD_NAME patterns with $__inst__.call METHOD_NAME
     for wm in "${meths_array[@]}"; do
         # Replace $this.method with proper call syntax
@@ -165,11 +169,11 @@ kk._class_derives_from() {
     fi
 
     parent_var="${candidate_class}_parent_class"
-    while [[ -n "${!parent_var}" ]]; do
-        if [[ "${!parent_var}" == "$ancestor_class" ]]; then
+    while [[ -n "${!parent_var:-}" ]]; do
+        if [[ "${!parent_var:-}" == "$ancestor_class" ]]; then
             return 0
         fi
-        candidate_class="${!parent_var}"
+        candidate_class="${!parent_var:-}"
         parent_var="${candidate_class}_parent_class"
     done
 
@@ -251,8 +255,8 @@ kk._invoke_constructor() {
     local __kk_ctor_cls="$1"
     shift
     local __kk_ctor_var="${__kk_ctor_cls}_constructor_body"
-    if [[ -n "${!__kk_ctor_var}" ]]; then
-        eval "${!__kk_ctor_var}"
+    if [[ -n "${!__kk_ctor_var:-}" ]]; then
+        eval "${!__kk_ctor_var:-}"
     fi
 }
 
@@ -293,7 +297,7 @@ kk._prop_computed() {   # INST CLASS PROP GETTER SETTER [= VALUE]
     local __kk_np="${2}_has_nonpublic"
     [[ "${!__kk_np:-1}" == "0" ]] || kk._warn_visibility "$2" property "$3"
     local __kk_inst="$1" __kk_prop="$3" __kk_getter="$4" __kk_setter="$5"
-    if [[ "$6" == "=" ]]; then
+    if [[ "${6:-}" == "=" ]]; then
         if [[ -n "$__kk_setter" ]]; then
             kk._call "$__kk_inst" "$__kk_setter" "$7"
         else
@@ -322,7 +326,7 @@ kk._prop_lazy() {   # INST CLASS PROP INIT SETTER [= VALUE]
     local __kk_np="${2}_has_nonpublic"
     [[ "${!__kk_np:-1}" == "0" ]] || kk._warn_visibility "$2" property "$3"
     local __kk_inst="$1" __kk_prop="$3" __kk_init="$4" __kk_setter="$5"
-    if [[ "$6" == "=" ]]; then
+    if [[ "${6:-}" == "=" ]]; then
         if [[ -n "$__kk_setter" ]]; then
             kk._call "$__kk_inst" "$__kk_setter" "$7"
         else
@@ -336,7 +340,7 @@ kk._prop_lazy() {   # INST CLASS PROP INIT SETTER [= VALUE]
         __kk_val="$("${__kk_inst}.${__kk_init}")"
         declare -g "${__kk_lv}=${__kk_val}"
     fi
-    printf '%s\n' "${!__kk_lv}"
+    printf '%s\n' "${!__kk_lv:-}"
 }
 
 # Run BODY with the instance context in scope: this/__inst__/__class__, the
@@ -350,7 +354,7 @@ kk._run_frame_body() {   # INST ACTIVE_CLASS BODY ARGS...
     local __inst__="$__kk_inst"
     local -n state="${__kk_inst}_data"
     local __kk_cv="${__kk_inst}_class"
-    local __kk_cls="${!__kk_cv}"
+    local __kk_cls="${!__kk_cv:-}"
     local -n __kk_props="${__kk_cls}_class_properties"
     local __kk_p
     for __kk_p in "${__kk_props[@]}"; do
@@ -404,7 +408,7 @@ kk._exec() {   # INST METHOD OWNER ARGS...
     local __kk_inst="$1" __kk_m="$2" __kk_owner="$3"
     shift 3
     local __kk_bv="${__kk_owner}_method_body_${__kk_m}"
-    local __kk_body="${!__kk_bv}"
+    local __kk_body="${!__kk_bv:-}"
     if [[ -z "$__kk_body" ]]; then
         echo "Error: Method '$__kk_m' not found in class '$__kk_owner'" >&2
         return 1
@@ -420,20 +424,20 @@ kk._find_method() {   # METHOD SEARCH_CLASS
     local __kk_m="$1" __kk_cls="$2"
     local __kk_bv="${__kk_cls}_method_body_${__kk_m}"
     __kk_find_class=""
-    if [[ -n "${!__kk_bv}" ]]; then
+    if [[ -n "${!__kk_bv:-}" ]]; then
         __kk_find_class="$__kk_cls"
         return 0
     fi
     local __kk_pv="${__kk_cls}_parent_class"
-    local __kk_parent="${!__kk_pv}"
+    local __kk_parent="${!__kk_pv:-}"
     while [[ -n "$__kk_parent" ]]; do
         __kk_bv="${__kk_parent}_method_body_${__kk_m}"
-        if [[ -n "${!__kk_bv}" ]]; then
+        if [[ -n "${!__kk_bv:-}" ]]; then
             __kk_find_class="$__kk_parent"
             return 0
         fi
         __kk_pv="${__kk_parent}_parent_class"
-        __kk_parent="${!__kk_pv}"
+        __kk_parent="${!__kk_pv:-}"
     done
     return 1
 }
@@ -446,10 +450,10 @@ kk._call() {   # INST METHOD ARGS...
     local __kk_inst="$1" __kk_m="$2"
     shift 2
     local __kk_cv="${__kk_inst}_class"
-    local __kk_search="${!__kk_cv}"
+    local __kk_search="${!__kk_cv:-}"
 
     local __kk_cache_cell="${__kk_search}_method_cache[${__kk_m}]"
-    local __kk_found="${!__kk_cache_cell}"
+    local __kk_found="${!__kk_cache_cell:-}"
     if [[ -z "$__kk_found" ]]; then
         kk._find_method "$__kk_m" "$__kk_search"
         __kk_found="$__kk_find_class"
@@ -458,7 +462,7 @@ kk._call() {   # INST METHOD ARGS...
             return 1
         fi
         local __kk_ov="${__kk_found}_class_method_owner[${__kk_m}]"
-        [[ -n "${!__kk_ov}" ]] && __kk_found="${!__kk_ov}"
+        [[ -n "${!__kk_ov:-}" ]] && __kk_found="${!__kk_ov:-}"
         local -n __kk_cache="${__kk_search}_method_cache"
         __kk_cache["$__kk_m"]="$__kk_found"
     fi
@@ -466,7 +470,7 @@ kk._call() {   # INST METHOD ARGS...
     local __kk_bv="${__kk_found}_method_body_${__kk_m}"
     local __kk_np="${__kk_found}_has_nonpublic"
     [[ "${!__kk_np:-1}" == "0" ]] || kk._warn_visibility "$__kk_found" method "$__kk_m"
-    kk._invoke "$__kk_inst" "$__kk_found" "${!__kk_bv}" "$@"
+    kk._invoke "$__kk_inst" "$__kk_found" "${!__kk_bv:-}" "$@"
 }
 
 # `inherited` / $this.parent: STATIC resolution from the parent of the class
@@ -477,7 +481,7 @@ kk._parent() {   # INST METHOD ARGS...
     # Internal dispatch (see kk._call): result via RESULT, no echo.
     local __kk_return_silent=1
     local __kk_cv="${__kk_inst}_class"
-    local __kk_active="${!__kk_cv}"
+    local __kk_active="${!__kk_cv:-}"
     local __kk_frame=""
     kv.frameCurrent >/dev/null 2>&1 || true
     __kk_frame="$RESULT"
@@ -487,7 +491,7 @@ kk._parent() {   # INST METHOD ARGS...
     fi
 
     local __kk_pv="${__kk_active}_parent_class"
-    local __kk_parent_of="${!__kk_pv}"
+    local __kk_parent_of="${!__kk_pv:-}"
     if [[ -z "$__kk_parent_of" ]]; then
         echo "Error: No parent class for '${__kk_active}'" >&2
         return 1
@@ -495,7 +499,7 @@ kk._parent() {   # INST METHOD ARGS...
 
     local __kk_key="${__kk_active}_parent_${__kk_m}"
     local __kk_cache_cell="${__kk_active}_method_cache[${__kk_key}]"
-    local __kk_found="${!__kk_cache_cell}"
+    local __kk_found="${!__kk_cache_cell:-}"
     if [[ -z "$__kk_found" ]]; then
         kk._find_method "$__kk_m" "$__kk_parent_of"
         __kk_found="$__kk_find_class"
@@ -504,7 +508,7 @@ kk._parent() {   # INST METHOD ARGS...
             return 1
         fi
         local __kk_ov="${__kk_found}_class_method_owner[${__kk_m}]"
-        [[ -n "${!__kk_ov}" ]] && __kk_found="${!__kk_ov}"
+        [[ -n "${!__kk_ov:-}" ]] && __kk_found="${!__kk_ov:-}"
         local -n __kk_cache="${__kk_active}_method_cache"
         __kk_cache["$__kk_key"]="$__kk_found"
     fi
@@ -512,7 +516,7 @@ kk._parent() {   # INST METHOD ARGS...
     local __kk_bv="${__kk_found}_method_body_${__kk_m}"
     local __kk_np="${__kk_found}_has_nonpublic"
     [[ "${!__kk_np:-1}" == "0" ]] || kk._warn_visibility "$__kk_found" method "$__kk_m"
-    kk._invoke "$__kk_inst" "$__kk_found" "${!__kk_bv}" "$@"
+    kk._invoke "$__kk_inst" "$__kk_found" "${!__kk_bv:-}" "$@"
 }
 
 # Run the class constructor body (if any) in a frame of CLASS.
@@ -520,8 +524,8 @@ kk._constructor_exec() {   # INST CLASS ARGS...
     local __kk_inst="$1" __kk_cls="$2"
     shift 2
     local __kk_bv="${__kk_cls}_constructor_body"
-    [[ -n "${!__kk_bv}" ]] || return 0
-    kk._invoke "$__kk_inst" "$__kk_cls" "${!__kk_bv}" "$@"
+    [[ -n "${!__kk_bv:-}" ]] || return 0
+    kk._invoke "$__kk_inst" "$__kk_cls" "${!__kk_bv:-}" "$@"
 }
 
 # Destroy an instance: destructor (if the class declares one), lazy globals,
@@ -531,9 +535,9 @@ kk._constructor_exec() {   # INST CLASS ARGS...
 kk._delete() {   # INST
     local __kk_inst="$1"
     local __kk_cv="${__kk_inst}_class"
-    local __kk_cls="${!__kk_cv}"
+    local __kk_cls="${!__kk_cv:-}"
     local __kk_dv="${__kk_cls}_destructor_name"
-    local __kk_dtor="${!__kk_dv}"
+    local __kk_dtor="${!__kk_dv:-}"
     [[ -n "$__kk_dtor" ]] && kk._call "$__kk_inst" "$__kk_dtor"
 
     local -n __kk_ms="${__kk_cls}_class_methods"
@@ -585,7 +589,12 @@ kk._build_class_runtime() {
     local -A own_raw_bodies=()  # methods declared HERE: raw body, processed after the parse (F11)
     local -A own_meth_type=()
     local constructor_body=""
-    
+    # Loop variables of the member walks below. Without `local` every class
+    # definition clobbered the caller's p/m/sm/sp/wm — and kcl units define
+    # their classes at source time, so `source tlist.sh` silently overwrote a
+    # script's own $p and $m (G8-04).
+    local m p sm sp wm
+
     # Static members support (lazy initialization)
     local has_static_members=false
     local -a static_props_arr=()
@@ -621,7 +630,7 @@ kk._build_class_runtime() {
             # original defining class, not the parent.
             for m in "${parent_meths_ref[@]}"; do
                 local parent_body_var="${parent_class}_method_body_${m}"
-                meth_bodies["$m"]="${!parent_body_var}"
+                meth_bodies["$m"]="${!parent_body_var:-}"
                 meth_index["$m"]=1
                 local parent_owner_var="${parent_class}_class_method_owner[$m]"
                 meth_owner["$m"]="${!parent_owner_var:-$parent_class}"
@@ -684,7 +693,7 @@ kk._build_class_runtime() {
                 static_meth_owner["$inherited_static_method"]="${parent_static_meth_owner_ref[$inherited_static_method]:-$parent_class}"
                 local static_body_owner="${static_meth_owner[$inherited_static_method]}"
                 local parent_static_body_var="${static_body_owner}_static_method_body_${inherited_static_method}"
-                static_meth_bodies["$inherited_static_method"]="${!parent_static_body_var}"
+                static_meth_bodies["$inherited_static_method"]="${!parent_static_body_var:-}"
             done
             if (( ${#parent_static_meths_ref[@]} > 0 )); then
                 has_static_members=true
@@ -767,7 +776,7 @@ kk._build_class_runtime() {
                 kk.decl._validate_ident "$2" "method name" || return 1
                 local meth_type="$1"
                 # Check if method already exists (override) using fast lookup
-                if [[ -z "${meth_index[$2]}" ]]; then
+                if [[ -z "${meth_index[$2]:-}" ]]; then
                     meths_arr+=("$2")
                     meth_index["$2"]=1
                 fi
@@ -1178,7 +1187,8 @@ _defineMethodType() {
     # Get existing methods array
     local -n meths_ref="${class_name}_class_methods"
     local -A meth_index
-    
+    local m                    # loop var — never leak it (G8-04)
+
     # Build index of existing methods
     for m in "${meths_ref[@]}"; do
         meth_index["$m"]=1
