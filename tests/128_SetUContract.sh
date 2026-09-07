@@ -202,4 +202,32 @@ else
     kt_test_fail "rc=$rc out='$out' stderr='$err'"
 fi
 
+# ---------------------------------------------------------------------------
+# 6. STORED (var) property read under set -u. [found_in_P4: P4-F1]
+#    kk._property and kk._prop_plain tested "$3" / "$4" == "=" on the READ
+#    path, where that parameter is absent — every plain property read killed a
+#    set -u caller. Computed properties were fine, which is why P0/P1 missed it.
+expect_clean "stored property read/write under set -u [P4-F1]" "
+source '$KKLASS_DIR/kklass.sh'
+defineClass TSuV '' property v property w
+TSuV.new sv
+sv.v = 1
+sv.v >/dev/null
+sv.property w = 2
+sv.property w >/dev/null
+sv.delete"
+
+expect_clean "Pascal var member read under set -u [P4-F1]" "
+source '$KKLASS_DIR/kklass_pascal.sh'
+class TSuW
+    public
+        var Name
+        constructor Create
+end
+TSuW.Create() { Name='x'; }
+build TSuW
+TSuW.new w
+w.Name >/dev/null
+w.delete"
+
 kt_test_log "128_SetUContract.sh completed"

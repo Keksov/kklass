@@ -271,7 +271,7 @@ kk._invoke_constructor() {
 
 kk._property() {   # INST NAME [= VALUE]
     local -n __kk_d="${1}_data"
-    if [[ "$3" == "=" ]]; then
+    if [[ "${3:-}" == "=" ]]; then
         __kk_d["$2"]="$4"
     else
         # printf, not echo -e: values are data and must round-trip verbatim.
@@ -286,7 +286,7 @@ kk._prop_plain() {   # INST CLASS PROP [= VALUE]
     local __kk_np="${2}_has_nonpublic"
     [[ "${!__kk_np:-1}" == "0" ]] || kk._warn_visibility "$2" property "$3"
     local -n __kk_d="${1}_data"
-    if [[ "$4" == "=" ]]; then
+    if [[ "${4:-}" == "=" ]]; then
         __kk_d["$3"]="$5"
     else
         printf '%s\n' "${__kk_d["$3"]}"
