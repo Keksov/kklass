@@ -302,7 +302,10 @@ kk.decl._build_property_getter_body() {
     # than a stale value. An echo-style (`procedure`/legacy `method`) getter
     # still needs its stdout captured.
     if kk.decl._method_kind_is_function "$class_name" "$read_target"; then
-        printf 'RESULT=""; $__inst__.call %s' "$read_target"
+        # The getter's exit status must reach the caller (kcl: predicates answer
+        # by rc): keep it across the kk._return trailer that endImplementation
+        # appends to every func (found_in_P6 P6-F1).
+        printf 'RESULT=""; $__inst__.call %s; local __kk_grc=$?; kk._return "$RESULT"; return "$__kk_grc"' "$read_target"
         return 0
     fi
 

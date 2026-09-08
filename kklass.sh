@@ -316,10 +316,14 @@ kk._prop_computed() {   # INST CLASS PROP GETTER SETTER [= VALUE]
     # in a subshell and only if the caller was not already silent.
     local __kk_outer_silent="${__kk_return_silent:-0}"
     local __kk_return_silent=1
-    kk._call "$__kk_inst" "$__kk_getter" || return $?
+    # The getter's status is the answer of an rc-predicate property; keep it,
+    # but still print the value under $( ) on a non-zero status (P6-F1).
+    local __kk_grc=0
+    kk._call "$__kk_inst" "$__kk_getter" || __kk_grc=$?
     if (( BASH_SUBSHELL > 0 )) && [[ "$__kk_outer_silent" != "1" ]]; then
         printf '%s' "$RESULT"
     fi
+    return "$__kk_grc"
 }
 
 kk._prop_lazy() {   # INST CLASS PROP INIT SETTER [= VALUE]
