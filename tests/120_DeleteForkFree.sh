@@ -54,27 +54,35 @@ kt_test_start ".delete cost does not scale with the number of shell functions (F
 # compgen scan grew ~10x (and 700x at 10k functions) in the review
 # measurements. Timing under the 8-worker runner is noisy (this test flaked
 # three times in the 2026-09 kcl sweeps with ratios of 3.5-4x while the code
-# was fork-free), so: best of 3 samples on each side, and an 8x ceiling — a
+# was fork-free), so: best of 5 samples on each side, and an 8x ceiling — a
 # forking delete is two orders of magnitude away from it. The structural
 # check below is the one that cannot flake.
-for i in $(seq 1 60); do TDel.new "s$i"; done
+# NO FORK INSIDE A TIMED WINDOW (2026-09-24): the delete loops used to iterate
+# `$(seq ...)` — a fork of this shell, and of a LARGER shell on the big side,
+# inside every window; under the threaded runner such a fork stalls ~280 ms at
+# random. The loops are arithmetic now; the clock was already fork-free.
+# small side: s1..s50 (~750 instance functions); big side: s51..s100 created
+# only AFTER 600 more instances (~9.7k functions), as before the ratio of shell
+# sizes is ~10x.
+for (( i = 1; i <= 50; i++ )); do TDel.new "s$i"; done
 small=0
-for rep in 0 1 2; do
+for rep in 0 1 2 3 4; do
     now_us; t0=$NOW_US
-    for i in $(seq $((rep*10+1)) $((rep*10+10))); do "s$i.delete"; done
+    for (( i = rep * 10 + 1; i <= rep * 10 + 10; i++ )); do "s$i.delete"; done
     now_us; t1=$NOW_US
     (( small == 0 || t1 - t0 < small )) && small=$(( t1 - t0 ))
 done
 for i in $(seq 1 600); do TDel.new "b$i"; done
+for (( i = 51; i <= 100; i++ )); do TDel.new "s$i"; done
 fcount="$(compgen -A function | wc -l | tr -d ' ')"
 big=0
-for rep in 3 4 5; do
+for rep in 5 6 7 8 9; do
     now_us; t0=$NOW_US
-    for i in $(seq $((rep*10+1)) $((rep*10+10))); do "s$i.delete"; done
+    for (( i = rep * 10 + 1; i <= rep * 10 + 10; i++ )); do "s$i.delete"; done
     now_us; t1=$NOW_US
     (( big == 0 || t1 - t0 < big )) && big=$(( t1 - t0 ))
 done
-kt_test_log "10 deletes (best of 3): ${small} us @~900 functions, ${big} us @${fcount} functions"
+kt_test_log "10 deletes (best of 5): ${small} us @<=~750 instance functions, ${big} us @${fcount} functions"
 if (( small > 0 && big <= small * 8 )); then
     kt_test_pass "delete cost flat (${big} us vs ${small} us)"
 else
