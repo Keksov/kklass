@@ -10,6 +10,7 @@
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$DIR/kklass.sh"
+source "$DIR/kklass_serializable.sh"
 
 now_us() { local t="${EPOCHREALTIME/./}"; NOW_US="${t#0}"; }
 # Function count: measured ONCE while the shell is still small, then derived
@@ -30,6 +31,16 @@ margs=()
 for i in 1 2 3 4 5 6 7 8 9 10; do margs+=(method "m$i" "echo m$i"); done
 defineClass TBench "" property a property b property area getArea \
     function getArea 'RESULT=$((a*b))' "${margs[@]}"
+# Serialization rows (round 2 / P7): 5 plain properties, JSON format. Clean
+# values exercise the escape helper's fast path; the hostile instance holds a
+# quote, a backslash, a newline, a tab and a control byte in every property.
+defineClass TBenchJ "" property id property name property email property city property note
+addSerializable TBenchJ "" json
+TBenchJ.new jc
+jc.id = 42; jc.name = "John Doe"; jc.email = "john@example.com"; jc.city = "New York"; jc.note = "plain text value"
+TBenchJ.new jh
+for p in id name email city note; do jh.$p = $'say "hi" C:\\new\n\tx\x01y'; done
+TBenchJ.new jr
 
 echo "kklass micro-benchmark  (bash ${BASH_VERSION})"
 echo "  template bytes: ${#TBench_instance_template}"
@@ -91,3 +102,19 @@ now_us; t0=$NOW_US
 for (( i=0; i<200; i++ )); do o1.area >/dev/null; done
 now_us; t1=$NOW_US
 report "computed read @1000 live (F7: forks per read)" $(( t1-t0 )) 200 "read"
+
+echo
+echo "serialization (round 2 / P7, 5 properties, @1000 live):"
+now_us; t0=$NOW_US
+for (( i=0; i<500; i++ )); do jc.toJSON >/dev/null; done
+now_us; t1=$NOW_US
+report "toJSON, clean values" $(( t1-t0 )) 500 "call"
+now_us; t0=$NOW_US
+for (( i=0; i<500; i++ )); do jh.toJSON >/dev/null; done
+now_us; t1=$NOW_US
+report "toJSON, hostile values (escape slow path)" $(( t1-t0 )) 500 "call"
+jc.toJSON > "$FNS_TMP"; IFS= read -r js < "$FNS_TMP"
+now_us; t0=$NOW_US
+for (( i=0; i<200; i++ )); do jr.fromJSON "$js" >/dev/null; done
+now_us; t1=$NOW_US
+report "fromJSON, clean values" $(( t1-t0 )) 200 "call"

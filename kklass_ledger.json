@@ -2,7 +2,7 @@
   "schema_version": 1,
   "project": "kklass — fix & optimization plan from the 2026-09-05 review (6 confirmed bugs, 6 design/perf notes)",
   "created": "2026-09-05",
-  "updated": "2026-09-30",
+  "updated": "2026-10-02",
   "status": "ALL PHASES P0-P5 DONE + COMMITTED 2026-09-05; plus P6_kcl_review_P0 (2026-09-06, requested by kcl/PLAN.md P0, UNCOMMITTED at the time of writing) (kklass ac5979f code+tests+bench+PLAN+ledger, 31d9e94 docs; parent kbool befec0e submodule bump; NOT PUSHED). All 12 findings closed. kklass 273/273 and master sweep 21/21 suites green on 5.2.37 AND 5.3.9. vs P0 baseline: .new 4.8x, method call 1.9x, prop read 2.9x, .delete 1.8 s -> 0.2 ms, computed read 16 ms -> 0.65 ms, template 6970 -> 1110 B. Next: push on owner instruction (submodule before parent, as for the kcl units). Decisions D1 (amended P3), D2 (amended P1 + __kk_ prefix at P4a), D3, D4 recorded.",
   "owner": "keksov",
   "notes": "Single source of truth for kklass fix/optimization status. Plan: kklass/PLAN.md. Workflow: phase -> kklass suite -> kcl suites -> bench vs baseline -> STOP -> owner 'go'; commits gated.",
@@ -592,7 +592,69 @@
     "phases": {
       "R2_P7": {
         "name": "JSON escaping (K3)",
-        "status": "pending"
+        "status": "done",
+        "date": "2026-10-02",
+        "commit": "",
+        "scope": "kklass_serializable.sh (JSON section rewritten), tests/131_JsonEscaping.sh (new, 108 assertions), bench/kklass_bench.sh (serialization rows), docs/kklass_book.md (Serialization: JSON Format Rules), PLAN.md R2.3 DONE note, this ledger",
+        "implemented": {
+          "escape": "kk._jsonEscape VALUE -> RESULT: fork-free; fast path = one glob (__KK_JSON_SPECIAL = *[\"\\\\<U+0001>-<U+001F>]*); slow path: backslash first, then quote, then per control code present one global replace from a 31-entry table (\\n \\r \\t \\b \\f named, the rest \\u00xx lower-case); DEL/C1/multibyte raw",
+          "toJSON_body": "if [[ \"${state[*]}\" != ${__KK_JSON_SPECIAL:-*} ]]; then printf '%s\\n' \"{...${state[p]-}...}\"; else kk._jsonObject C p \"${state[p]-}\" ...; fi — ONE glob over the whole instance store; the printed values are exactly the tested ones (read from <inst>_data, not via the per-property namerefs), so a clean verdict cannot be wrong; a class with a property named `state` binds its own local -n __kk_d=\"${this}_data\" instead",
+          "fromJSON": "kk._jsonParse TEXT fills the caller's local __kk_jk/__kk_jv (+ __kk_jc/__kk_jhc for __class__); members without a backslash consumed by one anchored ERE (__KK_JSON_RE_MEMBER), everything else by the scanner (kk._jsonString), which alone decides acceptance; one-pass unescape of \\\" \\\\ \\/ \\b \\f \\n \\r \\t and \\uXXXX; UTF-8 bytes built arithmetically via printf \\xHH; parse-all-then-assign = atomic; output written to <inst>_data (state[p]); prints the instance name on success (unchanged)",
+          "tables": "kk._jsonInit builds __KK_JSON_CC/ESC/SPECIAL/CTRL/WS/RE_MEMBER with printf only (no $'..' in any function body: declare -f/export -f re-print those bytes raw and a raw CR is lost — measured); called at load and lazily by every helper (child shell with only the exported functions)",
+          "exports": "export -f adds kk._jsonInit kk._jsonEscape kk._jsonObject kk._jsonString kk._jsonParse (module exports unconditionally, as before)"
+        },
+        "decisions_applied": {
+          "class_mismatch": "rc 1 + exactly one kk.debug line (the foreign class name JSON-escaped so the line stays one line). ACCEPTED: absent __class__; __class__ == the receiving instance's own class; __class__ == the class addSerializable was called on (what toJSON writes, also for a subclass inheriting the serializer — without this a subclass could not read its own toJSON). Documented as a behaviour change in kklass_book §JSON Format Rules.",
+          "unknown_keys": "ignored (unchanged: the old case statement had no default branch); missing keys keep the current value (unchanged); duplicate keys: last wins",
+          "surrogates": "pair combined into one 4-byte UTF-8 character; lone high, high + non-low, lone low = rc 1",
+          "nul": "\\u0000 = rc 1 (a NUL cannot live in a bash string); documented",
+          "bare_tokens": "stored verbatim as text (null -> 'null', as the old parser did); a token holding \" { [ ] : \\ = rc 1; a value starting with { or [ (nested) = rc 1"
+        },
+        "red_before": {
+          "tests/131_JsonEscaping.sh": "65 FAIL / 108 against the unfixed module on 5.2.37 AND 5.3.9 (final file; an intermediate version measured 60/102). Unfixed: comma value lost ('x'), newline value broke toJSON over two lines, node JSON.parse INVALID for quote/backslash/control values, whitespace-formatted input ignored, \\u decoding wrong, every malformed input accepted (rc 0), __class__ mismatch loaded silently, nested toJSON not round-trippable, saveObjects wrote 4 lines for 3 objects, set -u toJSON aborted",
+          "tests/043-046, 049": "green before and after (1/1/1/1/2)"
+        },
+        "gate": {
+          "kklass_suite": "452/452 (344 + 108) threaded on 5.2.37 and on 5.3.9; --mode single on 5.2.37 452/452; [FAIL] grep 0 in all three logs",
+          "examples": "41/42/43 rc 0 on both bashes; 41 and 42 byte-identical to the pre-phase run (temp names normalized); 43 differs in exactly one line: the Person JSON now escapes its nested JSON values (node JSON.parse accepts it and the nested address_data parses again) — no expectation change needed",
+          "consumers": "grep toJSON|fromJSON|addSerializable|defineSerializableClass|saveObjects|loadObjects outside kklass: only prose (kcl/thttpserver/PLAN.md:959-961, thttpserver_ledger.json:431, kbool optimization_ledger.json:142) — no code consumer, no other suite to run",
+          "master_sweep": "reviewer's job (not run by the worker)"
+        },
+        "bench": {
+          "method": "bench/kklass_bench.sh new rows (class TBenchJ, 5 props, @1000 live): toJSON clean x500, toJSON hostile x500 (quote, backslash, LF, TAB, \\x01 in every prop), fromJSON clean x200. Baseline = the same bench with HEAD's kklass_serializable.sh swapped in, INTERLEAVED with the new module, 4 runs each per bash",
+          "baseline_HEAD": {
+            "5.2": "method call 183-207; toJSON clean 216.3 217.3 218.2 237.8 (median 217.8); hostile 218-252 (unescaped, invalid JSON); fromJSON 1359-1464 (median 1420)",
+            "5.3": "method call 155-166; toJSON clean 183.1 186.0 186.6 198.3 (median 186.3); hostile 183-190; fromJSON 1270-1372 (median 1285)"
+          },
+          "after": {
+            "5.2": "method call 186-195; toJSON clean 244.1 249.2 251.9 255.3 (median 250.6); hostile 925-957; fromJSON 940-1000 (median 958)",
+            "5.3": "method call 154-164; toJSON clean 207.3 208.0 215.9 217.1 (median 212.0); hostile 819-855; fromJSON 845-896 (median 853)"
+          },
+          "verdict": "toJSON clean +33 us (5.2, +15%) / +26 us (5.3, +14%) per call — ABOVE the usual noise tolerance; fromJSON 33% faster on both bashes; hostile toJSON ~4x the unescaped (it now does the escaping work). FLAGGED for the reviewer: the clean-path cost is the floor of ANY per-call check of the values — measured inside a method frame on the 1000-instance shell (min of 10 rounds): no-op body 220 us, + `local x=\"${state[*]}\"` 232 (+12), + one glob test 231 (+11), i.e. one expansion + one glob = ~+23 us; the shipped body is that plus noise. Variants measured and rejected (min of 12 rounds, 5.2/5.3): old body 244/192, printf from the store without guard 248/198, guard+echo 276/213, shipped 280/217, ||{ } form 283/217; per-property guard (5 expansions) +30..40; one-line body calling kk._jsonObject unconditionally +55; a local LC_ALL=C in the helpers gains nothing (setlocale ~10 us per call)"
+        },
+        "measured": [
+          "printf '\\uXXXX' (both bashes): BMP -> UTF-8 in C.UTF-8, en_US.UTF-8 AND C; a lone surrogate (\\ud83d / \\udc00) -> CESU bytes ed a0 bd / ed b0 80 (invalid UTF-8) in the UTF-8 locales and the literal text \\uD83D in C; a pair in ONE printf is combined (f0 9f 98 80) in all three locales; \\U0001f600 -> UTF-8 in the UTF-8 locales but LITERAL in C; \\u0000 truncates everything after it. Hence: pairs combined, lone surrogates rc 1, bytes built arithmetically via \\xHH (locale-independent)",
+          "patsub_replacement is ON by default on both bashes: an unquoted & in a ${v//p/r} replacement is the match; every replacement here is a quoted variable",
+          "the fast-path glob *[\"\\\\<01>-<1F>]* gives identical verdicts in C, C.UTF-8 and en_US.UTF-8 on both bashes for 16 probes (DEL and U+0085 miss)",
+          "declare -f re-prints $'..' words with raw bytes and a raw CR does not survive (both bashes) -> no $'..' in function bodies; tables built with printf at load",
+          "MSYS/cygwin quirk (both bashes): a CR inside $'..' is DROPPED in a compound array assignment — a=($'x\\ry') gives 'xy'; a simple assignment and a command argument keep it. Test 131 builds its CR fixtures by expansion and pins the fixture length",
+          "a statement in a method body costs ~10-12 us on the 1000-instance bench shell; bash re-compiles a [[ =~ ]] regex on every evaluation (the 6-group member ERE: ~25 us per match on 5.2)",
+          "the bench class's fromJSON: old here-string parser 1285-1420 us -> new 853-958 us"
+        ],
+        "deviations": [
+          "__class__ rule: accepts the receiving instance's class OR the serializer's class (plan: 'mismatch with the receiving instance's class'); needed for a subclass inheriting the serializer to read its own toJSON output (pinned by test 131). An unrelated class is refused.",
+          "\\uXXXX is decoded by arithmetic UTF-8 encoding through printf \\xHH, not printf \\uXXXX: printf \\U / lone \\u are locale-dependent (measured above); the result is identical where printf \\u works",
+          "toJSON reads (and fromJSON writes) the instance store <inst>_data directly instead of the per-property namerefs: identical cells for plain/computed/lazy properties; it makes the single-expansion guard airtight (a static property shadowing a serialized name can no longer slip an unescaped value past the check) and is part of the perf fix",
+          "a member-level ERE fast path in front of the scanner (perf); the scanner alone decides acceptance; the ERE only matches members without a backslash, so it decodes nothing",
+          "raw control characters inside an input string are accepted (lenient; JSON forbids them, the old parser accepted them, loadObjects cannot deliver a raw LF anyway)",
+          "kk._jsonEscape returns through RESULT (kcl §1.1); the generated toJSON restores the caller's RESULT as every method does",
+          "bench gate NOT met within noise: toJSON clean +14..15% — see bench.verdict; reviewer decision"
+        ],
+        "found_in_R2_P7": [
+          "defineSerializableClass CLASS PARENT SEP json ... silently builds a class with EMPTY toString/fromString bodies and no toJSON/fromJSON (rc 0): repro `defineSerializableClass TX \"\" \":\" json property a; TX.new x; x.toJSON` -> command not found; `x.toString` -> Error: Method 'toString' not found. Only the string format is implemented there. Not fixed (outside K3).",
+          "saveObjects prefers toString when a class has both formats; the string format does not escape, so a value holding the separator or a newline breaks the one-line-per-object file. Documented in kklass_book; not fixed.",
+          "loadObjects ignores the fromJSON/fromString rc: a refused line (now e.g. a __class__ mismatch) still yields an instance with default values in the output array. Behaviour unchanged; not fixed."
+        ]
       },
       "R2_P8": {
         "name": "$this rewrite (K1)",

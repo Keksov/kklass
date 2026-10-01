@@ -1356,7 +1356,7 @@ Kklass supports:
 
 ### Serialization Helper Names
 
-Generated serialization methods reserve the `__kk_` prefix for internal helper locals. Avoid using property names or temporary locals with that prefix in your own code.
+Generated serialization methods reserve the `__kk_` prefix for internal helper locals. Avoid using property names or temporary locals with that prefix in your own code. The JSON helpers (`kk._jsonEscape`, `kk._jsonObject`, `kk._jsonParse`, `kk._jsonString`, `kk._jsonInit`) and their tables (`__KK_JSON_*`) live in the same reserved space.
 
 Regular names such as `key`, `value`, `input`, or other domain terms remain safe to use in your classes and methods.
 
@@ -1473,6 +1473,70 @@ echo "Author: $(book2.author)"
 book1.delete
 book2.delete
 ```
+
+### JSON Format Rules
+
+`toJSON` writes **one flat object on one line**: `"__class__"` first, then
+every property of the class in definition order, every value as a JSON
+**string**. The output is valid JSON (RFC 8259) whatever the values hold:
+
+| In the value | Written as |
+|---|---|
+| `\` and `"` | `\\` and `\"` |
+| LF, CR, TAB, backspace, form feed | `\n` `\r` `\t` `\b` `\f` |
+| any other U+0001–U+001F | `\u00XX` (lower-case hex), e.g. `\u001b` |
+| DEL, C1 controls, multi-byte UTF-8 | raw (valid JSON) |
+| NUL | cannot occur — a bash string cannot hold a NUL byte |
+
+A value with none of `"`, `\` or a control character is copied verbatim (a
+single glob test decides; the cost is one test per call, not per property).
+
+```bash
+book1.title = $'Say "hi"\n\tC:\\new'
+book1.toJSON
+# {"__class__":"Book","isbn":"...","title":"Say \"hi\"\n\tC:\\new",...}
+```
+
+`fromJSON` is a left-to-right scanner for **one flat JSON object**:
+
+* whitespace (space, TAB, LF, CR) between tokens is ignored, so
+  pretty-printed input such as `{ "title" : "x" }` loads;
+* string values decode the eight escapes `\" \\ \/ \b \f \n \r \t` and
+  `\uXXXX` (either hex case; a surrogate pair is combined into one 4-byte
+  UTF-8 character). The UTF-8 bytes are produced arithmetically, so decoding
+  does not depend on the locale;
+* a bare token (`42`, `-1.5e3`, `true`, `null`) is stored **verbatim as text**
+  (`null` becomes the four characters `null`);
+* keys that are not properties of the class are ignored, a missing property
+  keeps its current value, and for a duplicate key the last one wins.
+
+It returns **rc 1 and leaves the instance completely untouched** (nothing is
+assigned until the whole input has been parsed) for: malformed JSON (unterminated
+string, missing `:` or value, trailing comma, text after the closing `}`), a
+nested object or array as a value, an unknown escape, `\u0000` (a NUL cannot
+live in a bash string), a lone surrogate, and a `"__class__"` mismatch (below).
+Nothing is printed on failure; with `VERBOSE_KKLASS=debug` exactly one
+`kk.debug` line goes to stderr. On success it prints the instance name, as
+before.
+
+**`__class__` check (behaviour change, round 2 / P7).** Earlier versions
+ignored `"__class__"`, so another class's JSON loaded silently. `fromJSON` now
+accepts a `"__class__"` only if it names the receiving instance's own class or
+the class `addSerializable` was called on (which is what `toJSON` writes, also
+for subclasses that inherit the serializer). Anything else is rc 1. Input
+without `"__class__"` is still accepted.
+
+```bash
+Book.new b3
+b3.fromJSON '{"__class__":"Magazine","title":"x"}' || echo "refused"   # refused, b3 unchanged
+```
+
+**One line per object.** Because a newline is always written as `\n`,
+`toJSON` output never contains a raw newline, and `saveObjects` / `loadObjects`
+can keep their one-object-per-line file format for JSON objects with any
+values. (`saveObjects` prefers `toString` when a class has both formats; the
+string format does not escape, so a value holding a newline or the separator
+only round-trips through the JSON format.)
 
 ### Mixed Format Serialization
 
