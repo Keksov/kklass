@@ -659,7 +659,55 @@
       },
       "R2_P8": {
         "name": "$this rewrite (K1)",
-        "status": "pending"
+        "status": "done",
+        "date": "2026-10-02",
+        "commit": "",
+        "scope": "kklass.sh (rewrite removed from kk._processMethodBody and the constructor path; kk._exec tests set-ness; build-path member validators; defineMethod/defineProcedure/defineFunction validate class + method name), kklass_decl.sh (kk.decl._validate_member: reserved call/delete/property/parent/new for instance members), tests/132_ThisDispatch.sh (new, 58 assertions), bench/kklass_bench.sh (row 'internal $this.m call'), docs/kklass_book.md (Dispatch Semantics, defineMethod limitation, Reserved Member Names, $this.method reference, .ckk note), PLAN.md R2.3 DONE note, this ledger; kcl wording only: tutil/tutil.sh, tutil/PLAN.md, tutil/docs/TUtil.md, tgrep/tests/006_Contract.sh, thttpserver/PLAN.md, thttpserver/README.md, thttpserver/examples/demo_oop.sh, thttpserver/tests/008_Contract.sh",
+        "implemented": {
+          "removal": "kk._processMethodBody keeps only the function-kind kk._return trailer (signature unchanged, a 5th argument is accepted and ignored); the constructor loop in kk._build_class_runtime is gone; the F11 'finalize after the parse' structure stays. `$this.NAME` / `${this}.NAME` in a body or constructor is now the instance's own wrapper (kk._exec with the defining class baked in at .new) — virtual as of .new. `inherited` (kk.decl._rewrite_inherited -> `$this.parent NAME`) is a separate rewrite and unchanged.",
+          "point_fix_c": "kk._exec: `[[ -z \"$__kk_body\" && -z \"${!__kk_bv+x}\" ]]` -> 'not found' only when the body variable is UNSET; an empty body runs silently rc 0 like .call. Set-ness is only tested for an empty body, so the hot path keeps one indirect expansion.",
+          "point_fix_d": "kk.decl._validate_member NAME LABEL = kk.decl._validate_ident + refuse call|delete|property|parent|new (kk.decl._error, rc 1, message names the member and the built-in). Applied on every instance-member entry path: kk.decl._declare_method (procedure/function kinds; class_procedure/class_function stay on _validate_ident), property(), field(), kk.decl._remember_lazy_property (name + init method), kk._build_class_runtime (property, getter/setter, lazy_property name + init, method|procedure|function), _defineMethodType (defineMethod/defineProcedure/defineFunction — had NO name validation before). Pascal DSL (var/proc/func/property) and .kkp route through these verbs. grep: no kklass/kcl/kkore code declares such a member (tgrep/tawk/tfind/thead 006 already list them as reserved by convention)."
+        },
+        "red_before": {
+          "tests/132_ThisDispatch.sh": "29 FAIL / 58 against the unfixed code on 5.2.37 AND 5.3.9 (identical FAIL lists): A1-A7 quoted/braced/single-quoted/echo-arg/handler/stored body/constructor (7: e.g. 'q.call Home', '$__inst__.call Home'); B1-B4 + B6 prefix cases (5: Error: Method 'counter'/'HomeDir'/'parent' not found in class hierarchy); C(a)3-4 (2: AC-greet instead of the decided A-greet); C(b)3 (1: rc 0 'late' instead of the decided rc 127); C(c)1, C(c)4 (2: rc 1 + Error: Method 'Empty' not found); C(d) 10 defineClass method/property x 5 names + the other-entry-path case (9 paths accepted) + the defineMethod case (methods=(keep delete call parent x;y)) (12). Green before AND after: B5, C(a)1-2, C(a)5-6, C(b)1-2, C(b)4, C(c)2-3, C(c)5-6, C(d) no-over-matching, D1-D16 (29)."
+        },
+        "gate": {
+          "kklass_suite": "510/510 (452 + 58) threaded on 5.2.37 and on 5.3.9; --mode single on 5.2.37 510/510; [FAIL] grep 0 in all three logs",
+          "examples": "all 49 kklass examples (01-48 + demo.sh) rc 0 on both bashes; output identical to the pre-change run on each bash after normalizing temp-dir names (baseline run twice on 5.2 to prove the normalization is stable)",
+          "kcl_suites": "tgrep 185/185, tutil 209/209, thttpserver 497/497 on 5.2.37 and 5.3.9, 0 [FAIL] (totals unchanged vs the ledgers: tawk_ledger siblings tutil 209 / tgrep 185, ktests ledger thttpserver 497); thttpserver 009 runs examples/demo_oop.sh end to end (the \"$__inst__.Home\" registration keeps working)",
+          "tutil_C1_probe": "the TUtil.md §3.1 probe re-run on both bashes: output byte-identical to the documented one ($'2A\\nB\\n0' under $( ), kk.call_silent clean) — the print-under-$( ) trap is unchanged by P8 (pinned by 132 D14/D15)",
+          "master_sweep": "reviewer's job (not run by the worker)"
+        },
+        "bench": {
+          "method": "new row 'internal $this.m call (R2_P8)': class TBenchT (leaf 'echo x'; loop runs `$this.leaf` $1 times), two outer calls of 1000 = 2000 internal calls, on the 1000-instance bench shell. Baseline = HEAD's kklass/kkore copied to the scratchpad with the same bench file, INTERLEAVED old/new, 5 runs each per bash",
+          "baseline_HEAD": {
+            "5.2": "internal $this.m (= rewritten .call): 190.4 192.4 193.7 195.0 200.0 (median 193.7); method call 191.7-202.3 (median 196.2); inst.call m1 214.4-225.5 (median 218.1)",
+            "5.3": "internal $this.m: 163.2 164.1 165.4 165.6 167.4 (median 165.4); method call 166.3-173.6 (median 171.8); inst.call m1 183.9-198.0 (median 185.8)"
+          },
+          "after": {
+            "5.2": "internal $this.m (= wrapper): 170.0 170.3 172.6 172.7 174.6 (median 172.6); method call 194.6-206.5 (median 199.3); inst.call m1 214.0-229.2 (median 224.0)",
+            "5.3": "internal $this.m: 143.7 145.0 147.4 147.5 155.3 (median 147.4); method call 166.0-171.7 (median 167.4); inst.call m1 182.1-202.5 (median 187.3)"
+          },
+          "verdict": "gate met (not slower): internal $this.m call -10.9 % on 5.2.37 (193.7 -> 172.6 us) and -10.9 % on 5.3.9 (165.4 -> 147.4 us); every new run below every old run on both bashes. Slightly UNDER the plan's 12-15 % expectation (the critic compared o.m vs o.call m from outside; the row includes one loop iteration per call). Direct method call (kk._exec with the set-ness test) and inst.call m1 (code unchanged) move within their run-to-run spread."
+        },
+        "measured": [
+          "defineMethod divergence (a) applies only when the OWNER changes (an inherited method overridden later): replacing a method the class itself defines is seen by a pre-existing instance's wrapper and $this too, because kk._exec reads ${owner}_method_body_NAME by name (pinned 132 C(a)6)",
+          "(b): a method added by defineMethod after .new has no wrapper on the pre-existing instance; a body that calls $this.late via .call is rc 127 ('b1.late: command not found') — pinned 132 C(b)3",
+          "with the old rewrite, a method whose name is a prefix of `parent` (e.g. `pa`) broke every `inherited NAME` of the class: `$this.parent go` became `$__inst__.call parent go` -> Error: Method 'parent' not found (132 B6, red before)",
+          "a static member named `new` / `constructor` is silently replaced by Class.new / Class.constructor (see found_in_R2_P8) — the reserved-name check deliberately does not cover static members"
+        ],
+        "deviations": [
+          "the 006 titles in tawk/tfind/thead/tsed/ttail ('no internal member call is spelled $this.NAME') make no claim that the rewrite exists — only tgrep 006 carries the 'compiles to $__inst__.call NAME' comment (:74) — so those five files are unchanged; likewise tutil/PLAN.md:484 ('$this.NAME prints the callee's kk._return value under $( )') is still true and unchanged. kcl edits: 8 files, comments/prose/test titles only, no assertion changed (no kcl test asserted the rewrite)",
+          "reserved names cover INSTANCE members only (methods incl. accessors and lazy init methods, properties, fields, lazy properties); static members are class-level (Class.NAME) and keep _validate_ident — the plan says 'method AND property names'",
+          "defineMethod/defineProcedure/defineFunction now also validate the CLASS name and the method name as identifiers (before: no validation at all; `defineMethod C 'x;y' BODY` was accepted and its eval ran `y=...`, pinned in 132); same helper, same error convention",
+          "kk._processMethodBody keeps its 5-argument signature (5th ignored; both internal callers no longer pass it) since it is in the module's export -f list; `local ... wm` in kk._build_class_runtime left in place (now unused) so the G8-04 namespace list is untouched",
+          "docs: besides §Dispatch Semantics, the defineMethod 'Two limitations' paragraph, §Reserved Member Names (new table) and the API reference entry '$this.method' were updated; the .ckk note sits at the end of §Dispatch Semantics"
+        ],
+        "found_in_R2_P8": [
+          "a STATIC member named `new` or `constructor` is silently lost: `defineClass TS \"\" static_method new 'echo static-new' property x` -> rc 0, TS.new is the constructor, the static body is unreachable; `defineClass TS2 \"\" static_method constructor 'echo sc'; TS2.constructor` prints nothing (the constructor-chaining helper replaced it). Same through classProcedure/classFunction/classVar. Not fixed (static members are outside DR1's list).",
+          "kcl/README.md:270 (the thttpserver row) still says '(kklass rewrites a body's `$this.M` text into its call form)' — a 9th wording site not in the plan's list of 8; not touched (file not named by the phase).",
+          "Pascal DSL (pre-existing, not new): a refused member inside `class ... end` (`proc this`, now also `proc delete`) prints the error, but `end`/`build` return rc 0 and the class builds without that member (verified on HEAD with `proc this`). Not fixed."
+        ]
       },
       "R2_P9": {
         "name": "kk.isAbstract + docs (K4,K2)",

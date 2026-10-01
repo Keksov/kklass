@@ -864,13 +864,23 @@ pg.shout; echo "$RESULT"   # Output: WHO!
 pg.delete
 ```
 
-Two limitations, both reported as `[kk] warning` where they apply:
+Two limitations:
 
-- Instances created *before* the `defineMethod` call do not get the new
-  wrapper function; create instances after the class is complete.
+- **Instances created *before* the `defineMethod` call see it through `.call`
+  only.** An instance's wrapper functions are made at `.new`, each naming the
+  class that defined the method at that moment, and `$this.Method` inside a
+  body *is* that wrapper (see [Dispatch Semantics](#dispatch-semantics-virtual-calls-vs-inherited)).
+  So for a pre-existing instance `obj`: a method **added** later has no
+  `obj.m` wrapper (`command not found`, rc 127 — also from `$this.m` in any
+  body); an **inherited** method overridden later still runs the parent's body
+  through `obj.m` and `$this.m`; `obj.call m` resolves at call time and sees
+  both. Replacing a method the class *itself* defines is seen everywhere (the
+  wrapper reads the body by name). Create instances after the class is
+  complete.
 - A **subclass that was built before** `defineMethod` ran on its parent keeps
-  its own copy of the method table and does not see the addition or override.
-  Define methods top-down: finish a class before deriving from it.
+  its own copy of the method table and does not see the addition or override
+  (reported as a `[kk] warning`). Define methods top-down: finish a class
+  before deriving from it.
 
 ### Reserved Member Names
 
@@ -885,6 +895,25 @@ error:
 | `RESULT`, `REPLY` | the return channels |
 | `IFS` | word splitting — shadowing it would break every `read` in the runtime |
 | `__kk_*` | prefix of the runtime's own locals |
+
+Instance members — methods, properties, fields, lazy properties and their init
+methods, accessors — additionally cannot be named after the built-in instance
+functions, because every instance already carries them (since round 2 / R2_P8):
+
+| Name | Built-in it would collide with |
+|---|---|
+| `call` | `obj.call NAME ...` — dynamic dispatch |
+| `delete` | `obj.delete` — destroys the instance |
+| `property` | `obj.property NAME [= VALUE]` |
+| `parent` | `obj.parent NAME ...` / `$this.parent` (what `inherited` becomes) |
+| `new` | `Class.new` — the constructor verb |
+
+A member with one of these names used to be accepted and then either replaced
+the built-in or was silently replaced by it (`$this.delete` ran the user
+method while `obj.delete` destroyed the instance). Names that merely *start*
+with one of them (`recall`, `delete2`, `parentId`, `callback`, `newest`) are
+fine. Static members (`classVar`, `static_method`, `classProcedure`, ...) are
+class-level and are not affected.
 
 `state` is *not* reserved: it is the name of the data-array reference
 (`${state[key]}` reads any property by name, as `TCustomApplication` does), and
@@ -1032,20 +1061,52 @@ build TDog
 kklass follows the Delphi `virtual; override;` model — with two complementary
 resolution rules:
 
-- **`$this.Method` (and `$this.call Method`) is VIRTUAL**: it resolves from
-  the instance's actual class, so subclass overrides win — even when the call
-  happens inside an inherited body (the template-method pattern).
+- **`$this.Method` is VIRTUAL, as of `.new`**: inside a body `this` holds the
+  instance name, so `$this.Method args` is simply a call of the instance's own
+  wrapper function `obj.Method`. `.new` builds those wrappers from the
+  instance's *actual* class, each naming the class that defines the method
+  there, so subclass overrides win — even when the call happens inside an
+  inherited body (the template-method pattern). `${this}.Method` is the same
+  call.
+- **`$this.call Method` is VIRTUAL, at call time**: it looks the method up
+  through the class's method cache on every call. The two forms agree for
+  every class that is complete before its instances are made; they differ only
+  after a `defineMethod` on an existing class (see [defineMethod](#adding-methods-after-definition-definemethod)):
+  a pre-existing instance sees a later-added or later-overridden method through
+  `.call` only.
 - **`inherited` / `$this.parent` is STATIC**: it resolves upward from the class
   where the *currently executing body* is defined — not from the instance's
   class. This is what makes `inherited` chains terminate correctly even when a
   subclass does not override the intermediate method.
 
 ```bash
-# TBase.Run calls $this.call Step   ->  child's Step wins (virtual)
+# TBase.Run calls $this.Step        ->  child's Step wins (virtual)
 # TMid.Describe calls inherited     ->  TBase.Describe, one level up (static)
 # leaf.Describe (no leaf override)  ->  runs TMid's body; its inherited still
 #                                       goes to TBase — the body never re-runs.
 ```
+
+Both call forms run the body in a frame of its defining class (so
+`__class__`, visibility checks and `inherited` behave identically), set
+`RESULT` the same way, and neither makes the callee silent: under `$( )` a
+`function` callee prints its value — use `kk.call_silent "$__inst__" NAME`
+for an internal call whose `RESULT` is all you want.
+
+**The body text is never rewritten.** Up to round 2 / R2_P8 kklass replaced
+the *text* `$this.NAME` / `${this}.NAME` of every member and constructor body
+with `$__inst__.call NAME`, for every method NAME of the class — inside quoted
+strings too (`local s="$this.Home"` became `obj.call Home`) and as a prefix
+(with a method `count`, `$this.counter` became `.call counter`). That rewrite
+is gone: `"$this.Home"` is now the plain string `obj.Home`, the same as
+`"$__inst__.Home"`, and a handler registered that way calls the method. An
+empty method body is a valid no-op through every call form (silent, rc 0).
+
+Compiled caches: a `.ckk` file is rebuilt only when its `.kk`/`.kkp` source is
+newer (see [Autoloading](#autoloading-with-kklass_autoloadsh)), so a cache
+compiled before R2_P8 still holds `$__inst__.call NAME` bodies. They keep
+working — `.call` dispatch is unchanged — but keep the old quoted-text and
+prefix behaviour until the cache is rebuilt (`kkload FILE --force-compile`,
+or touch the source).
 
 ### Porting from defineClass
 
@@ -2206,7 +2267,11 @@ user1.delete
 
 ### $this.method
 
-Call method from within another method.
+Call method from within another method. `this` holds the instance name, so
+this is a direct call of the instance's wrapper `obj.method_name` (virtual as
+of `.new`, see [Dispatch Semantics](#dispatch-semantics-virtual-calls-vs-inherited));
+the text is not rewritten, so `"$this.method_name"` in quotes is just the
+string `obj.method_name`.
 
 ```bash
 # Inside method body:

@@ -60,8 +60,8 @@ kk.decl._remember_lazy_property() {
         return 1
     }
     kk.decl._validate_ident "$class_name" "class name" || return 1
-    kk.decl._validate_ident "$property_name" "lazy property name" || return 1
-    kk.decl._validate_ident "$init_method" "lazy init method name" || return 1
+    kk.decl._validate_member "$property_name" "lazy property name" || return 1
+    kk.decl._validate_member "$init_method" "lazy init method name" || return 1
 
     kk.decl._append_unique "$props_var" "$property_name"
     vis_ref["$property_name"]="$KK_DECL_CURRENT_VISIBILITY"
@@ -104,6 +104,29 @@ kk.decl._validate_ident() {
             ;;
     esac
 
+    return 0
+}
+
+# Validate an INSTANCE member name (method, property, field, lazy property and
+# its init method, accessor): everything kk.decl._validate_ident checks, plus
+# the names of the per-instance built-ins (round 2 / R2_P8, divergence d). Every
+# instance carries the wrapper functions INST.call, INST.delete, INST.property
+# and INST.parent; a member of the same name either replaced the built-in or was
+# replaced by it — with the old `$this.NAME` text rewrite the two call forms even
+# disagreed (`$this.delete` ran the user method, `inst.delete` destroyed the
+# instance). `new` is the class's constructor verb (Class.new). Static members
+# are class-level (Class.NAME) and are not checked here.
+kk.decl._validate_member() {
+    local name="$1"
+    local label="${2:-member name}"
+
+    kk.decl._validate_ident "$name" "$label" || return 1
+    case "$name" in
+        call|delete|property|parent|new)
+            kk.decl._error "Reserved ${label}: '${name}' (call, delete, property and parent are the built-in instance functions inst.call/.delete/.property/.parent and new is the constructor verb Class.new; they cannot be member names)"
+            return 1
+            ;;
+    esac
     return 0
 }
 
@@ -453,7 +476,12 @@ kk.decl._declare_method() {
         kk.decl._error "Method name is required"
         return 1
     }
-    kk.decl._validate_ident "$method_name" "method name" || return 1
+    case "$method_kind" in
+        class_procedure|class_function)
+            kk.decl._validate_ident "$method_name" "method name" || return 1 ;;
+        *)
+            kk.decl._validate_member "$method_name" "method name" || return 1 ;;
+    esac
 
     local methods_var="${class_name}_decl_methods"
     local abstract_var="${class_name}_decl_method_abstract"
@@ -619,7 +647,7 @@ field() {
         kk.decl._error "field: FIELD_NAME is required"
         return 1
     }
-    kk.decl._validate_ident "$field_name" "field name" || return 1
+    kk.decl._validate_member "$field_name" "field name" || return 1
 
     if [[ ${#KK_DECL_NEXT_MODIFIERS[@]} -gt 0 ]]; then
         kk.decl._error "field: Modifiers are not supported for fields"
@@ -644,7 +672,7 @@ property() {
         kk.decl._error "property: PROPERTY_NAME is required"
         return 1
     }
-    kk.decl._validate_ident "$property_name" "property name" || return 1
+    kk.decl._validate_member "$property_name" "property name" || return 1
 
     if [[ ${#KK_DECL_NEXT_MODIFIERS[@]} -gt 0 ]]; then
         kk.decl._error "property: Modifiers are not supported for properties in this phase"

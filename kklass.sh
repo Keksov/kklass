@@ -130,22 +130,25 @@ kk.call_silent() {
     return "$call_status"
 }
 
+# Final form of a member body: the text as written, plus the kk._return trailer
+# for a `function`. Result in METHOD_BODY.
+#
+# Up to round 2 / R2_P8 this also rewrote the TEXT `$this.NAME` / `${this}.NAME`
+# into `$__inst__.call NAME` for every method NAME of the class. That was a blind
+# prefix substitution: it rewrote quoted data (`local s="$this.Home"` became
+# `q.call Home`) and longer names (with a method `count`, `$this.counter` became
+# `.call counter`; with a method `pa`, the `$this.parent go` that `inherited go`
+# turns into became `.call parent go`) — finding K1. It is gone (DR1 as amended
+# 2026-10-01): `$this.NAME` is now a plain call of the instance's own wrapper
+# function (kk._exec, the defining class baked in at `.new`), which dispatches
+# virtually as of `.new`. A 5th argument (the old methods-array name) is still
+# accepted and ignored.
 kk._processMethodBody() {
     local class_name="$1"
     local method_name="$2"
     local method_body="$3"
     local meth_type="${4:-method}"
-    local -n meths_array="$5"  # Reference to methods array
-    local wm                   # loop var — never leak it (G8-04)
 
-    # Replace all $this.METHOD_NAME patterns with $__inst__.call METHOD_NAME
-    for wm in "${meths_array[@]}"; do
-        # Replace $this.method with proper call syntax
-        method_body="${method_body//\$this.${wm}/\$__inst__.call ${wm}}"
-        # Also handle ${this}.method syntax
-        method_body="${method_body//\$\{this\}.${wm}/\$__inst__.call ${wm}}"
-    done
-    
     # For function type, append kk._return call
     if [[ "$meth_type" == "function" ]]; then
         #method_body+=$'\n'"kk._return \"${class_name}_${method_name}\" \"\$RESULT\""
@@ -407,13 +410,18 @@ kk._invoke() {   # INST ACTIVE_CLASS BODY ARGS...
 
 # Static dispatch used by the per-instance method wrappers: the wrapper names
 # the DEFINING class (owner) of the method, so `inherited`/.parent inside the
-# body walks up from where the body was defined (Pascal semantics).
+# body walks up from where the body was defined (Pascal semantics). This is
+# also what `$this.NAME` inside a body runs (R2_P8: the body text is no longer
+# rewritten into `.call NAME`), so a call is virtual as of `.new`.
 kk._exec() {   # INST METHOD OWNER ARGS...
     local __kk_inst="$1" __kk_m="$2" __kk_owner="$3"
     shift 3
     local __kk_bv="${__kk_owner}_method_body_${__kk_m}"
     local __kk_body="${!__kk_bv:-}"
-    if [[ -z "$__kk_body" ]]; then
+    # SET-ness, not emptiness (R2_P8, divergence c): an empty body is a valid
+    # no-op and runs silently with rc 0, exactly as `.call` runs it. The second
+    # test only runs for an empty body, so the hot path keeps one expansion.
+    if [[ -z "$__kk_body" && -z "${!__kk_bv+x}" ]]; then
         echo "Error: Method '$__kk_m' not found in class '$__kk_owner'" >&2
         return 1
     fi
@@ -730,7 +738,7 @@ kk._build_class_runtime() {
                 shift 3
                 ;;
             property)
-                kk.decl._validate_ident "$2" "property name" || return 1
+                kk.decl._validate_member "$2" "property name" || return 1
                 local prop_name="$2"
                 props_arr+=("$prop_name")
                 shift 2
@@ -752,12 +760,12 @@ kk._build_class_runtime() {
                     # Allows both "get"/"set" and "_get"/"_set"
                     case "$peek_arg" in
                         get* | _get*)
-                            kk.decl._validate_ident "$peek_arg" "getter name" || return 1
+                            kk.decl._validate_member "$peek_arg" "getter name" || return 1
                             computed_getters["$prop_name"]="$peek_arg"
                             shift
                             ;;
                         set* | _set*)
-                            kk.decl._validate_ident "$peek_arg" "setter name" || return 1
+                            kk.decl._validate_member "$peek_arg" "setter name" || return 1
                             computed_setters["$prop_name"]="$peek_arg"
                             shift
                             ;;
@@ -770,14 +778,14 @@ kk._build_class_runtime() {
                 ;;
             lazy_property)
                 # usage: lazy_property PROP INIT_METHOD
-                kk.decl._validate_ident "$2" "lazy property name" || return 1
-                kk.decl._validate_ident "$3" "lazy init method name" || return 1
+                kk.decl._validate_member "$2" "lazy property name" || return 1
+                kk.decl._validate_member "$3" "lazy init method name" || return 1
                 props_arr+=("$2")
                 lazy_inits["$2"]="$3"
                 shift 3
                 ;;
             method|procedure|function)
-                kk.decl._validate_ident "$2" "method name" || return 1
+                kk.decl._validate_member "$2" "method name" || return 1
                 local meth_type="$1"
                 # Check if method already exists (override) using fast lookup
                 if [[ -z "${meth_index[$2]:-}" ]]; then
@@ -787,9 +795,8 @@ kk._build_class_runtime() {
                 # Declared (or overridden) here: this class is the defining one.
                 meth_owner["$2"]="$class_name"
 
-                # Keep the raw body; the $this.method rewrite runs after the
-                # whole definition is parsed so it sees methods declared LATER
-                # in the same class too (F11).
+                # Keep the raw body; it is finalized (kk._processMethodBody)
+                # after the whole definition is parsed (F11).
                 own_raw_bodies["$2"]="$3"
                 own_meth_type["$2"]="$meth_type"
                 shift 3
@@ -805,10 +812,11 @@ kk._build_class_runtime() {
         esac
     done
 
-    # Process the bodies declared here against the COMPLETE method list.
+    # Finalize the bodies declared here (function trailer; no text rewrite
+    # since R2_P8).
     local __kk_om
     for __kk_om in "${!own_raw_bodies[@]}"; do
-        kk._processMethodBody "$class_name" "$__kk_om" "${own_raw_bodies[$__kk_om]}" "${own_meth_type[$__kk_om]}" "meths_arr"
+        kk._processMethodBody "$class_name" "$__kk_om" "${own_raw_bodies[$__kk_om]}" "${own_meth_type[$__kk_om]}"
         meth_bodies["$__kk_om"]="$METHOD_BODY"
     done
 
@@ -864,18 +872,8 @@ kk._build_class_runtime() {
         eval "${class_name}_static_method_body_${m}=\${static_meth_bodies[\$m]}"
     done
     
-    # Process constructor body to replace $this.METHOD calls (after all methods are collected)
-    # Note: Unlike regular methods, constructor doesn't need the local this/local __inst__ setup
-    # because __inst__ is provided by the .new() function
-    if [[ -n "$constructor_body" ]]; then
-        # Replace all $this.METHOD_NAME patterns with $__inst__.call METHOD_NAME
-        for wm in "${meths_arr[@]}"; do
-            # Replace $this.method with proper call syntax
-            constructor_body="${constructor_body//\$this.${wm}/\$__inst__.call ${wm}}"
-            # Also handle ${this}.method syntax
-            constructor_body="${constructor_body//\$\{this\}.${wm}/\$__inst__.call ${wm}}"
-        done
-    fi
+    # The constructor body is stored as written: `$this.NAME` in it is a plain
+    # call of the instance wrapper (no text rewrite since R2_P8).
 
     # ---- instance template (P4a) -------------------------------------------
     # An instance is: its data array, its class variable and ONE-LINE wrappers
@@ -1180,7 +1178,12 @@ _defineMethodType() {
         echo "define${func_name}: Usage: define${func_name} CLASS_NAME METHOD_NAME BODY" >&2
         return 1
     }
-    
+    # Both names are interpolated into eval'd assignments below; the method
+    # name is an instance member like any other (reserved built-in names
+    # refused, R2_P8).
+    kk.decl._validate_ident "$class_name" "class name" || return 1
+    kk.decl._validate_member "$method_name" "method name" || return 1
+
     # Check if class exists
     local class_meths_var="${class_name}_class_methods"
     if ! declare -p "$class_meths_var" &>/dev/null; then
@@ -1204,7 +1207,7 @@ _defineMethodType() {
     fi
     
     # Process method body using shared logic from defineClass
-    kk._processMethodBody "$class_name" "$method_name" "$method_body" "$meth_type" "meths_ref"
+    kk._processMethodBody "$class_name" "$method_name" "$method_body" "$meth_type"
     eval "${class_name}_method_body_${method_name}=\$METHOD_BODY"
 
     # Update class methods array in global scope

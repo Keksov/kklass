@@ -41,6 +41,13 @@ jc.id = 42; jc.name = "John Doe"; jc.email = "john@example.com"; jc.city = "New 
 TBenchJ.new jh
 for p in id name email city note; do jh.$p = $'say "hi" C:\\new\n\tx\x01y'; done
 TBenchJ.new jr
+# Internal dispatch row (round 2 / P8): one outer call runs N internal
+# `$this.leaf` calls. Up to P8 kklass rewrote that body text into
+# `$__inst__.call leaf` (kk._call through the method cache); since P8 the text is
+# left alone and `$this.leaf` is the instance's own wrapper (kk._exec).
+defineClass TBenchT "" method leaf 'echo x' \
+    method loop 'local __b_i; for (( __b_i = 0; __b_i < $1; __b_i++ )); do $this.leaf; done'
+TBenchT.new bt
 
 echo "kklass micro-benchmark  (bash ${BASH_VERSION})"
 echo "  template bytes: ${#TBench_instance_template}"
@@ -90,6 +97,10 @@ now_us; t0=$NOW_US
 for (( i=0; i<1000; i++ )); do o1.call m1 >/dev/null; done
 now_us; t1=$NOW_US
 report "inst.call m1" $(( t1-t0 )) 1000 "call"
+now_us; t0=$NOW_US
+bt.loop 1000 >/dev/null; bt.loop 1000 >/dev/null
+now_us; t1=$NOW_US
+report "internal \$this.m call (R2_P8)" $(( t1-t0 )) 2000 "call"
 now_us; t0=$NOW_US
 for (( i=0; i<1000; i++ )); do o1.a >/dev/null; done
 now_us; t1=$NOW_US
