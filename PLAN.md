@@ -165,3 +165,52 @@ they came from. They also touch kkore and ktests, which kklass loads.
 ## 4. Order & sizes
 
 P0 (S) → P1 (M) → P2 (M) → P3 (M) → P4a (L) → P4b (M) → P5 (S). P1–P3 are independent of P4 and can ship as their own commit(s).
+
+---
+
+# Round 2 — findings from the kcl ports (2026-09-30, critic-hardened 2026-10-01)
+
+**Status: PLANNED, critic-hardened (C1–C14 folded), DR1 amendment DECIDED 2026-10-01
+(remove + the point fixes); no code.** Four findings from the kcl work, each reproduced; a critic pass
+(2026-10-01) built the K1 equivalence matrix itself, exposed four wrapper-vs-`.call`
+divergences, showed `fromJSON` is broken before any escaping question, and proved the
+rewrite-removed tree green (kklass 344/344 both bashes; full kbool sweep 29/29,
+identical per-suite totals, sum 7794). Same workflow as round 1; the ktests finding
+(`ktests/PLAN.md`) goes FIRST so later green gates are trustworthy.
+Order: **ktests P0 → P7 (JSON) → P8 ($this) → P9 (isAbstract + docs)**.
+
+## R2.1 Findings (as measured — supervisor 2026-09-30 + critic 2026-10-01)
+
+| ID | Sev | Where | Symptom |
+|---|---|---|---|
+| K1 | high | `kklass.sh:141-146` (methods), `:871-876` (constructors) | The `$this.NAME` → `$__inst__.call NAME` rewrite is a blind **prefix** text substitution: it rewrites occurrences inside quoted strings (measured: `local s="$this.Home"` → `q.call Home`; broke thttpserver's demo_oop), and with a method `count` it also mangles `$this.counter` / `$this.HomeDir` (C8 — `Error: Method 'counter' not found`). The unrewritten wrapper call dispatches virtually too, **but not identically**: the wrapper is `kk._exec` with the owner baked at `.new` and no cache lookup, `.call` is `kk._call` through the cache. Divergences (C2, measured both bashes): (a) `defineMethod` on an existing class — `.call` sees the new/overridden body, the wrapper of a pre-existing instance does not; (b) a method added after `.new` — `.call` works, the wrapper is rc 127; (c) an **empty body** — `.call` silent rc 0, the wrapper rc 1 + error (`kk._exec` tests emptiness instead of set-ness); (d) a user method named `call`/`delete`/`property`/`parent` — the rewrite routes to the user method, the wrapper to the built-in (`$this.delete` then destroys the instance). Equivalent (measured): visibility warnings, frame class, `inherited`, leak-free. Perf: the wrapper is 12–15 % faster than `.call` (5.2: 182–191 vs 210–216 µs; 5.3: 148–155 vs 177–180 µs). |
+| K2 | low (docs) | bash 5.2.37 + kklass vars | A kklass `var` is a nameref onto an assoc element. On 5.2.37 `${#v}` = 0 (5.3.9 correct); on **both** bashes `[[ -v v ]]` is false even when set and `${#v[@]}` = 0; `unset v` inside a member deletes the instance's storage element. `${v:1:2}`, `${v%x}`, `@Q`, `^^`, `+=`, `printf -v`, `read` all work. Docs trap (C12). |
+| K3 | medium | `kklass_serializable.sh` | `toJSON` embeds values unescaped (a quote, backslash or newline makes `JSON.parse` reject the output). **And `fromJSON` is broken independently** (C3): it splits on `,` (`kklass_serializable.sh:171-176`), so valid JSON with a comma in a value already loses data; whitespace-formatted input yields empty values; a `__class__` mismatch loads silently; a naive global unescape is wrong in either order (the escaped `C:\new` becomes `C:` + LF + `ew` one way, `C:\` + LF + `ew` the other). |
+| K4 | low | no public abstract check | thttpserver reads `${CLASS}_class_abstract` directly — in `thttprouter.sh`, **`thttpapplication.sh:143` and `tests/001_Request.sh:501`** (C10) — and all three repos use the underscore-internal `kk._class_derives_from`. Flag semantics are subtle: unset for a raw-built class (instantiable) AND for a never-declared name; 0 for a declared-but-unfinalized class that `.new` refuses. |
+
+## R2.2 Decisions
+
+| # | Decision |
+|---|---|
+| DR1 | (2026-09-30) remove the rewrite if the matrix is clean. **The matrix found the four divergences above; owner 2026-10-01 (quiz): amendment ACCEPTED —** **remove the rewrite anyway** + the point fixes — (c) `kk._exec` tests set-ness, not emptiness; (d) the member-name validators reject `call delete property parent new`; (a)/(b) documented as the `defineMethod` limitation (instances made before a `defineMethod` see it via `.call` only) in kklass_book §Dispatch Semantics ("`$this.Method` is virtual **as of `.new`**"). The removal is measured green (suite + sweep + examples) and 12–15 % faster; it also kills the C8 prefix bug outright. Alternative: command-position-only rewrite with an end-of-name anchor (next char outside `[A-Za-z0-9_]`), keeping the double dispatch path. |
+| DR2 | (2026-09-30) full JSON-spec escaping, widened by C3: P7 also **replaces the `fromJSON` parser** with a string-aware scanner (P7 below). Control chars = U+0001–U+001F (`\n \r \t \b \f` named, the rest `\u00XX`); DEL/C1 untouched; multibyte stays raw UTF-8; NUL impossible in a bash string (documented). |
+| DR3 | (2026-09-30) `kk.isAbstract` in kklass.sh, semantics pinned by C10: identifier check else rc 2; `${1}_class_methods` must exist (a **built** class) else rc 2; then rc 0 iff the flag is 1. Silent, fork-free (`${!v}` on a non-identifier name is NOT silent — it aborts the caller's command — hence the regex guard first). Plus a public **`kk.derivesFrom`** alias for `kk._class_derives_from`. All three thttpserver readers switched, rc other than 0 treated as refusal by the router. |
+
+## R2.3 Phases
+
+| phase | content | gate |
+|---|---|---|
+| **P7** | K3 per DR2: a runtime fork-free escape helper (fast-path glob guard for quote/backslash/control bytes — measured locale-safe in C, C.UTF-8, en_US.UTF-8; helper added to the module's `export -f` list) called from the generated `toJSON` body; a new left-to-right `fromJSON` scanner (whitespace tolerant; JSON strings with escapes; bare tokens; one-pass unescape of the eight named escapes plus `\uXXXX`; `\u0000` rc 1; BMP `\uXXXX` decoded to UTF-8 via printf, surrogate pairs measured first — combine or rc 1; `__class__` mismatch rc 1 + debug, a documented change); `__kk_`-prefixed locals (test 049 pins no shadowing); red-first: comma value, backslash-sequence value, a nested `toJSON` string stored in a property and round-tripped, whitespace-formatted input, `\u0000`, mismatch; `saveObjects`/`loadObjects` stay one line per object; a toJSON bench row | kklass suite green both bashes, master sweep 0 [FAIL] both |
+| **P8** | K1 per DR1-as-amended: FIRST the matrix as red-first tests — quoted-string preservation, the C8 prefix cases, (a)–(d) each pinned to its decided behaviour; the (c)/(d) point fixes; then remove both rewrite loops; kklass_book §Dispatch Semantics rewrite; bench gains a row "internal `$this.m` call" (gate: not slower; expect 12–15 % faster); sweep must keep per-suite totals identical (sum 7794); update the 8 kcl files that describe the rewrite (`tutil/tutil.sh:102`, `tutil/PLAN.md:205,484`, `tutil/docs/TUtil.md`, `tgrep/tests/006_Contract.sh:74` + the same title in tawk/tfind/thead/tsed/ttail 006, `thttpserver/PLAN.md:101,835`, `thttpserver/README.md:324`, `thttpserver/examples/demo_oop.sh:181`, `thttpserver/tests/008_Contract.sh:27,194`) — wording only where it claims the rewrite; note in kklass_book that user `.ckk` caches are invalidated by the `.kk` source mtime only, so pre-P8 caches keep `.call` bodies (they stay correct) | kklass suite + bench both bashes, master sweep 0 [FAIL] + identical totals both |
+| **P9** | K4 per DR3 (`kk.isAbstract`, `kk.derivesFrom`, the three thttpserver readers + its 003/008 tests, a kcl-wide grep for other `_class_abstract` / `_class_derives_from` readers); K2: the full C12 quirk list as one kklass_book §Best Practices trap paragraph with the measured repro | kklass + thttpserver suites, master sweep 0 [FAIL] both |
+
+## R2.4 Critic record (2026-10-01)
+
+One Opus critic, probes on both bashes, scratchpad `critic2/`. C1/C4–C7/C14 went to
+the ktests plan; C2 (wrapper vs `.call` matrix), C3 (fromJSON), C8 (prefix match), C9
+(bench row), C10 (isAbstract semantics + two missed readers), C11 (8 doc sites +
+stale caches), C12 (K2 quirks), C13 (escape details) are folded above. Key measured
+facts: the rewrite-removed tree is green everywhere with identical per-suite totals;
+the wrapper is 12–15 % faster than `.call`; visibility, frames and `inherited` are
+identical between the two call forms; kklass examples byte-identical apart from temp
+names.
