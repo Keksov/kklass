@@ -661,7 +661,7 @@
         "name": "$this rewrite (K1)",
         "status": "done",
         "date": "2026-10-02",
-        "commit": "",
+        "commit": "e31b63e",
         "scope": "kklass.sh (rewrite removed from kk._processMethodBody and the constructor path; kk._exec tests set-ness; build-path member validators; defineMethod/defineProcedure/defineFunction validate class + method name), kklass_decl.sh (kk.decl._validate_member: reserved call/delete/property/parent/new for instance members), tests/132_ThisDispatch.sh (new, 58 assertions), bench/kklass_bench.sh (row 'internal $this.m call'), docs/kklass_book.md (Dispatch Semantics, defineMethod limitation, Reserved Member Names, $this.method reference, .ckk note), PLAN.md R2.3 DONE note, this ledger; kcl wording only: tutil/tutil.sh, tutil/PLAN.md, tutil/docs/TUtil.md, tgrep/tests/006_Contract.sh, thttpserver/PLAN.md, thttpserver/README.md, thttpserver/examples/demo_oop.sh, thttpserver/tests/008_Contract.sh",
         "implemented": {
           "removal": "kk._processMethodBody keeps only the function-kind kk._return trailer (signature unchanged, a 5th argument is accepted and ignored); the constructor loop in kk._build_class_runtime is gone; the F11 'finalize after the parse' structure stays. `$this.NAME` / `${this}.NAME` in a body or constructor is now the instance's own wrapper (kk._exec with the defining class baked in at .new) — virtual as of .new. `inherited` (kk.decl._rewrite_inherited -> `$this.parent NAME`) is a separate rewrite and unchanged.",
@@ -707,7 +707,8 @@
           "a STATIC member named `new` or `constructor` is silently lost: `defineClass TS \"\" static_method new 'echo static-new' property x` -> rc 0, TS.new is the constructor, the static body is unreachable; `defineClass TS2 \"\" static_method constructor 'echo sc'; TS2.constructor` prints nothing (the constructor-chaining helper replaced it). Same through classProcedure/classFunction/classVar. Not fixed (static members are outside DR1's list).",
           "kcl/README.md:270 (the thttpserver row) still says '(kklass rewrites a body's `$this.M` text into its call form)' — a 9th wording site not in the plan's list of 8; not touched (file not named by the phase).",
           "Pascal DSL (pre-existing, not new): a refused member inside `class ... end` (`proc this`, now also `proc delete`) prints the error, but `end`/`build` return rc 0 and the class builds without that member (verified on HEAD with `proc this`). Not fixed."
-        ]
+        ],
+        "review": "supervisor 2026-10-02: suite re-run 510/510 both bashes; the original quoted-string repro now yields q.Home (text preserved); full sweep 29/29 0 [FAIL] both, totals identical except kklass 452->510, sum 7992; the 9th wording site (kcl/README.md:270, not named by the phase) fixed by the reviewer; bench -10.9% both (gate met; below the critic 12-15% because the row includes a loop iteration)"
       },
       "R2_P9": {
         "name": "kk.isAbstract + docs (K4,K2)",
