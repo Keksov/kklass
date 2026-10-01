@@ -594,7 +594,7 @@
         "name": "JSON escaping (K3)",
         "status": "done",
         "date": "2026-10-02",
-        "commit": "",
+        "commit": "b41a7a2",
         "scope": "kklass_serializable.sh (JSON section rewritten), tests/131_JsonEscaping.sh (new, 108 assertions), bench/kklass_bench.sh (serialization rows), docs/kklass_book.md (Serialization: JSON Format Rules), PLAN.md R2.3 DONE note, this ledger",
         "implemented": {
           "escape": "kk._jsonEscape VALUE -> RESULT: fork-free; fast path = one glob (__KK_JSON_SPECIAL = *[\"\\\\<U+0001>-<U+001F>]*); slow path: backslash first, then quote, then per control code present one global replace from a 31-entry table (\\n \\r \\t \\b \\f named, the rest \\u00xx lower-case); DEL/C1/multibyte raw",
@@ -654,7 +654,8 @@
           "defineSerializableClass CLASS PARENT SEP json ... silently builds a class with EMPTY toString/fromString bodies and no toJSON/fromJSON (rc 0): repro `defineSerializableClass TX \"\" \":\" json property a; TX.new x; x.toJSON` -> command not found; `x.toString` -> Error: Method 'toString' not found. Only the string format is implemented there. Not fixed (outside K3).",
           "saveObjects prefers toString when a class has both formats; the string format does not escape, so a value holding the separator or a newline breaks the one-line-per-object file. Documented in kklass_book; not fixed.",
           "loadObjects ignores the fromJSON/fromString rc: a refused line (now e.g. a __class__ mismatch) still yields an instance with default values in the output array. Behaviour unchanged; not fixed."
-        ]
+        ],
+        "review": "supervisor 2026-10-02: suite re-run 452/452 both bashes; live round-trip probe (quotes, backslashes, newline+tab, UTF-8) valid per node JSON.parse, mismatch rc 1; fromJSON instance-name echo on a direct call verified PRE-EXISTING (old code identical); bench deviation ACCEPTED (+14-15% toJSON clean = measured floor of any per-value check, old speed was wrong-code speed; fromJSON -33%); full sweep 29/29 0 [FAIL] both, totals identical except kklass 344->452, sum 7934"
       },
       "R2_P8": {
         "name": "$this rewrite (K1)",
