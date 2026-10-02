@@ -582,7 +582,7 @@
   ],
   "round2": {
     "created": "2026-09-30",
-    "status": "COMPLETE pending the reviewer's commit of R2_P9 (2026-10-02): ktests T1 P0, R2_P7 (K3 JSON), R2_P8 (K1 $this rewrite removed), R2_P9 (K4 kk.isAbstract/kk.derivesFrom + K2 docs) all done",
+    "status": "COMPLETE (ktests P0 + R2_P7/P8/P9), all committed 2026-10-01..02",
     "findings": {
       "K1": "$this.NAME rewritten inside quoted strings (kklass.sh:141-146, 871-876); reproduced; unrewritten runtime form dispatches virtually anyway (supervisor probe, both bashes)",
       "K2": "bash 5.2.37 ${#v} of a kklass var = 0 (nameref onto assoc element); docs-only",
@@ -714,7 +714,7 @@
         "name": "kk.isAbstract + docs (K4,K2)",
         "status": "done",
         "date": "2026-10-02",
-        "commit": "",
+        "commit": "3368737",
         "scope": "kklass.sh (kk.isAbstract + kk.derivesFrom next to kk._class_derives_from; both added to the KKLASS_EXPORT_FUNCTIONS export -f list), tests/133_IsAbstract.sh (new, 25 assertions), docs/kklass_book.md (Best Practices trap paragraph 'Inside a Body, a Property Is a Nameref' (K2), API reference kk.isAbstract + kk.derivesFrom, one pointer in 'Method modifiers'), PLAN.md R2.3 DONE note, this ledger; kcl/thttpserver: thttprouter.sh (D8 check + 2 RouteRequest checks + header comment), thttpapplication.sh (ServerClass check), thttpserver.sh (BeginServe Transport check), tests/001_Request.sh, tests/003_Router.sh (3 flag reads), tests/008_Contract.sh (source-integrity assertion extended), README.md:577, PLAN.md (D8 row + §2.4 handler list)",
         "implemented": {
           "isAbstract": "kk.isAbstract CLASS: `[[ \"${1:-}\" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2` FIRST; `declare -p \"${1}_class_methods\" &>/dev/null || return 2` (not a BUILT class); then rc 0 iff ${CLASS}_class_abstract is 1 (read through a local `__kk_ia`), else rc 1. Silent, fork-free. States (measured probe1b, both bashes): abstract/half-implemented flag 1 + methods -> 0; concrete flag 0 + methods -> 1; raw kk._build_class_runtime flag UNSET + methods -> 1 (.new works); declared-not-finalized flag 0, no methods, no .new -> 2; never declared -> 2",
@@ -749,7 +749,8 @@
         "found_in_R2_P9": [
           "rest of kcl: no other unit reads `_class_abstract` or calls `kk._class_derives_from`; the only hit outside thttpserver is kcl/docs/review-2026-09-06/repro/g8/hygiene2.sh:21, a historical repro whose grep -vE filter names `_class_abstract$` (not a reader) — left alone. kkore/ktests: none",
           "a STANDALONE run of a kklass test file (`bash tests/133_IsAbstract.sh`) leaves an empty kklass/tests/.tmp/<Name>.<file> directory behind (kt_test_init; reproduced 2026-10-02, removed again); suite runs do not touch it. 13 such dirs exist (oldest 2026-07-12, ThisDispatch.132_ThisDispatch from P8; gitignored). Not fixed (ktests scope)"
-        ]
+        ],
+        "review": "supervisor 2026-10-02: suites re-run (kklass 535/535 both bashes, thttpserver 497/497); kk.isAbstract matches DR3/C10 exactly; full sweep 29/29 0 [FAIL] both, totals identical except kklass 510->535, sum 8017; deviations accepted (rc-1-only acceptance; three extra derivesFrom sites per the unit grep)"
       }
     },
     "note": "ktests runner finding T1 tracked in ktests/PLAN.md; its phase runs first",
