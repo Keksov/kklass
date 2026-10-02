@@ -764,5 +764,51 @@
       "findings": "C1-C14, all folded (PLAN R2.4 + ktests/PLAN.md)",
       "key": "rewrite-removed tree measured green: kklass 344/344 both bashes, full sweep identical totals (sum 7794); wrapper is kk._exec with owner baked at .new (4 divergences vs .call: defineMethod a/b, empty body c, reserved names d); fromJSON splits on commas (broken before escaping); prefix-match bug ($this.counter with method count)"
     }
+  },
+  "round3": {
+    "status": "PLANNED (critic-hardened, decisions taken)",
+    "plan": "PLAN.md # Round 3",
+    "order": "ktests P1 -> P10 -> P11",
+    "findings": {
+      "S1": "defineSerializableClass json builds a broken class rc 0; inline string copy drops inherited/lazy props",
+      "S1b": "separator injected unquoted into generated code (C8)",
+      "S2": "saveObjects prefers unescaped toString",
+      "S3": "loadObjects ignores from* rc; names alias across calls; out-array/rc127/whitespace/stdout (C10)",
+      "S4": "fromJSON/fromString print the instance name, RESULT empty; refusal keeps caller RESULT (C9)",
+      "M1": "static members new/constructor/__decl_new_impl/__static_*/prop-method clash lost or hijack (C12)",
+      "M2": "refused member: class built rc 0 on every declarative path; defineClass leaves class open; redefinition wipes decl tables (C13)",
+      "M3": "identifier =~ guard clobbers BASH_REMATCH and is not locale-exact under nocasematch (C14)"
+    },
+    "decisions": {
+      "DR4": "owner: defineClass + addSerializable; format change accepted (inherited+lazy fields)",
+      "DR4b": "supervisor: separator validation + quoted patterns",
+      "DR5": "owner: saveObjects prefers toJSON",
+      "DR6": "owner: refused line skipped+deleted+warned, final rc 1, unique names, kk._outName, silent + RESULT=N",
+      "DR7": "owner: kk._return \"$this\"; kk._return \"\" on refusals",
+      "DR8": "owner: per-class _decl_refused poison flag; end/build rc 1, class not built",
+      "DR9": "supervisor: widened static reserved names on every static path; one LC_ALL=C glob identifier helper"
+    },
+    "phases": {
+      "P10": {
+        "name": "serialization (S1-S4)",
+        "status": "planned",
+        "commit": ""
+      },
+      "P11": {
+        "name": "declaration hygiene (M1-M3)",
+        "status": "planned",
+        "commit": ""
+      }
+    },
+    "critic": {
+      "findings": "C5-C15 folded (C1-C6 ktests); C15 out of scope",
+      "date": "2026-10-02",
+      "probes": "scratchpad/critic3/",
+      "supervisor_verified": "C3, C7, C10, C14 (scratchpad/r3/verify.sh)"
+    },
+    "found_in_round3_critic": [
+      "C15: kklass_compiler.sh prints \"line 82: source: filename argument required\" on any .kkp and dumps kkore kv as a class (063 hides it)",
+      "a class named kk with static debug replaces kk.debug"
+    ]
   }
 }
