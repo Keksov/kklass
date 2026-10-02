@@ -640,6 +640,8 @@ before the method they modify:
 - `abstract` — declares a method with no body. A class that still has an
   unimplemented abstract method is **abstract** and cannot be instantiated
   (`ClassName.new` fails). Implement it in a descendant to make the class concrete.
+  `kk.isAbstract ClassName` asks without trying `.new` (rc 0 abstract, 1
+  concrete, 2 not a built class — see the [API reference](#kkisabstract)).
 - `virtual` — marks a method as overridable.
 - `override` — overrides a `virtual`/`abstract` parent method. Overriding a
   non-virtual parent method is rejected at `endClass`.
@@ -2145,6 +2147,34 @@ defineClass "User" "" \
 '
 ```
 
+### Trap: Inside a Body, a Property Is a Nameref
+
+Inside a member body every property / field / `var` of the instance is a
+local nameref onto one element of the instance's storage
+(`local -n v="${inst}_data[v]"`). Reading and assigning work as with a plain
+variable, but a few expansions see the nameref, not the value (measured on
+bash 5.2.37 and 5.3.9, round 2 / K2):
+
+- `${#v}` is **0 on bash 5.2.37** (correct on 5.3.9) — take a length from a
+  local copy: `local c="$v"; n=${#c}`;
+- on **both** bashes `[[ -v v ]]` is false even when `v` is set, and
+  `${#v[@]}` is 0 — test `[[ -n "$v" ]]` instead;
+- `unset v` inside a member deletes the instance's storage element (the
+  property then reads as empty) — assign `v=""` to clear it;
+- these all work: `${v:1:2}`, `${v%x}`, `${v@Q}`, `${v^^}`, `v+=x`,
+  `printf -v v …`, `read -r v`.
+
+```bash
+defineClass TK2 "" property v method probe '
+    local c="$v"
+    printf "len=%s copylen=%s\n" "${#v}" "${#c}"
+    [[ -v v ]] && echo "-v=true" || echo "-v=false"
+    printf "nelem=%s\n" "${#v[@]}"'
+TK2.new o; o.v = hello; o.probe
+# bash 5.2.37: len=0 copylen=5   -v=false   nelem=0
+# bash 5.3.9:  len=5 copylen=5   -v=false   nelem=0
+```
+
 ---
 
 ## API Reference
@@ -2295,6 +2325,55 @@ $this.parent method_name [ARGS...]
 **Example:**
 ```bash
 "method" "speak" 'echo "Woof!"; $this.parent speak'
+```
+
+### kk.isAbstract
+
+Ask whether `CLASS.new` would refuse because the class is still abstract.
+Use it instead of reading the internal `${CLASS}_class_abstract` flag, whose
+states are subtle (it is unset for a never-declared name and for a class
+built directly by `kk._build_class_runtime`, and 0 for a declared class that
+is not finalized yet).
+
+```bash
+kk.isAbstract CLASS
+```
+
+| rc | meaning |
+|---|---|
+| 0 | a built class with an unresolved `abstract` member — `CLASS.new` refuses it |
+| 1 | a built, instantiable class |
+| 2 | not an identifier, never declared, or declared but not finalized (`endImplementation` / `build` not run — no `CLASS.new` yet) |
+
+Silent on every path (also under `VERBOSE_KKLASS=debug`), fork-free, safe
+under `set -eu` when called from an `if`, `||` or `!`. A hostile name such as
+`'a[$(cmd)]'` is refused with rc 2 before any expansion. Like any
+`[[ =~ ]]`, it overwrites `BASH_REMATCH`. "Concrete" therefore is rc 1 —
+not "rc ≠ 0":
+
+```bash
+if kk.isAbstract "$cls" || (( $? != 1 )); then
+    echo "$cls is abstract or not a built class" >&2
+fi
+```
+
+### kk.derivesFrom
+
+Ask whether CHILD is ANCESTOR or descends from it (the public form of the
+internal `kk._class_derives_from`).
+
+```bash
+kk.derivesFrom CHILD ANCESTOR
+```
+
+rc 0 — CHILD is ANCESTOR (reflexive) or one of its descendants; rc 1 — not
+(including a CHILD that was never declared; there is no existence check);
+rc 2 — either argument is not an identifier. Silent, fork-free. Unlike the
+internal, a malformed name never aborts the caller (`kk._class_derives_from
+'a b' X` is a fatal "invalid variable name" for the caller's whole command).
+
+```bash
+kk.derivesFrom TCircle TShape && echo "a shape"
 ```
 
 ### defineSerializableClass

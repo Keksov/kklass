@@ -183,6 +183,40 @@ kk._class_derives_from() {
     return 1
 }
 
+# kk.isAbstract CLASS — the public "would CLASS.new refuse?" predicate (round 2
+# / R2_P9, finding K4, decision DR3; replaces reading ${CLASS}_class_abstract).
+#   rc 0  CLASS is a built class that is still abstract (an abstract member is
+#         unresolved) — CLASS.new refuses it;
+#   rc 1  CLASS is a built, instantiable class — including one built directly
+#         by kk._build_class_runtime, which never sets the flag;
+#   rc 2  CLASS is not an identifier, was never declared, or is declared but
+#         not finalized (endImplementation / build not run: no CLASS.new yet).
+# "Built" = ${CLASS}_class_methods exists. Silent on every path and fork-free.
+# The identifier check runs FIRST: an indirect expansion of a non-identifier
+# is a fatal error that aborts the caller's whole top-level command. Like any
+# `[[ =~ ]]` it overwrites BASH_REMATCH.
+kk.isAbstract() {
+    [[ "${1:-}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+    declare -p "${1}_class_methods" &>/dev/null || return 2
+    local __kk_ia="${1}_class_abstract"
+    if [[ "${!__kk_ia:-}" == 1 ]]; then
+        return 0
+    fi
+    return 1
+}
+
+# kk.derivesFrom CHILD ANCESTOR — the public form of kk._class_derives_from
+# (R2_P9, DR3). rc 0 when CHILD is ANCESTOR or descends from it (the parent
+# chain, ${CLASS}_parent_class), rc 1 when not — including a CHILD that was
+# never declared — and rc 2 when either argument is not an identifier. The
+# internal validates nothing: a non-identifier CHILD aborts the caller's
+# command (`${!v}` on "a b_parent_class"), and two EQUAL non-identifiers
+# answer 0. Reflexive, no existence check. Silent, fork-free.
+kk.derivesFrom() {
+    [[ "${1:-}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ && "${2:-}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+    kk._class_derives_from "$1" "$2"
+}
+
 kk._warn_visibility() {
     local class_name="$1"
     local member_type="$2"
@@ -1301,5 +1335,5 @@ kk.register_static_methods() {
 source "${KKLASS_DIR}/kklass_decl.sh"
 
 if [[ "${KKLASS_EXPORT_FUNCTIONS:-0}" == "1" ]]; then
-    export -f kk._processMethodBody kk.call_silent kk._class_derives_from kk._warn_visibility kk._build_class_runtime _defineMethodType defineClass defineMethod defineProcedure defineFunction kk.register_static_methods
+    export -f kk._processMethodBody kk.call_silent kk._class_derives_from kk.isAbstract kk.derivesFrom kk._warn_visibility kk._build_class_runtime _defineMethodType defineClass defineMethod defineProcedure defineFunction kk.register_static_methods
 fi

@@ -582,7 +582,7 @@
   ],
   "round2": {
     "created": "2026-09-30",
-    "status": "PLANNED, critic-hardened; DR1 amendment DECIDED 2026-10-01 (remove the rewrite + point fixes: kk._exec set-ness, reserved member names refused, defineMethod limitation documented)",
+    "status": "COMPLETE pending the reviewer's commit of R2_P9 (2026-10-02): ktests T1 P0, R2_P7 (K3 JSON), R2_P8 (K1 $this rewrite removed), R2_P9 (K4 kk.isAbstract/kk.derivesFrom + K2 docs) all done",
     "findings": {
       "K1": "$this.NAME rewritten inside quoted strings (kklass.sh:141-146, 871-876); reproduced; unrewritten runtime form dispatches virtually anyway (supervisor probe, both bashes)",
       "K2": "bash 5.2.37 ${#v} of a kklass var = 0 (nameref onto assoc element); docs-only",
@@ -712,7 +712,44 @@
       },
       "R2_P9": {
         "name": "kk.isAbstract + docs (K4,K2)",
-        "status": "pending"
+        "status": "done",
+        "date": "2026-10-02",
+        "commit": "",
+        "scope": "kklass.sh (kk.isAbstract + kk.derivesFrom next to kk._class_derives_from; both added to the KKLASS_EXPORT_FUNCTIONS export -f list), tests/133_IsAbstract.sh (new, 25 assertions), docs/kklass_book.md (Best Practices trap paragraph 'Inside a Body, a Property Is a Nameref' (K2), API reference kk.isAbstract + kk.derivesFrom, one pointer in 'Method modifiers'), PLAN.md R2.3 DONE note, this ledger; kcl/thttpserver: thttprouter.sh (D8 check + 2 RouteRequest checks + header comment), thttpapplication.sh (ServerClass check), thttpserver.sh (BeginServe Transport check), tests/001_Request.sh, tests/003_Router.sh (3 flag reads), tests/008_Contract.sh (source-integrity assertion extended), README.md:577, PLAN.md (D8 row + §2.4 handler list)",
+        "implemented": {
+          "isAbstract": "kk.isAbstract CLASS: `[[ \"${1:-}\" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2` FIRST; `declare -p \"${1}_class_methods\" &>/dev/null || return 2` (not a BUILT class); then rc 0 iff ${CLASS}_class_abstract is 1 (read through a local `__kk_ia`), else rc 1. Silent, fork-free. States (measured probe1b, both bashes): abstract/half-implemented flag 1 + methods -> 0; concrete flag 0 + methods -> 1; raw kk._build_class_runtime flag UNSET + methods -> 1 (.new works); declared-not-finalized flag 0, no methods, no .new -> 2; never declared -> 2",
+          "derivesFrom": "kk.derivesFrom CHILD ANCESTOR: the same identifier regex on BOTH arguments (rc 2), then `kk._class_derives_from \"$1\" \"$2\"` (rc 0/1). Reflexive, no existence check (a never-declared CHILD different from ANCESTOR -> 1)",
+          "thttpserver": "every kklass-internal read in the unit replaced: router RegisterRoute `elif kk.derivesFrom \"$__ths_h\" THttpRouteObject` + `if kk.isAbstract \"$__ths_h\" || (( $? != 1 )) || ! declare -F \"$__ths_h.new\"` (accept only rc 1; rc 0 abstract and rc 2 not built refuse; set -e safe inside the if condition); RouteRequest REQ/RESP class checks -> kk.derivesFrom (an empty ${INST}_class now rc 2 instead of 1 — both refuse); application Initialize ServerClass: the same `kk.isAbstract … || (( $? != 1 ))` idiom + kk.derivesFrom; server BeginServe Transport -> kk.derivesFrom. Behaviour identical on every path (the not-built cases were already refused by the `declare -F CLASS.new` check)",
+          "tests_thttpserver": "001 'TReplayTransport derives … and is concrete' -> kk.derivesFrom rc 0 + kk.isAbstract rc 1; 003 three flag reads (THttpRouteObject flag 1, THsNoHandler003 flag 1, THsForgot003 flag 0) -> kk.isAbstract rc 0/0/1; 008 'no internal member call spelled $this.NAME' extended to 'no kklass internal read (_class_abstract, kk._class_derives_from)' on non-comment lines of the four unit files — counts unchanged (497)",
+          "K2_docs": "kklass_book §Best Practices 'Trap: Inside a Body, a Property Is a Nameref' — the full C12 list re-measured on both bashes (k2probe.sh): 5.2.37 ${#v}=0 (5.3.9 5) with a local copy correct; both: [[ -v v ]] false, ${#v[@]}=0, `unset v` in a member deletes the storage element (property reads empty afterwards); working: ${v:1:2} ${v%x} ${v@Q} ${v^^} v+= printf -v read -r; the book's repro snippet run on both bashes, output as printed"
+        },
+        "red_before": {
+          "kklass tests/133_IsAbstract.sh": "23 FAIL / 25 against the unfixed code on 5.2.37 AND 5.3.9 (kk.isAbstract/kk.derivesFrom rc 127 'command not found'); green before and after: B5 (no pwn file) and D4 (no variable leak)",
+          "kcl/thttpserver tests/008_Contract.sh": "1 FAIL / 107 on 5.2.37 before the unit switch (the extended source-integrity assertion listed thttprouter.sh:383,384,464,469, thttpserver.sh:999, thttpapplication.sh:143,144)",
+          "001 / 003": "not red-first: kk.isAbstract already existed when they were switched; they assert the same states through the public predicate"
+        },
+        "gate": {
+          "kklass_suite": "535/535 (510 + 25) threaded on 5.2.37 and on 5.3.9; --mode single on 5.2.37 535/535; [FAIL] grep 0 in all three logs",
+          "thttpserver_suite": "497/497 on 5.2.37 and 5.3.9 threaded, [FAIL] grep 0 (count unchanged)",
+          "master_sweep": "reviewer's job (not run by the worker); expected sum 7992 + 25 = 8017"
+        },
+        "measured": [
+          "kk._class_derives_from with a non-identifier CHILD ('a b', 'a[$(touch pwn)]') is a fatal 'invalid variable name' (`${!v}` on '<child>_parent_class') that aborts the caller's whole top-level command on both bashes; two EQUAL non-identifier strings answer rc 0 (string equality before any indirection); a hostile ANCESTOR alone is only compared (rc 1); empty CHILD or ANCESTOR -> rc 1. No subscript was ever evaluated (no pwn file) — the `_parent_class` suffix makes the name invalid before evaluation",
+          "BASH_REMATCH: the regex guard overwrites the caller's BASH_REMATCH (both bashes); `local BASH_REMATCH` would protect it on 5.3.9 only (5.2.37 still writes the global — probe2.sh), so it is documented (doc comment + book) instead of half-fixed. No thttpserver file reads BASH_REMATCH",
+          "cost (5000-call loops, scratchpad bench.sh): kk.isAbstract 37-41 us; kk.derivesFrom 53-60 us vs the internal 34-38 us (+17 us on 5.2.37, +26 us on 5.3.9 = one more function layer + the guard; a glob guard instead of the regex measured the same, bench2.sh). RouteRequest makes 2 such calls per request: ~+35-50 us per routed request"
+        ],
+        "deviations": [
+          "the 001/003/008 adjustments: the brief says 003/008 keep their counts — so the new source-integrity contract (no `_class_abstract` / `kk._class_derives_from` in the unit files) was folded into 008's existing 'no $this.NAME' assertion (same family: no kklass-coupling spelled in the unit) instead of a new assertion; 497 unchanged",
+          "DR3 says 'rc other than 0 treated as refusal by the router'; read as the assignment states it: the router/application accept ONLY rc 1 (built + concrete) — rc 0 (abstract) and rc 2 (not built) refuse. Accepting rc 2 would admit a never-finalized class; the old code refused it via `declare -F CLASS.new`, kept as well",
+          "thttpserver.sh:999 (BeginServe Transport) and the two RouteRequest checks were not in the plan's three readers (C10 lists only _class_abstract readers) but the assignment says 'grep the whole unit' for kk._class_derives_from — switched; kk.derivesFrom answers rc 2 where the internal answered 1 for an empty ${INST}_class, and every site uses `!`, so the refusal is unchanged",
+          "kk.isAbstract and kk.derivesFrom added to the KKLASS_EXPORT_FUNCTIONS=1 export -f list (kk.derivesFrom calls the already-exported internal); test 111 (no export by default) unaffected",
+          "kcl/thttpserver/PLAN.md (D8 row, §2.4 handler list) and README.md:577 updated to name the public predicates (wording only); thttpserver_ledger.json left as the historical record",
+          "test 133 uses its own ${TMPDIR}/kk133_$$ with an EXIT trap (like 121/132) instead of kt_fixture_tmpdir"
+        ],
+        "found_in_R2_P9": [
+          "rest of kcl: no other unit reads `_class_abstract` or calls `kk._class_derives_from`; the only hit outside thttpserver is kcl/docs/review-2026-09-06/repro/g8/hygiene2.sh:21, a historical repro whose grep -vE filter names `_class_abstract$` (not a reader) — left alone. kkore/ktests: none",
+          "a STANDALONE run of a kklass test file (`bash tests/133_IsAbstract.sh`) leaves an empty kklass/tests/.tmp/<Name>.<file> directory behind (kt_test_init; reproduced 2026-10-02, removed again); suite runs do not touch it. 13 such dirs exist (oldest 2026-07-12, ThisDispatch.132_ThisDispatch from P8; gitignored). Not fixed (ktests scope)"
+        ]
       }
     },
     "note": "ktests runner finding T1 tracked in ktests/PLAN.md; its phase runs first",
