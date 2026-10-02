@@ -22,7 +22,10 @@ source "$KKLASS_DIR/kklass.sh"
 
 OUTF="${TMPDIR:-/tmp}/kk132_out_$$.txt"
 ERRF="${TMPDIR:-/tmp}/kk132_err_$$.txt"
-trap 'rm -f "$OUTF" "$ERRF"' EXIT
+# Cleanup via the framework (never `trap … EXIT`: it would replace kt_test_init's
+# trap, so the fixture teardown would not run).
+kk132_cleanup() { rm -f "$OUTF" "$ERRF"; }
+kt_fixture_cleanup_register kk132_cleanup
 
 # Run a command in THIS shell; stdout/stderr/rc land in OUT/ERR/RC.
 run() {

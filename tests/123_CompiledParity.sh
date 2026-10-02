@@ -16,7 +16,10 @@ KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 TMPD="${TMPDIR:-/tmp}/kk123_$$"
 mkdir -p "$TMPD"
-trap 'rm -rf "$TMPD"' EXIT
+# Cleanup via the framework (never `trap … EXIT`: it would replace kt_test_init's
+# trap, so the fixture teardown would not run).
+kk123_cleanup() { rm -rf "$TMPD"; }
+kt_fixture_cleanup_register kk123_cleanup
 
 cat > "$TMPD/par.kk" <<'EOF'
 defineClass PA "" property tag \

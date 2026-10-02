@@ -18,7 +18,10 @@ KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$KKLASS_DIR/kklass.sh"
 
 ERRF="${TMPDIR:-/tmp}/kk125_$$.txt"
-trap 'rm -f "$ERRF"' EXIT
+# Cleanup via the framework (never `trap … EXIT`: it would replace kt_test_init's
+# trap, so the fixture teardown would not run).
+kk125_cleanup() { rm -f "$ERRF"; }
+kt_fixture_cleanup_register kk125_cleanup
 
 # ---------------------------------------------------------------------------
 for nm in this __inst__ __class__ RESULT REPLY IFS; do

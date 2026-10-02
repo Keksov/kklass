@@ -17,7 +17,10 @@ KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # Private TMPDIR so scratch-file leaks are countable.
 export TMPDIR="${TMPDIR:-/tmp}/kk124_$$"
 mkdir -p "$TMPDIR"
-trap 'rm -rf "$TMPDIR"' EXIT
+# Cleanup via the framework (never `trap … EXIT`: it would replace kt_test_init's
+# trap, so the fixture teardown would not run).
+kk124_cleanup() { rm -rf "$TMPDIR"; }
+kt_fixture_cleanup_register kk124_cleanup
 
 source "$KKLASS_DIR/kklass.sh"
 

@@ -23,7 +23,10 @@ source "$KKLASS_DIR/kklass_pascal.sh"
 TMPD="${TMPDIR:-/tmp}/kk119_$$"
 mkdir -p "$TMPD/sub"
 ERRF="$TMPD/err.txt"
-trap 'rm -rf "$TMPD"' EXIT
+# Cleanup via the framework (never `trap … EXIT`: it would replace kt_test_init's
+# trap, so the fixture teardown would not run).
+kk119_cleanup() { rm -rf "$TMPD"; }
+kt_fixture_cleanup_register kk119_cleanup
 
 cat > "$TMPD/orig.sh" <<'EOF'
 class TDupGuard

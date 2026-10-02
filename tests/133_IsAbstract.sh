@@ -26,7 +26,13 @@ source "$KKLASS_DIR/kklass_pascal.sh"
 
 TMPD="${TMPDIR:-/tmp}/kk133_$$"
 mkdir -p "$TMPD" && TMPD="$(cd "$TMPD" && pwd)"
-trap 'cd /; rm -rf "$TMPD"' EXIT
+# Cleanup via the framework (never `trap … EXIT`: it would replace kt_test_init's
+# trap, so the fixture teardown would not run). The handler first leaves TMPD
+# (Windows cannot remove the cwd) for the directory the file started in, so a
+# relative fixture dir (a standalone run) is still found by the teardown.
+KK133_HOME="$PWD"
+kk133_cleanup() { cd "$KK133_HOME" 2>/dev/null || cd /; rm -rf "$TMPD"; }
+kt_fixture_cleanup_register kk133_cleanup
 OUTF="$TMPD/out.txt"
 ERRF="$TMPD/err.txt"
 # The hostile names below spell `$(touch pwn)` — relative, so run from TMPD.

@@ -30,7 +30,10 @@ defineClass TCpM "" property first property last \
 TCpF.new f; f.w = 3; f.h = 4; f.reads = 0
 TCpM.new m; m.first = John; m.last = Doe
 bare_file="${TMPDIR:-/tmp}/kk126_$$.txt"
-trap 'rm -f "$bare_file"' EXIT
+# Cleanup via the framework (never `trap … EXIT`: it would replace kt_test_init's
+# trap, so the fixture teardown would not run).
+kk126_cleanup() { rm -f "$bare_file"; }
+kt_fixture_cleanup_register kk126_cleanup
 
 # ---------------------------------------------------------------------------
 kt_test_start "direct call is silent and sets RESULT (kk._return contract)"
