@@ -69,7 +69,34 @@ class() {
 }
 
 end() {
+    [[ -z "$KK_DECL_CURRENT_CLASS" ]] || kk.pascal._check_ctor_static "$KK_DECL_CURRENT_CLASS"
     endClass
+}
+
+# P11/M1 (DR9): in this DSL the function CLASS.<ctor> (default name Create) is
+# the constructor body that build extracts — so a STATIC member of the same
+# name (static proc/func/var) cannot coexist with it: the static used to
+# consume the one function and the constructor body was silently empty.
+# Checked at `end`, where both are known whatever the order; a clash poisons
+# the class (endClass then fails it).
+kk.pascal._check_ctor_static() {   # CLASS
+    local cls="$1"
+    local ctor_var="${cls}_decl_constructor_name"
+    local ctor="${!ctor_var:-}"
+    [[ -n "$ctor" ]] || return 0
+    local clash=0
+    if declare -p "${cls}_decl_method_static" &>/dev/null; then
+        local -n __kk_pc_static="${cls}_decl_method_static"
+        [[ "${__kk_pc_static[$ctor]:-0}" == 1 ]] && clash=1
+    fi
+    if (( ! clash )) && kk.decl._array_contains "${cls}_decl_static_properties" "$ctor"; then
+        clash=1
+    fi
+    if (( clash )); then
+        kk.decl._error "Static member '${ctor}' of class '${cls}' has the constructor's name: ${cls}.${ctor} is the constructor body in the Pascal DSL (rename the static member or use 'constructor OtherName')"
+        kk.decl._poison "$ctor"
+    fi
+    return 0
 }
 
 # ---- visibility sections (repeatable, any order) ---------------------------
@@ -128,6 +155,12 @@ destructor() {
     local name="${1:-Destroy}"
     kk.decl._require_current_class || return 1
     local class_name="$RESULT"
+    # P11 review R2: validate BEFORE the eval below (`destructor '$(cmd)'` used
+    # to run cmd); same rule as any method name; a refusal poisons the class.
+    if ! kk.decl._validate_member "$name" "destructor name"; then
+        kk.decl._poison "$name"
+        return 1
+    fi
     eval "${class_name}_decl_destructor_name=\"$name\""
     # A destructor is just a normal (parameterless) method that .delete calls.
     procedure "$name"
@@ -179,6 +212,14 @@ kk.pascal._ctor_inherited() {
 build() {
     local class_name="$1"
     [[ -n "$class_name" ]] || { echo "build: class name required" >&2; return 1; }
+    kk.decl._validate_ident "$class_name" "class name" || return 1
+
+    # P11/M2 (DR8): the poison flag FIRST — nothing extracted, nothing built.
+    local refused_var="${class_name}_decl_refused"
+    if [[ -n "${!refused_var:-}" ]]; then
+        echo "build: class '${class_name}' is not built: member '${!refused_var}' was refused in its declaration" >&2
+        return 1
+    fi
 
     local methods_var="${class_name}_decl_methods"
     local abstract_var="${class_name}_decl_method_abstract"
@@ -279,5 +320,6 @@ kk.pascal._ancestor_has_method() {
 
 if [[ "${KKLASS_EXPORT_FUNCTIONS:-0}" == "1" ]]; then
     export -f class end public private protected static override abstract var proc func \
-        destructor build kk.pascal._declare_method kk.pascal._body kk.pascal._ancestor_has_method
+        destructor build kk.pascal._declare_method kk.pascal._body kk.pascal._ancestor_has_method \
+        kk.pascal._check_ctor_static
 fi

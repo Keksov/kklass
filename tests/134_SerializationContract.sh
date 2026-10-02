@@ -415,8 +415,8 @@ if [[ ${#LR2[@]} -eq 2 ]]; then val "${LR2[0]}" a; a0="$V"; val "${LR2[1]}" a; a
     && kt_test_pass "ok" || kt_test_fail "rc=$rc RESULT=$RESULT LR2=(${LR2[*]}) err='$err'"
 
 # R3: the addSerializable debug note goes through kk.debug (stderr, one line).
-# (defineMethod's own "Method 'X' added to class" debug note is kklass.sh's and
-# still goes to stdout — ledger found_in_P10; not asserted here.)
+# (defineMethod's own "Method 'X' added to class" debug note is kklass.sh's; it
+# goes to stderr since P11 — pinned by test 135 §D, not asserted here.)
 defineClass TDbg "" property a
 kt_test_start "R3: addSerializable's debug note is one stderr line, never on stdout"
 VERBOSE_KKLASS=debug addSerializable TDbg ":" string > "$OUT" 2> "$ERR"; rc=$?

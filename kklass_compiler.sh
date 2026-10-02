@@ -70,6 +70,22 @@ compile_class_file() {
         return 1
     fi
 
+    # P11/M2 (DR8): a class whose declaration refused a member is not built,
+    # and the source's status is only its LAST command's (a .kkp unit ends
+    # with one endImplementation per class) — so the poison flags are read
+    # here: any poisoned class fails the compile, nothing is written.
+    local __kk_var __kk_poisoned=""
+    while IFS= read -r __kk_var; do
+        [[ "$__kk_var" == *_decl_refused ]] || continue
+        [[ -n "${!__kk_var:-}" ]] || continue
+        __kk_poisoned+=" '${__kk_var%_decl_refused}' (member '${!__kk_var}')"
+    done < <(compgen -A variable)
+    if [[ -n "$__kk_poisoned" ]]; then
+        rm -f "$translated_input"
+        echo "Error: $input_file: class(es)${__kk_poisoned} refused a member; nothing compiled" >&2
+        return 1
+    fi
+
     local class_list=()
     kk.compiler._collect_classes class_list
 

@@ -915,7 +915,76 @@ the built-in or was silently replaced by it (`$this.delete` ran the user
 method while `obj.delete` destroyed the instance). Names that merely *start*
 with one of them (`recall`, `delete2`, `parentId`, `callback`, `newest`) are
 fine. Static members (`classVar`, `static_method`, `classProcedure`, ...) are
-class-level and are not affected.
+class-level and are not affected by this table — they have their own (below).
+
+#### Reserved static member names
+
+A static member is the class-level function `CLASS.NAME` (a static property
+is its accessor, a static method its dispatcher). kklass generates a few
+class-level functions of its own for every class, so a static member cannot
+take their names (since round 3 / P11; before, such a member was silently lost
+with rc 0, or hijacked `.new`):
+
+| Name | Generated function it would collide with |
+|---|---|
+| `new` | `CLASS.new` — the constructor verb |
+| `constructor` | `CLASS.constructor` — parent-constructor chaining |
+| `__decl_new_impl` | the real constructor behind the abstract-class guard |
+| `__static_*` | `CLASS.__static_NAME` — the body of every static method |
+| `__decl_*` | the declarative layer's own names |
+| `method_body_*` | the *storage* of static method bodies: a static property SP lives in the variable `CLASS_static_SP` and the body of a static method M in `CLASS_static_method_body_M`, so a static property `method_body_M` would overwrite M's body |
+
+Four more rules:
+
+- **A static property and a static method cannot share a name** — both would
+  be `CLASS.NAME` (the method dispatcher used to replace the property accessor
+  silently). This includes an inherited static of the other kind; a static
+  method may still override an inherited static *method*, and a static member
+  may share its name with an *instance* member (`CLASS.x` vs `obj.x`).
+- **`kk.register_static_methods`** also refuses `__impl_*` (it keeps each
+  registered body in `PREFIX.__impl_NAME`), and checks every name *before*
+  generating anything.
+- **Pascal DSL:** a `static` member named like the class's constructor
+  (`constructor` without a name means `Create`) is refused — `CLASS.Create()`
+  is the constructor body that `build` extracts, and the static used to
+  consume it, leaving the constructor empty. Use `constructor Init` (or rename
+  the static).
+- **Declarative API: an instance and a class method cannot share a name.**
+  `procedure x` and `classProcedure x` (or Pascal `proc x` + `static proc x`)
+  in one class are refused: the declaration tables keep one entry per method
+  name, so one of the two used to be lost silently. (`defineClass` keeps
+  `method x` and `static_method x` apart and still accepts both.)
+
+Every static entry path applies these rules: `defineClass` `static_property` /
+`static_method`, `kk._build_class_runtime`, `classVar`, `classProcedure`,
+`classFunction`, the Pascal `static var/proc/func`, `kk.register_static_methods`
+and `.kkp` `class var` / `class procedure` / `class function`.
+
+#### A refused member fails its class
+
+A refused member name (any rule above, a non-identifier, an unsupported
+modifier, an `override` of a non-virtual method, ...) does not just print an
+error: it **poisons the class being declared** (since round 3 / P11). The
+declaration verb returns 1 and records the member in `${CLASS}_decl_refused`;
+then
+
+- `endClass` (and the Pascal `end`) returns 1 naming the class and the member,
+  and **closes** the class — a stray `field`/`procedure` afterwards is refused
+  with "No active class declaration" instead of attaching to it;
+- `endImplementation` and the Pascal `build` refuse the class *first* (before
+  any other check), naming the member — the class is not built;
+- `defineClass` returns 1 and leaves no open class behind;
+- a refused **re**definition of a class that is already built leaves the old
+  class completely intact: its runtime, its declaration tables and its
+  abstract flag (an abstract class stays abstract);
+- `kklass_compiler.sh` fails (rc 1, nothing written) when any class of the
+  input was refused — a `.kkp` unit's status would otherwise be that of its
+  last `endImplementation` only.
+
+The next `declareClass` of the same name clears the mark, so a corrected
+declaration builds normally; other classes in the same script are unaffected.
+Before P11 the class was silently built *without* the refused member, rc 0.
+Under `set -e` the refused verb itself already ends the script, as before.
 
 `state` is *not* reserved: it is the name of the data-array reference
 (`${state[key]}` reads any property by name, as `TCustomApplication` does), and
@@ -1012,6 +1081,14 @@ Notes:
   `$(Class.method)` still persists mutations (funsub on bash 5.3+, a scratch
   file on 5.2). Do not declare constants as `static var` — keep them as plain
   file-scope globals (see kcl/tpath/tpath.sh for the worked example).
+- **`static` names**: a static member cannot be named like the class's
+  constructor (`Create` unless `constructor OtherName`), nor `new`,
+  `constructor`, `__decl_new_impl`, `__static_*`, `__decl_*`, `method_body_*`; a `static var`
+  and a `static proc/func` cannot share a name (see *Reserved static member
+  names*).
+- **A refused member fails the class**: `end` returns 1 and closes the class,
+  `build` refuses it; the next `class` in the file is unaffected (see *A
+  refused member fails its class*).
 - **`override`** is a build-time typo-guard only — all kklass dispatch is
   already dynamic. `virtual` does not exist: every method is virtual.
 - Bodies are extracted with `declare -f`, which normalizes formatting and
@@ -2304,7 +2381,13 @@ defineClass CLASS_NAME PARENT_CLASS DEFINITIONS...
 - `"static_method" NAME BODY`: Define static method
 - `"lazy_property" NAME INIT`: Define lazy property (computed once, on first access)
 
-**Returns:** Echoes confirmation message
+Static names follow *Reserved static member names*; instance names follow
+*Reserved Member Names*.
+
+**Returns:** rc 0, silent (a `VERBOSE_KKLASS=debug` note goes to stderr). A
+refused token prints its error and returns 1: the class is not built, no class
+is left open, and a refused redefinition keeps the already-built class intact
+(see *A refused member fails its class*).
 
 **Example:**
 ```bash
@@ -2322,10 +2405,13 @@ ClassName.new INSTANCE_NAME [CONSTRUCTOR_ARGS...]
 ```
 
 **Parameters:**
-- `INSTANCE_NAME`: Name for the instance (must be valid identifier)
+- `INSTANCE_NAME`: Name for the instance (an ASCII identifier, checked by
+  `kk._is_ident` — see *Identifier checks*; the caller's `BASH_REMATCH` is not
+  touched)
 - `CONSTRUCTOR_ARGS`: Optional arguments passed to constructor
 
-**Returns:** Creates instance functions
+**Returns:** Creates instance functions. An invalid name: rc 1 +
+"Invalid instance name: NAME" on stderr, nothing created.
 
 **Example:**
 ```bash
@@ -2448,9 +2534,10 @@ kk.isAbstract CLASS
 
 Silent on every path (also under `VERBOSE_KKLASS=debug`), fork-free, safe
 under `set -eu` when called from an `if`, `||` or `!`. A hostile name such as
-`'a[$(cmd)]'` is refused with rc 2 before any expansion. Like any
-`[[ =~ ]]`, it overwrites `BASH_REMATCH`. "Concrete" therefore is rc 1 —
-not "rc ≠ 0":
+`'a[$(cmd)]'` is refused with rc 2 before any expansion. The identifier check
+is exact in every locale and shell option (see *Identifier checks* below) and
+leaves the caller's `BASH_REMATCH` untouched (since round 3 / P11; it used a
+`[[ =~ ]]` before). "Concrete" therefore is rc 1 — not "rc ≠ 0":
 
 ```bash
 if kk.isAbstract "$cls" || (( $? != 1 )); then
@@ -2472,10 +2559,39 @@ rc 0 — CHILD is ANCESTOR (reflexive) or one of its descendants; rc 1 — not
 rc 2 — either argument is not an identifier. Silent, fork-free. Unlike the
 internal, a malformed name never aborts the caller (`kk._class_derives_from
 'a b' X` is a fatal "invalid variable name" for the caller's whole command).
+`BASH_REMATCH` is left alone.
 
 ```bash
 kk.derivesFrom TCircle TShape && echo "a shape"
 ```
+
+### Identifier checks
+
+Every name kklass turns into a variable or function name — class, member and
+instance names (`defineClass` and the other builders, `CLASS.new`), and the
+arguments of `kk.isAbstract` / `kk.derivesFrom` / `loadObjects` — must be an
+ASCII identifier `[A-Za-z_][A-Za-z0-9_]*`. Since round 3 / P11 one helper,
+`kk._is_ident NAME` (rc 0/1, silent, fork-free), makes that check
+everywhere: a range glob evaluated under a function-local `LC_ALL=C`. It is
+exact in every locale × `globasciiranges` × `nocasematch` combination and
+never touches `BASH_REMATCH`. The `[[ =~ ]]` it replaced overwrote the
+caller's `BASH_REMATCH` on every `.new`, and under `shopt -s nocasematch` in a
+UTF-8 locale accepted the Turkish dotless `ı` / dotted `İ` — whose later
+indirect expansion aborted the caller's whole command (`kk.derivesFrom ı X`,
+`defineClass ı`) or produced a half-made instance (`CLASS.new ı`). The
+caller's `LC_ALL` (set or unset) and shell options are restored on return.
+
+`CLASS.new` itself carries an inline copy of the rule (the hottest path: a
+function call plus two locale switches cost ~18 µs per `.new` on bash 5.2): an
+explicit-letter glob — every allowed character listed, no ranges, so it is
+matched by character equality in every locale — and `kk._is_ident` only when
+`shopt -s nocasematch` is on (its case folding is the one way a non-ASCII
+letter can match an explicit list). Test 135 keeps the two equivalent.
+
+Constructor and destructor names (`constructor NAME`, the Pascal
+`destructor NAME`) and the class name of `implementConstructor` are
+identifiers too, checked before anything uses them; a refused one fails the
+class like any other refused member.
 
 ### defineSerializableClass
 
@@ -2639,8 +2755,13 @@ bash kklass_compiler.sh INPUT.kk OUTPUT.sh
 ```
 
 **Parameters:**
-- `INPUT.kk`: Source class definition file
+- `INPUT.kk`: Source class definition file (`.kk` or a `.kkp` unit)
 - `OUTPUT.sh`: Output compiled file
+
+**Returns:** rc 0 and the summary lines on success. rc 1 and nothing written
+when sourcing the input fails, when no class was built, or (since round 3 /
+P11) when any class of the input refused a member — the error names each such
+class and member.
 
 **Example:**
 ```bash

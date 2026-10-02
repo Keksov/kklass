@@ -183,6 +183,28 @@ kk._class_derives_from() {
     return 1
 }
 
+# kk._is_ident NAME — rc 0 when NAME is a plain bash identifier
+# ([A-Za-z_][A-Za-z0-9_]*), rc 1 otherwise; silent, fork-free. The ONE
+# identifier guard of the kklass entry paths (round 3 / P11, finding M3,
+# decision DR9): kk.isAbstract, kk.derivesFrom, kk.decl._validate_ident (every
+# class / member name of every builder), every generated CLASS.new (instance
+# name) and loadObjects (class name). It replaced
+# `[[ $x =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]`, which (a) overwrote the caller's
+# BASH_REMATCH on every call — every .new included — and (b) was not exact:
+# under `shopt -s nocasematch` in a UTF-8 locale it accepted the dotless ı /
+# dotted İ, whose indirect expansion then ABORTED the caller's whole command. A
+# bare range glob is not exact either (fullwidth Ａ on 5.2 en_US.UTF-8; é Ä ß
+# with globasciiranges off). A range glob under a function-local LC_ALL=C is
+# exact in all 12 locale × globasciiranges × nocasematch combinations on both
+# bashes (critic probe m3d; pinned by test 135); the local goes out of scope on
+# return, so bash restores the caller's locale (an unset LC_ALL stays unset).
+# It must stay a FUNCTION: a `local LC_ALL=C` inside .new itself would leak the
+# C locale into the constructor body.
+kk._is_ident() {
+    local LC_ALL=C
+    [[ -n "${1:-}" && "$1" != [!A-Za-z_]* && "$1" != *[!A-Za-z0-9_]* ]]
+}
+
 # kk.isAbstract CLASS — the public "would CLASS.new refuse?" predicate (round 2
 # / R2_P9, finding K4, decision DR3; replaces reading ${CLASS}_class_abstract).
 #   rc 0  CLASS is a built class that is still abstract (an abstract member is
@@ -193,10 +215,10 @@ kk._class_derives_from() {
 #         not finalized (endImplementation / build not run: no CLASS.new yet).
 # "Built" = ${CLASS}_class_methods exists. Silent on every path and fork-free.
 # The identifier check runs FIRST: an indirect expansion of a non-identifier
-# is a fatal error that aborts the caller's whole top-level command. Like any
-# `[[ =~ ]]` it overwrites BASH_REMATCH.
+# is a fatal error that aborts the caller's whole top-level command. The check
+# is kk._is_ident (P11/M3): locale-exact, BASH_REMATCH left alone.
 kk.isAbstract() {
-    [[ "${1:-}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+    kk._is_ident "${1:-}" || return 2
     declare -p "${1}_class_methods" &>/dev/null || return 2
     local __kk_ia="${1}_class_abstract"
     if [[ "${!__kk_ia:-}" == 1 ]]; then
@@ -211,9 +233,10 @@ kk.isAbstract() {
 # never declared — and rc 2 when either argument is not an identifier. The
 # internal validates nothing: a non-identifier CHILD aborts the caller's
 # command (`${!v}` on "a b_parent_class"), and two EQUAL non-identifiers
-# answer 0. Reflexive, no existence check. Silent, fork-free.
+# answer 0. Reflexive, no existence check. Silent, fork-free; the identifier
+# check is kk._is_ident (P11/M3), BASH_REMATCH is left alone.
 kk.derivesFrom() {
-    [[ "${1:-}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ && "${2:-}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 2
+    kk._is_ident "${1:-}" && kk._is_ident "${2:-}" || return 2
     kk._class_derives_from "$1" "$2"
 }
 
@@ -751,7 +774,7 @@ kk._build_class_runtime() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
             static_property)
-                kk.decl._validate_ident "$2" "static property name" || return 1
+                kk.decl._validate_static "$2" "static property name" || return 1
                 has_static_members=true
                 if [[ -z "${static_prop_index[$2]+x}" ]]; then
                     static_props_arr+=("$2")
@@ -761,7 +784,7 @@ kk._build_class_runtime() {
                 shift 2
                 ;;
             static_method)
-                kk.decl._validate_ident "$2" "static method name" || return 1
+                kk.decl._validate_static "$2" "static method name" || return 1
                 has_static_members=true
                 if [[ -z "${static_meth_index[$2]+x}" ]]; then
                     static_meths_arr+=("$2")
@@ -844,6 +867,17 @@ kk._build_class_runtime() {
                 shift
                 ;;
         esac
+    done
+
+    # A static property and a static method of the same name would both be
+    # CLASS.NAME — the method dispatcher silently replaced the property
+    # accessor (P11/M1, DR9). Checked over the MERGED lists, so an inherited
+    # static of the other kind is caught too; nothing is stored yet.
+    for sp in "${static_props_arr[@]}"; do
+        if [[ -n "${static_meth_index[$sp]+x}" ]]; then
+            kk.decl._error "Static member clash in class '${class_name}': '${sp}' is both a static property and a static method (both would be the function ${class_name}.${sp})"
+            return 1
+        fi
     done
 
     # Finalize the bodies declared here (function trailer; no text rewrite
@@ -1067,10 +1101,29 @@ __INST__.delete() { kk._delete __INST__ \"\$@\"; }"
     # (validated) instance name into the class template with a pure-bash
     # replacement and eval'ing it (no fork). Methods added later with
     # defineMethod are already in the template (F3), so nothing else to do.
+    #
+    # Instance-name check (round 3 / P11, M3 + review remark R1): .new is the
+    # hottest builder path, and on bash 5.2 a call of kk._is_ident (function
+    # call + two locale switches) cost +17.6 us per .new. So the check is
+    # INLINED here as an explicit-letter glob — every allowed character
+    # listed, NO ranges: a bracket of explicit characters is matched by
+    # character equality, never by collation, so it is exact in every locale
+    # and with globasciiranges on or off (critic probe m3d, list_g). Its one
+    # weakness is `shopt -s nocasematch`, whose case folding lets the dotted
+    # İ / dotless ı match i/I — so under nocasematch it falls back to
+    # kk._is_ident. No =~, so BASH_REMATCH is untouched.
+    # THIS INLINE COPY MUST STAY EQUIVALENT TO kk._is_ident (the single
+    # definition of the rule); test 135 C5 runs one name table through both
+    # in every locale × globasciiranges × nocasematch combination.
+    local __kk_new_guard='if [[ ":$BASHOPTS:" != *:nocasematch:* ]]; then
+            [[ -n "$instname" && "$instname" != [!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_]* && "$instname" != *[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_]* ]]
+        else
+            kk._is_ident "$instname"
+        fi || { echo "Invalid instance name: $instname" >&2; return 1; }'
     eval "${class_name}.new() {
         local instname=\"\$1\"
         shift
-        [[ \"\$instname\" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || { echo \"Invalid instance name: \$instname\" >&2; return 1; }
+        ${__kk_new_guard}
         eval \"\${${class_name}_instance_template//__INST__/\$instname}\"
 
         if [[ -n \"\$${class_name}_constructor_body\" ]]; then
@@ -1084,7 +1137,8 @@ __INST__.delete() { kk._delete __INST__ \"\$@\"; }"
     # or semicolons would otherwise corrupt this generated function).
     eval "${class_name}.constructor() { kk._invoke_constructor ${class_name} \"\$@\"; }"
 
-    if [[ "${VERBOSE_KKLASS:-1}" == "debug" ]]; then echo "$class_name class created"; fi
+    # Debug note on the debug channel (stderr), never on stdout (P11).
+    kk.debug "$class_name class created"
 }
 
 defineClass() {
@@ -1108,11 +1162,11 @@ defineClass() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
             static_property)
-                kk.decl._remember_static_property "$class_name" "$2" || return 1
+                kk.decl._remember_static_property "$class_name" "$2" || { kk.decl._abandon_class "$class_name" "$2"; return 1; }
                 shift 2
                 ;;
             static_method)
-                kk.decl._remember_static_method "$class_name" "$2" "$3" || return 1
+                kk.decl._remember_static_method "$class_name" "$2" "$3" || { kk.decl._abandon_class "$class_name" "$2"; return 1; }
                 shift 3
                 ;;
             property)
@@ -1151,10 +1205,10 @@ defineClass() {
                     prop_decl+=("read" "$prop_name")
                 fi
 
-                property "${prop_decl[@]}" || return 1
+                property "${prop_decl[@]}" || { kk.decl._abandon_class "$class_name" "$prop_name"; return 1; }
                 ;;
             lazy_property)
-                kk.decl._remember_lazy_property "$class_name" "$2" "$3" || return 1
+                kk.decl._remember_lazy_property "$class_name" "$2" "$3" || { kk.decl._abandon_class "$class_name" "$2"; return 1; }
                 shift 3
                 ;;
             method|procedure|function)
@@ -1163,9 +1217,9 @@ defineClass() {
                 local method_body="$3"
 
                 if [[ "$legacy_kind" == "function" ]]; then
-                    func "$method_name" || return 1
+                    func "$method_name" || { kk.decl._abandon_class "$class_name" "$method_name"; return 1; }
                 else
-                    procedure "$method_name" || return 1
+                    procedure "$method_name" || { kk.decl._abandon_class "$class_name" "$method_name"; return 1; }
                 fi
 
                 if [[ -z "${declared_method_seen[$method_name]:-}" ]]; then
@@ -1176,7 +1230,7 @@ defineClass() {
                 shift 3
                 ;;
             constructor)
-                constructor || return 1
+                constructor || { kk.decl._abandon_class "$class_name" constructor; return 1; }
                 constructor_body="$2"
                 shift 2
                 ;;
@@ -1281,9 +1335,9 @@ __INST__.delete() \{}"
         fi
     done
     
-    if [[ "${VERBOSE_KKLASS:-1}" == "debug" ]]; then 
-        echo "${func_name} '$method_name' added to class '$class_name'"
-    fi
+    # Debug note on the debug channel (stderr), never on stdout (P11; was an
+    # echo to stdout that leaked into addSerializable's callers).
+    kk.debug "${func_name} '$method_name' added to class '$class_name'"
 }
 
 defineMethod() {
@@ -1307,6 +1361,24 @@ kk.register_static_methods() {
     local -a method_names=("$@")
     local -a class_args=()
     local method_name public_name impl_name method_decl
+
+    # Every name is checked BEFORE anything is generated (P11/M1, DR9): a
+    # static named `new` used to REPLACE the class constructor, and the
+    # PREFIX.__impl_NAME helper below was already eval'd by the time
+    # defineClass refused a name. __impl_* is this helper's own namespace.
+    for method_name in "${method_names[@]}"; do
+        [[ -n "$method_name" ]] || {
+            kk.decl._error "Error: ${display_name}: empty static method name"
+            return 1
+        }
+        kk.decl._validate_static "$method_name" "static method name" || return 1
+        case "$method_name" in
+            __impl_*)
+                kk.decl._error "Reserved static method name: '${method_name}' (kk.register_static_methods keeps each registered body in PREFIX.__impl_NAME)"
+                return 1
+                ;;
+        esac
+    done
 
     for method_name in "${method_names[@]}"; do
         public_name="${public_prefix}.${method_name}"
@@ -1335,5 +1407,5 @@ kk.register_static_methods() {
 source "${KKLASS_DIR}/kklass_decl.sh"
 
 if [[ "${KKLASS_EXPORT_FUNCTIONS:-0}" == "1" ]]; then
-    export -f kk._processMethodBody kk.call_silent kk._class_derives_from kk.isAbstract kk.derivesFrom kk._warn_visibility kk._build_class_runtime _defineMethodType defineClass defineMethod defineProcedure defineFunction kk.register_static_methods
+    export -f kk._processMethodBody kk.call_silent kk._class_derives_from kk._is_ident kk.isAbstract kk.derivesFrom kk._warn_visibility kk._build_class_runtime _defineMethodType defineClass defineMethod defineProcedure defineFunction kk.register_static_methods
 fi

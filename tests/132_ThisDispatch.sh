@@ -235,7 +235,6 @@ g.delete
 for nm in call delete property parent new; do
     kt_test_start "C(d) defineClass method '$nm' is refused"
     run defineClass "TThRM_$nm" "" method "$nm" 'echo user'
-    KK_DECL_CURRENT_CLASS=""
     if [[ $RC -ne 0 && "$ERR" == *"'$nm'"* ]] && ! declare -F "TThRM_$nm.new" >/dev/null; then
         kt_test_pass "refused: $ERR"
     else
@@ -244,7 +243,6 @@ for nm in call delete property parent new; do
 
     kt_test_start "C(d) defineClass property '$nm' is refused"
     run defineClass "TThRP_$nm" "" property "$nm"
-    KK_DECL_CURRENT_CLASS=""
     if [[ $RC -ne 0 && "$ERR" == *"'$nm'"* ]] && ! declare -F "TThRP_$nm.new" >/dev/null; then
         kt_test_pass "refused: $ERR"
     else
@@ -262,9 +260,9 @@ run eval 'declareClass TThRD3 ""; field parent'; KK_DECL_CURRENT_CLASS=""
 [[ $RC -ne 0 ]] || bad+=" field"
 run eval 'declareClass TThRD4 ""; property property'; KK_DECL_CURRENT_CLASS=""
 [[ $RC -ne 0 ]] || bad+=" property-verb"
-run defineClass TThRD5 "" lazy_property new initNew method initNew 'echo x'; KK_DECL_CURRENT_CLASS=""
+run defineClass TThRD5 "" lazy_property new initNew method initNew 'echo x'
 [[ $RC -ne 0 ]] || bad+=" lazy_property"
-run defineClass TThRD6 "" function call 'RESULT=x'; KK_DECL_CURRENT_CLASS=""
+run defineClass TThRD6 "" function call 'RESULT=x'
 [[ $RC -ne 0 ]] || bad+=" defineClass-function"
 run kk._build_class_runtime TThRD7 "" method delete 'echo x'
 [[ $RC -ne 0 ]] || bad+=" build-method"

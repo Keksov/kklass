@@ -554,7 +554,7 @@ loadObjects() {
         RESULT=""
         return 2
     fi
-    if [[ $__kk_cls == "" || $__kk_cls == *[!A-Za-z0-9_]* ]] || ! declare -F "${__kk_cls}.new" >/dev/null; then
+    if ! kk._is_ident "$__kk_cls" || ! declare -F "${__kk_cls}.new" >/dev/null; then
         kk.debug "Error: loadObjects: '$__kk_cls' is not a class"
         RESULT=""
         return 2
