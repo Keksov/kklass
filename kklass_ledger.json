@@ -766,7 +766,7 @@
     }
   },
   "round3": {
-    "status": "PLANNED (critic-hardened, decisions taken)",
+    "status": "IN PROGRESS (P10 done, commit pending review)",
     "plan": "PLAN.md # Round 3",
     "order": "ktests P1 -> P10 -> P11",
     "findings": {
@@ -791,8 +791,53 @@
     "phases": {
       "P10": {
         "name": "serialization (S1-S4)",
-        "status": "planned",
-        "commit": ""
+        "status": "done",
+        "date": "2026-10-02",
+        "commit": "PENDING",
+        "scope": "kklass_serializable.sh (defineSerializableClass, new _addSerializable_checkSep, addSerializable, _addSerializable_string, fromJSON return paths, saveObjects, loadObjects, export list), tests/134_SerializationContract.sh (new, 43 assertions), tests/131_JsonEscaping.sh (one title: the success contract is now kk._return), examples/43_nested_serialization.sh (one file per class; header 'Example 43'), docs/kklass_book.md (Serialization + API reference), PLAN.md R3.3 DONE note, this ledger",
+        "implemented": {
+          "S1_DR4": "defineSerializableClass: < 4 args -> rc 1 + usage line; FORMAT not string|json -> rc 1; separator checked by _addSerializable_checkSep -> rc 1; all BEFORE defineClass (nothing built); then defineClass || return 1; addSerializable. The inline generator copy is gone: fields = ${CLASS}_class_properties (inherited first, own, lazy + computed included). The toString/fromString entries the inline copy put in _decl_methods/_method_visibility are not reproduced: grep of every _decl_methods reader (kklass_decl.sh 265 [fallback for an UNBUILT parent only], 380 [abstract collection], 486/767/860 [own class while declaring/building], kklass_pascal.sh 183 [build]) and _method_visibility (decl 988-1012, runtime default public) -> no reader depends on them",
+          "S1b_DR4b": "_addSerializable_checkSep SEP CALLER (both entry points, both formats): ${#sep}==1, not [[:alnum:]_], not [[:space:]], none of \" $ \\ ' ` * ? [ ] -> else rc 1 + one Error line naming the caller, nothing generated. String generator rewritten: the separator is spliced ONLY inside single quotes (a quote is refused, so it is airtight): toString = printf '%s\\n' \"C\"'S'\"${a-}\"'S'\"${b-}\" (printf, not echo); fromString = IFS='S' read -r a b <<< ${1#C'S'} ; kk._return \"$this\" (here-string word: no splitting/globbing; the single-quoted part of the #-pattern is literal; no locals)",
+          "S2_DR5": "saveObjects prefers toJSON, then toString; `local obj` (the loop variable no longer leaks)",
+          "S3_DR6": "loadObjects: kk._outName on ARRAY_NAME first (rc 2, RESULT='', kk.debug); CLASS must be an identifier with a CLASS.new function (else rc 2); missing FILE -> rc 1, RESULT='', kk.debug (was an unconditional stderr line); all locals __kk_*; `while IFS= read -r __kk_line || [[ -n $__kk_line ]]` (review remark R1: a last line without a trailing newline is loaded); per non-blank line (whitespace-only lines skipped too): name CLASS_loaded_<n> with n advancing past every live instance ([[ -v ${name}_class ]]); first non-blank char '{' -> fromJSON else fromString; method missing (declare -F) -> rc 127 without calling it; the call sits in an `if` (set -e safe); rc != 0 -> name.delete + kk.warn 'Warning: loadObjects: FILE:LINE: refused by CLASS.METHOD (rc N), line not loaded', continue; a failing CLASS.new is treated the same; end: kk.debug 'Loaded N objects from FILE', RESULT=N, printed once when BASH_SUBSHELL>0 (kcl 1.1 unit._ret pattern — NOT kk._return, which would mark an enclosing member frame as returned), rc 1 if any line refused",
+          "S4_DR7": "fromJSON body: both refusal paths kk._return '' before return 1, success kk._return \"$this\"; fromString success kk._return \"$this\" (it has no refusal path); toString/toJSON stay printers",
+          "R1": "review remark R1: loadObjects reads a final line without a trailing LF (`|| [[ -n $__kk_line ]]`); test 'R1: a last object without a trailing newline is loaded'",
+          "R2": "review remark R2: generated fromString starts with `if [[ ${1-} != \"C\"'S'* ]]; then kk.debug \"Error: C.fromString: input does not start with the C prefix (class name + separator)\"; kk._return ''; return 1; fi` — C = the class the serializer was added to (what toString writes), so a subclass inheriting the serializer round-trips (pinned); refused input leaves the instance untouched, RESULT='', silent (one kk.debug line under debug); ${1-} makes a no-argument call under set -u a refusal (rc 1) instead of an abort (closes the former set -u finding); loadObjects of a mixed string file now loads only the matching lines and warns FILE:LINE for the others (rc 1)",
+          "R3": "review remark R3: addSerializable's 'Serialization methods added to C (format: F)' note goes through kk.debug (stderr, one line; was stdout under VERBOSE_KKLASS=debug)",
+          "R4": "review remark R4: examples/43 header says 'Example 43'",
+          "R5": "review remark R5: kklass_book — 'Class-prefix check in the string format' paragraph next to the JSON __class__ rule; fromString API entry, the defineSerializableClass fromString note and the loadObjects one-class note updated"
+        },
+        "red_before": {
+          "tests/134_SerializationContract.sh": "40 FAIL / 43 against HEAD's module on 5.2.37 AND 5.3.9 (green on HEAD: the plain string round trip, the R2 subclass round trip, the R2 separator-in-last-field case). First report: 34/35. Review remarks R1-R3 added 8 assertions: 6 FAIL against the first-report module on both bashes (R1 last line, R2 refusal x3 [foreign line, debug line, set -u], R2 mixed file, R3 stdout) — the R2 subclass round trip and the last-field case were already green (regression guards). Earlier drafts: 31/33, 32/34, 33/35",
+          "tests/043-046, 049, 121, 131": "green before and after"
+        },
+        "gate": {
+          "kklass_suite": "578/578 (535 + 43) threaded on 5.2.37 and on 5.3.9; --mode single on 5.2.37 578/578; [FAIL] grep 0 in all three logs (first report: 570/570)",
+          "examples": "the serializer is used only by examples 41/42/43 (grep). rc 0 on both bashes, 5.2 and 5.3 outputs byte-identical (temp names normalized). Deltas vs HEAD: 41 20->19 lines (-1: 'Loaded 2 objects from TMPFILE'); 42 32->30 (-2: the fromJSON 'restored1' line + 'Loaded 2 objects'); 43 63->59: -6 from* name lines (person1_restored addr1_restored contact1_restored addr3 contact3 person3) + the rewritten persistence section (one file per class, all three JSON via DR5; loads 1 Address, 1 Contact, 1 Person, no garbage Persons; the former 'Warning: Object person1 has no serialization method' line is gone because the example no longer saves the deleted person1). After review remarks R1-R4: outputs byte-identical to the first report's run on both bashes (the R2 prefix check changes nothing in 41-43: every fromString input there carries its own class prefix); final line counts 41: 20->19, 42: 32->30, 43: 63->59",
+          "consumers": "grep toJSON|fromJSON|addSerializable|defineSerializableClass|saveObjects|loadObjects|kklass_serializable over kcl, kkore, ktests and the kbool root: prose only (kcl/PLAN.md, kcl_ledger.json, thttpserver PLAN/ledger, optimization_ledger.json) — no code consumer, no other suite to run",
+          "master_sweep": "reviewer's job (not run by the worker)"
+        },
+        "measured": [
+          "separator probe (scratchpad worker_p10/seprobe.sh, both bashes, C.UTF-8, values a='x' b='' c=' z '): space/TAB/VT/FF act as IFS whitespace in read (b='' lost, c trimmed or shifted); CR is DROPPED from the generated body by the method-body rebuild, toString printed 'S3x z ' with no separator at all; \\x01 \\x02 \\x1f DEL § { } ! ~ round-trip exactly",
+          "critic probes re-run on the new module: sep.sh — every listed separator refused rc 1, no pwn file, the default ':' round-trips; dr6.sh — L1 survives a second load (L2 gets a fresh name), a refused JSON line is warned FILE:LINE and deleted, J.fromString rc 127 warned without 'command not found', CRLF and leading-blank JSON lines load, arrays named instances_array/line/count filled, direct call silent; dr4.sh — B and C children now serialize inherited/lazy fields (its 'new' column is the probe's own newDSC, not the shipped function)",
+          "a refused line's name is freed by .delete and re-used by a later call (unique among LIVE instances, as DR6 says)"
+        ],
+        "deviations": [
+          "DR4b list widened to every [[:space:]] character (space TAB CR VT FF, LF already listed): measured — the whitespace ones break the round trip silently through read's IFS-whitespace rules, CR is lost from the generated body. Pinned by a test of its own. FLAGGED for the reviewer",
+          "loadObjects inside $( ) prints the count once (kcl 1.1), via BASH_SUBSHELL like the unit._ret pattern; DR6 only specified the direct call",
+          "loadObjects error paths moved onto the contract: missing FILE = rc 1 + RESULT='' + kk.debug (was an unconditional 'Error: File ... not found' on stderr); an unknown/non-identifier CLASS = rc 2 + RESULT=''; a failing CLASS.new is a refused line (warned, rc 1 at the end)",
+          "whitespace-only lines are skipped like blank lines (DR6 defines a JSON line by its first non-blank char; a line with none has no class prefix and was turned into a garbage instance before)",
+          "loadObjects keeps APPENDING to the caller's array (unchanged; not reset)",
+          "saveObjects keeps its unconditional 'Warning: Object ... has no serialization method' stderr line and its rc (not in DR5); only the order changed plus `local obj`",
+          "example 43 no longer saves person1 (deleted earlier in the example; it only produced the 'no serialization method' warning)",
+          "test 131: one title changed ('still prints the instance name (unchanged contract)' -> the kk._return contract); the assertion ($() == j2) is unchanged and still green",
+          "review remark R3 scope: the R3 test asserts addSerializable's OWN note only (never on stdout, exactly one stderr line). Under VERBOSE_KKLASS=debug stdout still receives defineMethod's 'Method 'toString' added to class 'C'' lines — that echo is in kklass.sh _defineMethodType (line ~1285), outside the phase's files; recorded in found_in_P10, not changed"
+        ],
+        "found_in_P10": [
+          "kklass.sh _defineMethodType prints \"${func_name} '$m' added to class '$c'\" on STDOUT under VERBOSE_KKLASS=debug (should be kk.debug / stderr); seen by addSerializable/defineSerializableClass callers under debug (repro: VERBOSE_KKLASS=debug addSerializable C : string >out; out holds two 'Method ... added' lines). Not fixed (kklass.sh is outside P10)"
+        ],
+        "moved_from_found_in_P10": "per review: fromString prefix (R2), loadObjects last line without LF (R1), addSerializable debug note on stdout (R3), example 43 header (R4) and fromString no-arg under set -u (closed by R2's ${1-}) are now implemented items",
+        "review": "supervisor 2026-10-02: diff read; remarks R1-R5 (last line without LF, fromString class-prefix refusal symmetric with fromJSON, debug note via kk.debug, example 43 header, book) done; live probe (JSON preferred, separator/LF values round-trip, foreign line refused + warned, no aliasing, separator injection refused, direct fromJSON silent RESULT=inst); deviation 1 (all whitespace separators refused) ACCEPTED - no user passes one; remaining found_in_P10 (_defineMethodType debug echo on stdout) moved into the P11 row; full sweep 29/29 0 [FAIL] 0 [WARN] both bashes, totals identical except kklass 535->578, sum 8055->8098"
       },
       "P11": {
         "name": "declaration hygiene (M1-M3)",

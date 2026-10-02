@@ -1,6 +1,6 @@
 
 #!/bin/bash
-# Example 41: Complex Object Serialization
+# Example 43: Complex Object Serialization
 # Demonstrates serialization of nested objects using both string and JSON formats
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -180,30 +180,47 @@ else
     exit 1
 fi
 
-# File persistence test (mixed formats)
+# File persistence test (one file per class)
 echo
-echo "=== Mixed Format File Persistence ==="
-temp_file=$(mktemp)
-echo "Saving mixed string/JSON objects to: $temp_file"
+echo "=== File Persistence (one file per class) ==="
+# loadObjects creates instances of ONE class, so every class gets its own
+# file. saveObjects prefers toJSON for a class that has both formats.
+temp_dir=$(mktemp -d)
+echo "Saving objects to: $temp_dir"
 
-# Save objects - some will use toString, others toJSON
-saveObjects "$temp_file" person1 addr2 contact2 person2
+saveObjects "$temp_dir/addresses.txt" addr2
+saveObjects "$temp_dir/contacts.txt" contact2
+saveObjects "$temp_dir/persons.txt" person2
 
-echo "File contents (mixed formats):"
-cat "$temp_file"
+for f in addresses contacts persons; do
+    echo "File $f.txt:"
+    cat "$temp_dir/$f.txt"
+done
 echo
 
-# Load back from file
-echo "Loading Person objects:"
-declare -a loaded_persons
-loadObjects "$temp_file" "Person" loaded_persons
+# Load each class back from its own file
+declare -a loaded_addresses loaded_contacts loaded_persons
+loadObjects "$temp_dir/addresses.txt" "Address" loaded_addresses
+echo "Loaded $RESULT Address object(s):"
+for obj in "${loaded_addresses[@]}"; do
+    echo "  - $($obj.getFullAddress)"
+    ${obj}.delete
+done
+loadObjects "$temp_dir/contacts.txt" "Contact" loaded_contacts
+echo "Loaded $RESULT Contact object(s):"
+for obj in "${loaded_contacts[@]}"; do
+    echo "  - $($obj.getContactInfo)"
+    ${obj}.delete
+done
+loadObjects "$temp_dir/persons.txt" "Person" loaded_persons
+echo "Loaded $RESULT Person object(s):"
 for obj in "${loaded_persons[@]}"; do
     echo "  - $($obj.getInfo)"
     ${obj}.delete
 done
 
 # Clean up
-rm -f "$temp_file"
+rm -rf "$temp_dir"
 addr2.delete
 contact2.delete
 person2.delete

@@ -8,72 +8,66 @@ if ! declare -f defineClass &>/dev/null; then
     return 1
 fi
 
-# Helper: Define a serializable class (wrapper around defineClass)
-# Usage: defineSerializableClass CLASS_NAME PARENT_CLASS SEPARATOR FORMAT property prop1 property prop2 method meth1 "body1" ...
+# _addSerializable_checkSep SEPARATOR — the separator rule (round 3 / P10,
+# DR4b): exactly ONE character, not alphanumeric or `_` (a class name or a
+# value would be split on it), none of  " $ \ ' ` * ? [ ]  (quote, expansion
+# and pattern characters) and not whitespace: LF (one object = one line) and
+# — measured on 5.2.37 and 5.3.9 — space, TAB, VT and FF, which `read` treats
+# as IFS whitespace (empty fields collapse, values are trimmed), and CR, which
+# does not survive the method-body rebuild (toString then prints no separator
+# at all). rc 0 accepted, rc 1 refused with one "Error:" line on stderr naming
+# the caller. The generators below never splice a refused character, and they
+# splice an accepted one only inside single quotes.
+_addSerializable_checkSep() {   # SEPARATOR CALLER
+    local sep="$1" who="${2:-addSerializable}"
+    local bad='"$\'"'"'`*?[]'
+    if [[ ${#sep} -ne 1 || $sep == [[:alnum:]_] || $sep == [[:space:]] || $bad == *"$sep"* ]]; then
+        printf '%s\n' "Error: ${who}: invalid separator '${sep}' (exactly one character; not a letter, digit, _ or whitespace; none of \" \$ \\ ' \` * ? [ ])" >&2
+        return 1
+    fi
+    return 0
+}
+
+# Define a class and add serialization to it in one call.
+# Usage: defineSerializableClass CLASS_NAME PARENT_CLASS SEPARATOR FORMAT [DEFINITIONS...]
+#   = defineClass CLASS_NAME PARENT_CLASS DEFINITIONS... + addSerializable
+#     CLASS_NAME SEPARATOR FORMAT (round 3 / P10, DR4): ONE generator per
+#     format, so the fields are ${CLASS}_class_properties — inherited first,
+#     then own, lazy and computed ones included (the former inline copy wrote
+#     only the class's own `property` arguments and ignored FORMAT=json).
+#   The four leading arguments are mandatory (an empty SEPARATOR means ":",
+#   an empty FORMAT "string"). FORMAT and SEPARATOR are validated BEFORE
+#   defineClass: a refused call builds nothing, rc 1 + one error line.
 defineSerializableClass() {
+    if (( $# < 4 )); then
+        echo "Error: defineSerializableClass: usage: defineSerializableClass CLASS_NAME PARENT_CLASS SEPARATOR FORMAT [DEFINITIONS...]" >&2
+        return 1
+    fi
     local class_name="$1"
     local parent_class="$2"
     local separator="${3:-:}"
     local format="${4:-string}"
     shift 4
-    
-    # Collect properties first to generate serialization methods
-    local -a props_arr=()
-    local -a args_copy=("$@")
-    local i=0
-    while [[ $i -lt ${#args_copy[@]} ]]; do
-        if [[ "${args_copy[$i]}" == "property" ]]; then
-            props_arr+=("${args_copy[$((i+1))]}")
-            ((i+=2))
-        else
-            # Skip other definitions
-            case "${args_copy[$i]}" in
-                method|static_method)
-                    ((i+=3))
-                    ;;
-                lazy_property)
-                    ((i+=3))
-                    ;;
-                constructor|static_property)
-                    ((i+=2))
-                    ;;
-                *)
-                    ((i++))
-                    ;;
-            esac
-        fi
-    done
-    
-    # Generate serialization methods based on format
-    local toString_method=""
-    local fromString_method=""
-    
-    if [[ "$format" == "string" ]]; then
-        # Build property values string
-        local prop_values=""
-        local prop_read=""
-        
-        for prop in "${props_arr[@]}"; do
-            prop_values+="\${$prop}${separator}"
-            prop_read+="$prop "
-        done
-        prop_values="${prop_values%$separator}"
-        
-        toString_method="echo \"${class_name}${separator}${prop_values}\""
-        fromString_method="local __kk_input=\"\$1\"; __kk_input=\"\${__kk_input#${class_name}${separator}}\"; __kk_input=\"\${__kk_input%$'\\n'}\"; IFS=\"${separator}\" read -r ${prop_read} <<< \"\$__kk_input\"; echo \"\$this\""
-    fi
-    
-    # Call defineClass with original args plus serialization methods
-    defineClass "$class_name" "$parent_class" "$@" \
-        "method" "toString" "$toString_method" \
-        "method" "fromString" "$fromString_method"
+
+    case "$format" in
+        string|json) ;;
+        *)
+            echo "Error: defineSerializableClass: unknown format '$format'. Use 'string' or 'json'" >&2
+            return 1
+            ;;
+    esac
+    _addSerializable_checkSep "$separator" defineSerializableClass || return 1
+
+    defineClass "$class_name" "$parent_class" "$@" || return 1
+    addSerializable "$class_name" "$separator" "$format"
 }
 
 
 # Add serialization methods to an existing class
 # Usage: addSerializable CLASS_NAME [SEPARATOR] [FORMAT]
 #   CLASS_NAME - name of the class to extend
-#   SEPARATOR  - field separator (default: ":")
+#   SEPARATOR  - field separator (default: ":"); validated for both formats
+#                (see _addSerializable_checkSep)
 #   FORMAT     - "string" (default) or "json"
 # NOTE: Must be called IMMEDIATELY AFTER defineClass, BEFORE creating instances
 addSerializable() {
@@ -87,6 +81,7 @@ addSerializable() {
         echo "Error: Class '$class_name' not found" >&2
         return 1
     fi
+    _addSerializable_checkSep "$separator" addSerializable || return 1
     
     # Get class properties
     local -n props_ref="$props_var"
@@ -105,36 +100,47 @@ addSerializable() {
             ;;
     esac
     
-    if [[ "${VERBOSE_KKLASS:-1}" == "debug" ]]; then echo "Serialization methods added to $class_name (format: $format)"; fi
+    kk.debug "Serialization methods added to $class_name (format: $format)"
 }
 
-# Internal: Add string-based serialization
+# Internal: Add string-based serialization.
+# The separator (already validated, never a quote) is spliced ONLY inside
+# single quotes, so it is a literal in every generated use. For props a b:
+#   toString:   printf '%s\n' "C"':'"${a-}"':'"${b-}"
+#   fromString: if [[ ${1-} != "C"':'* ]]; then
+#                   kk.debug "Error: ..."; kk._return ''; return 1
+#               fi
+#               IFS=':' read -r a b <<< ${1#C':'}
+#               kk._return "$this"
+# (the here-string word undergoes neither word splitting nor globbing, and the
+# single-quoted part of the #-pattern is literal). fromString refuses (rc 1,
+# RESULT='', instance untouched) an input that does not start with C + SEP —
+# C being the class the serializer was added to, which is also what toString
+# writes, so a subclass inheriting the serializer reads its own output (review
+# remark R2, symmetric with fromJSON's __class__ check; ${1-} makes a call
+# without an argument a refusal under set -u, not an abort). The string format does NOT
+# escape: a value must not contain the separator (except in the last field)
+# or a newline — use the JSON format for arbitrary values.
 _addSerializable_string() {
     local class_name="$1"
     local separator="$2"
     local props_list="$3"
 
-    # Build property list for serialization
-    local prop_values=""
-    local prop_read=""
-    
+    local prop_values="" prop_read="" prop
     for prop in $props_list; do
-        prop_values+="\${$prop}${separator}"
-        prop_read+="$prop "
+        prop_values+="'${separator}'\"\${${prop}-}\""
+        prop_read+=" ${prop}"
     done
-    prop_values="${prop_values%$separator}"
-    
-    # Create toString method
-    local toString_body="echo \"${class_name}${separator}${prop_values}\""
-    
-    # Create fromString method
-    local fromString_body="
-        local __kk_input=\"\$1\"
-        __kk_input=\"\${__kk_input#${class_name}${separator}}\"
-        IFS=\"${separator}\" read -r ${prop_read} <<< \"\$__kk_input\"
-        echo \"\$this\"
-    "
-    
+
+    local toString_body="printf '%s\\n' \"${class_name}\"${prop_values}"
+    local fromString_body="if [[ \${1-} != \"${class_name}\"'${separator}'* ]]; then
+    kk.debug \"Error: ${class_name}.fromString: input does not start with the ${class_name} prefix (class name + separator)\"
+    kk._return ''
+    return 1
+fi
+IFS='${separator}' read -r${prop_read} <<< \${1#${class_name}'${separator}'}
+kk._return \"\$this\""
+
     # Register through the one dynamic-method path (F10): owner, cache and the
     # instance template are all updated there.
     defineMethod "$class_name" toString "$toString_body" || return 1
@@ -470,6 +476,7 @@ fi"
 local __kk_jc='' __kk_jhc=0 __kk_i
 if ! kk._jsonParse \"\${1-}\"; then
     kk.debug \"Error: ${class_name}.fromJSON: malformed or unsupported JSON input\"
+    kk._return ''
     return 1
 fi
 if (( __kk_jhc )) && [[ \$__kk_jc != '${class_name}' ]]; then
@@ -477,6 +484,7 @@ if (( __kk_jhc )) && [[ \$__kk_jc != '${class_name}' ]]; then
     if [[ \$__kk_jc != \"\${!__kk_i-}\" ]]; then
         kk._jsonEscape \"\$__kk_jc\"
         kk.debug \"Error: ${class_name}.fromJSON: __class__ \\\"\$RESULT\\\" matches neither \${!__kk_i-} nor ${class_name}\"
+        kk._return ''
         return 1
     fi
 fi
@@ -484,7 +492,7 @@ for (( __kk_i = 0; __kk_i < \${#__kk_jk[@]}; __kk_i++ )); do
     case \"\${__kk_jk[__kk_i]}\" in
 ${from_cases}    esac
 done
-printf '%s\\n' \"\$this\""
+kk._return \"\$this\""
 
     # Register through the one dynamic-method path (F10). The former
     # _regenerateConstructor re-emitted EVERY wrapper with this class as owner,
@@ -493,58 +501,122 @@ printf '%s\\n' \"\$this\""
     defineMethod "$class_name" fromJSON "$from_body" || return 1
 }
 
-# Utility: Serialize multiple objects to a file
+# Utility: Serialize multiple objects to a file, one object per line.
+# Usage: saveObjects FILE INSTANCE...
+# toJSON is preferred when an instance has both formats (round 3 / P10, DR5):
+# JSON escapes every value, so an object is always one line; the string
+# format does not escape (a value holding the separator or a newline would
+# not survive the round trip).
 saveObjects() {
     local file="$1"
     shift
     
     : > "$file"
     
+    local obj
     for obj in "$@"; do
-        if declare -F "${obj}.toString" &>/dev/null; then
-            echo "$(${obj}.toString)" >> "$file"
-        elif declare -F "${obj}.toJSON" &>/dev/null; then
+        if declare -F "${obj}.toJSON" &>/dev/null; then
             echo "$(${obj}.toJSON)" >> "$file"
+        elif declare -F "${obj}.toString" &>/dev/null; then
+            echo "$(${obj}.toString)" >> "$file"
         else
             echo "Warning: Object '$obj' has no serialization method" >&2
         fi
     done
 }
 
-# Utility: Load serialized objects from file
+# Utility: Load serialized objects from a file into new instances of CLASS.
+# Usage: loadObjects FILE CLASS ARRAY_NAME
+# (round 3 / P10, DR6)
+#   * Each non-blank line becomes a NEW instance named CLASS_loaded_<n>; a name
+#     that is already an instance (its <name>_class exists) is skipped, so a
+#     second call never aliases the instances of the first.
+#   * A line whose first non-blank character is `{` goes to fromJSON, any
+#     other line to fromString. Blank and whitespace-only lines are skipped.
+#   * A REFUSED line — the from* method returned rc != 0, including rc 127
+#     when the class has no such method (no bash diagnostic is printed) — is
+#     not loaded: its instance is deleted, one kk.warn line names FILE:LINE,
+#     and loading continues with the next line.
+#   * The instance names are APPENDED to the caller's array ARRAY_NAME.
+#   * Direct call: prints nothing, RESULT = the number of objects loaded by
+#     this call, rc 0 — or rc 1 when at least one line was refused (RESULT
+#     still the count). The "Loaded N objects from FILE" line is kk.debug.
+#     Inside $( ) the count is printed once (kcl §1.1).
+#   * rc 2, RESULT='': ARRAY_NAME is not a usable output name (kk._outName:
+#     not an identifier, or reserved — RESULT, this, state, __kk_*, ...) or
+#     CLASS is not a built class. rc 1, RESULT='': FILE is not a regular file.
+#   All locals carry the __kk_ prefix, which kk._outName refuses, so an
+#   output array named line / count / file / ... binds the caller's array.
 loadObjects() {
-    local file="$1"
-    local class_name="$2"
-    local -n instances_array="$3"
-    
-    if [[ ! -f "$file" ]]; then
-        echo "Error: File '$file' not found" >&2
+    local __kk_file="${1-}" __kk_cls="${2-}" __kk_out="${3-}"
+    if ! kk._outName "$__kk_out"; then
+        kk.debug "Error: loadObjects: invalid output array name '$__kk_out'"
+        RESULT=""
+        return 2
+    fi
+    if [[ $__kk_cls == "" || $__kk_cls == *[!A-Za-z0-9_]* ]] || ! declare -F "${__kk_cls}.new" >/dev/null; then
+        kk.debug "Error: loadObjects: '$__kk_cls' is not a class"
+        RESULT=""
+        return 2
+    fi
+    if [[ ! -f "$__kk_file" ]]; then
+        kk.debug "Error: loadObjects: file '$__kk_file' not found"
+        RESULT=""
         return 1
     fi
-    
-    local line
-    local count=0
-    while IFS= read -r line; do
-        [[ -z "$line" ]] && continue
-        
-        local inst_name="${class_name}_loaded_${count}"
-        ${class_name}.new "$inst_name"
-        
-        if [[ "$line" =~ ^\{ ]]; then
-            ${inst_name}.fromJSON "$line" >/dev/null
-        else
-            ${inst_name}.fromString "$line" >/dev/null
+    local -n __kk_arr="$__kk_out"
+
+    local __kk_line __kk_t __kk_m __kk_name __kk_rc
+    local __kk_n=0 __kk_loaded=0 __kk_refused=0 __kk_lno=0
+    while IFS= read -r __kk_line || [[ -n $__kk_line ]]; do
+        __kk_lno=$(( __kk_lno + 1 ))
+        __kk_t="${__kk_line#"${__kk_line%%[![:space:]]*}"}"
+        [[ -n "$__kk_t" ]] || continue
+
+        # A fresh name: never re-use a live instance.
+        __kk_name="${__kk_cls}_loaded_${__kk_n}"
+        while [[ -v "${__kk_name}_class" ]]; do
+            __kk_n=$(( __kk_n + 1 ))
+            __kk_name="${__kk_cls}_loaded_${__kk_n}"
+        done
+        __kk_n=$(( __kk_n + 1 ))
+
+        if [[ ${__kk_t:0:1} == '{' ]]; then __kk_m=fromJSON; else __kk_m=fromString; fi
+        if ! "${__kk_cls}.new" "$__kk_name"; then
+            kk.warn "Warning: loadObjects: ${__kk_file}:${__kk_lno}: ${__kk_cls}.new failed, line not loaded"
+            __kk_refused=1
+            continue
         fi
-        
-        instances_array+=("$inst_name")
-        ((count++))
-    done < "$file"
-    
-    echo "Loaded $count objects from $file"
+        if declare -F "${__kk_name}.${__kk_m}" >/dev/null; then
+            # `if`, not a bare call + $?: under set -e a refused line must not
+            # abort the caller.
+            if "${__kk_name}.${__kk_m}" "$__kk_line" >/dev/null; then
+                __kk_rc=0
+            else
+                __kk_rc=$?
+            fi
+        else
+            __kk_rc=127
+        fi
+        if (( __kk_rc != 0 )); then
+            "${__kk_name}.delete" >/dev/null 2>&1 || :
+            kk.warn "Warning: loadObjects: ${__kk_file}:${__kk_lno}: refused by ${__kk_cls}.${__kk_m} (rc ${__kk_rc}), line not loaded"
+            __kk_refused=1
+            continue
+        fi
+        __kk_arr+=("$__kk_name")
+        __kk_loaded=$(( __kk_loaded + 1 ))
+    done < "$__kk_file"
+
+    kk.debug "Loaded $__kk_loaded objects from $__kk_file"
+    RESULT="$__kk_loaded"
+    if (( BASH_SUBSHELL > 0 )); then printf '%s' "$__kk_loaded"; fi
+    return $(( __kk_refused ? 1 : 0 ))
 }
 
 export -f defineSerializableClass
 export -f addSerializable
+export -f _addSerializable_checkSep
 export -f _addSerializable_string
 export -f _addSerializable_json
 export -f kk._jsonInit

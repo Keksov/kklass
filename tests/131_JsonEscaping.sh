@@ -220,7 +220,7 @@ mapfile -t ERRL < "$TMPD/mf2.err"
 [[ $rc1 -eq 1 && $rc2 -eq 1 && ! -s "$TMPD/mf.out" && ! -s "$TMPD/mf.err" && ! -s "$TMPD/mf2.out" && ${#ERRL[@]} -eq 1 ]] \
     && kt_test_pass "ok" || kt_test_fail "rc1=$rc1 rc2=$rc2 lines=${#ERRL[@]}"
 
-kt_test_start "a successful fromJSON still prints the instance name (unchanged contract)"
+kt_test_start "a successful fromJSON inside \$( ) prints the instance name once (kk._return, P10 DR7)"
 out="$(j2.fromJSON '{"__class__":"TJ","a":"x"}')"; rc=$?
 [[ $rc -eq 0 && "$out" == "j2" ]] && kt_test_pass "printed '$out'" || kt_test_fail "rc=$rc out='$out'"
 

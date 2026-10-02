@@ -1441,8 +1441,54 @@ defineSerializableClass "User" "" ":" "string" \
 **Parameters:**
 - `"User"`: Class name
 - `""`: Parent class (empty for none)
-- `":"`: Field separator
-- `"string"`: Serialization format
+- `":"`: Field separator (empty = `:`)
+- `"string"`: Serialization format, `string` or `json` (empty = `string`)
+
+`defineSerializableClass` is exactly `defineClass` followed by
+`addSerializable` — one generator per format, so `FORMAT=json` gives the class
+`toJSON`/`fromJSON` (before round 3 / P10 it silently built a class with empty
+`toString`/`fromString` bodies and no JSON methods). The four leading
+arguments are mandatory; the format and the separator are checked **before**
+`defineClass` runs, so a refused call builds nothing (rc 1 and one `Error:`
+line on stderr).
+
+**Which properties are serialized (format change, round 3 / P10).** The
+fields are the class's full property list, `${CLASS}_class_properties`:
+**inherited properties first, then the class's own, lazy and computed ones
+included**, in definition order — the same list `addSerializable` and
+`toJSON` use. Earlier versions of `defineSerializableClass` wrote only the
+class's own `property` arguments (a child of a class with property `p0`
+serialized as `TChild:x` and lost `p0`). A string written by the old version
+for a class with a parent or a lazy property has a different field layout and
+must be re-saved.
+
+```bash
+defineClass TBase "" property p0
+defineSerializableClass TChild TBase ":" string property a lazy_property lz initLz \
+    method initLz 'lz=LAZY'
+TChild.new c; c.p0 = P; c.a = x
+c.toString          # TChild:P:x:      (p0, a, lz)
+```
+
+**The separator rule** (`defineSerializableClass` and `addSerializable`, both
+formats): exactly **one** character that is not a letter, digit or `_`, not
+whitespace (space, TAB, LF, CR, VT, FF) and none of `"` `$` `\` `'` `` ` ``
+`*` `?` `[` `]`. Anything else is refused (rc 1, nothing generated). Letters,
+digits and `_` would split class names and values; the quote, expansion and
+pattern characters used to be spliced into the generated code unquoted (a
+separator `$(touch x)` executed); space/TAB/VT/FF are IFS whitespace for
+`read` (empty fields collapse, values are trimmed) and a CR does not survive
+the method-body rebuild. Typical choices: `:` `|` `;` `,` `#` `%` `~` `@`.
+
+**The string format does not escape.** A value must not contain the separator
+(except in the last field, which receives the rest of the line) or a newline
+(everything after it is lost). Use the JSON format for arbitrary values;
+`saveObjects` writes JSON whenever a class has both formats.
+
+`fromString` (like `fromJSON`) returns through `RESULT`: a direct call prints
+nothing and sets `RESULT` to the instance name; inside `$( )` it prints the
+name once. It refuses an input of another class (see the class-prefix check
+under JSON Format Rules).
 
 **Usage:**
 
@@ -1578,9 +1624,12 @@ assigned until the whole input has been parsed) for: malformed JSON (unterminate
 string, missing `:` or value, trailing comma, text after the closing `}`), a
 nested object or array as a value, an unknown escape, `\u0000` (a NUL cannot
 live in a bash string), a lone surrogate, and a `"__class__"` mismatch (below).
-Nothing is printed on failure; with `VERBOSE_KKLASS=debug` exactly one
-`kk.debug` line goes to stderr. On success it prints the instance name, as
-before.
+Nothing is printed on failure and `RESULT` is empty (it used to keep the
+caller's old value); with `VERBOSE_KKLASS=debug` exactly one `kk.debug` line
+goes to stderr. On success `fromJSON` returns through `RESULT` (round 3 / P10):
+a direct call prints **nothing** and sets `RESULT` to the instance name;
+inside `$( )` the name is printed once. (Before P10 a direct call printed the
+instance name on stdout and left `RESULT` empty.)
 
 **`__class__` check (behaviour change, round 2 / P7).** Earlier versions
 ignored `"__class__"`, so another class's JSON loaded silently. `fromJSON` now
@@ -1594,12 +1643,27 @@ Book.new b3
 b3.fromJSON '{"__class__":"Magazine","title":"x"}' || echo "refused"   # refused, b3 unchanged
 ```
 
+**Class-prefix check in the string format (round 3 / P10, review remark R2).**
+The string-format counterpart of the `__class__` rule: `fromString` accepts an
+input only if it starts with the class name `addSerializable` was called on
+followed by the separator — exactly what `toString` writes, so a subclass that
+inherits the serializer reads its own output. Anything else (another class's
+line, `CX:...` for class `C`, a bare `C`, a leading blank, no argument at all —
+also under `set -u`) is rc 1 with `RESULT=''`, nothing printed (one `kk.debug`
+line under `VERBOSE_KKLASS=debug`) and the instance untouched. Earlier versions
+split any input, so `Other:p:q` loaded into a `C` instance as `a=Other`.
+
+```bash
+Product.new p2
+p2.fromString "Other:x:y" || echo "refused"   # refused, p2 unchanged
+```
+
 **One line per object.** Because a newline is always written as `\n`,
 `toJSON` output never contains a raw newline, and `saveObjects` / `loadObjects`
 can keep their one-object-per-line file format for JSON objects with any
-values. (`saveObjects` prefers `toString` when a class has both formats; the
-string format does not escape, so a value holding a newline or the separator
-only round-trips through the JSON format.)
+values. `saveObjects` **prefers `toJSON`** when a class has both formats
+(round 3 / P10; it used to prefer `toString`, which does not escape, so a
+value holding a newline or the separator broke the file).
 
 ### Mixed Format Serialization
 
@@ -1678,6 +1742,43 @@ done
 
 rm contacts.dat
 ```
+
+**`saveObjects FILE INSTANCE...`** truncates FILE and writes one line per
+instance: `toJSON` when the instance has it, else `toString`; an instance with
+neither gets a `Warning:` line on stderr and is skipped.
+
+**`loadObjects FILE CLASS ARRAY_NAME`** — the contract (round 3 / P10):
+
+* every non-blank line becomes a **new** instance `CLASS_loaded_<n>`; a name
+  that is already a live instance is skipped, so a second call never re-uses
+  (and silently merges into) the instances of the first;
+* a line whose first non-blank character is `{` goes to `fromJSON`, any other
+  line to `fromString`; blank and whitespace-only lines are skipped;
+* a **refused** line — the `from*` method returned rc ≠ 0, including rc 127
+  when the class has no such method (e.g. a JSON-only class given a string
+  line; no bash "command not found" is printed) — is not loaded: its instance
+  is deleted, one warning names the line, and loading continues:
+
+  ```
+  Warning: loadObjects: data.txt:2: refused by Contact.fromJSON (rc 1), line not loaded
+  ```
+
+  (a `kk.warn` line: printed unless `VERBOSE_KKLASS=quiet`);
+* the instance names are **appended** to the caller's array ARRAY_NAME, which
+  goes through `kk._outName` (kcl §1.7): a name that is not an identifier or
+  is reserved (`RESULT`, `this`, `state`, `__kk_*`, …) is rc 2 and nothing is
+  loaded. Any other name works, including `line`, `count` or `file`;
+* a **direct call prints nothing**: `RESULT` = the number of objects loaded by
+  this call, rc 0 — or rc 1 when at least one line was refused (`RESULT` is
+  still the count). Inside `$( )` the count is printed once. The former
+  `Loaded N objects from FILE` line is now a `kk.debug` line
+  (`VERBOSE_KKLASS=debug`);
+* rc 2 (`RESULT=''`) also for a CLASS that is not a built class; rc 1
+  (`RESULT=''`, silent) when FILE does not exist.
+
+`loadObjects` creates instances of **one** class: keep one file per class
+(a line of another class is refused — by `fromJSON`'s `__class__` check or by
+`fromString`'s class-prefix check — warned and skipped).
 
 ### Nested Object Serialization
 
@@ -2387,9 +2488,15 @@ defineSerializableClass CLASS_NAME PARENT_CLASS SEPARATOR FORMAT DEFINITIONS...
 **Parameters:**
 - `CLASS_NAME`: Name of the class
 - `PARENT_CLASS`: Parent class name
-- `SEPARATOR`: Field separator (e.g., ":", "|")
-- `FORMAT`: "string" or "json"
+- `SEPARATOR`: Field separator (e.g., ":", "|"; empty = ":"), see the separator rule in [Serialization](#serialization)
+- `FORMAT`: "string" or "json" (empty = "string")
 - `DEFINITIONS`: Property/method definitions
+
+**Returns:** rc 0, or rc 1 + one `Error:` line when fewer than four arguments
+are given, the format is unknown, the separator is refused (nothing is built)
+or `defineClass` fails. Equivalent to `defineClass` + `addSerializable`; the
+serialized fields are `${CLASS}_class_properties` (inherited, then own, lazy
+included).
 
 **Example:**
 ```bash
@@ -2408,7 +2515,7 @@ addSerializable CLASS_NAME [SEPARATOR] [FORMAT]
 
 **Parameters:**
 - `CLASS_NAME`: Name of existing class
-- `SEPARATOR`: Field separator (default: ":")
+- `SEPARATOR`: Field separator (default: ":"); validated for both formats — one character, not a letter/digit/`_`/whitespace, none of `` " $ \ ' ` * ? [ ] `` (rc 1 otherwise, nothing generated)
 - `FORMAT`: "string" or "json" (default: "string")
 
 **Example:**
@@ -2443,6 +2550,8 @@ instance.fromString STRING_DATA
 **Parameters:**
 - `STRING_DATA`: Serialized string
 
+**Returns:** rc 0; a direct call prints nothing and sets `RESULT` to the instance name (inside `$( )` the name is printed once). rc 1, `RESULT=''`, instance untouched when the input does not start with CLASS + SEPARATOR (the class the serializer was added to). Values must not contain the separator (except the last field) or a newline.
+
 **Example:**
 ```bash
 user.fromString "$data"
@@ -2474,6 +2583,8 @@ instance.fromJSON JSON_DATA
 **Parameters:**
 - `JSON_DATA`: JSON string
 
+**Returns:** rc 0 with `RESULT` = the instance name (a direct call prints nothing; inside `$( )` the name is printed once); rc 1 with `RESULT=''` and the instance untouched for malformed input or a `__class__` mismatch (see JSON Format Rules).
+
 **Example:**
 ```bash
 user.fromJSON "$json"
@@ -2490,6 +2601,8 @@ saveObjects FILE_PATH INSTANCE1 INSTANCE2 ...
 **Parameters:**
 - `FILE_PATH`: Output file path
 - `INSTANCES`: List of instance names
+
+`toJSON` is used when the instance has it, else `toString` (one line per object).
 
 **Example:**
 ```bash
@@ -2508,6 +2621,8 @@ loadObjects FILE_PATH CLASS_NAME ARRAY_VAR
 - `FILE_PATH`: Input file path
 - `CLASS_NAME`: Class name for deserialization
 - `ARRAY_VAR`: Variable name to receive loaded instance names
+
+**Returns:** a direct call prints nothing; `RESULT` = number of objects loaded; rc 0, rc 1 if a line was refused (deleted, one warning naming FILE:LINE) or FILE is missing, rc 2 for a bad ARRAY_VAR or an unknown class. Names are appended to ARRAY_VAR. See the loadObjects contract in [Serialization](#serialization).
 
 **Example:**
 ```bash
