@@ -793,7 +793,7 @@
         "name": "serialization (S1-S4)",
         "status": "done",
         "date": "2026-10-02",
-        "commit": "PENDING",
+        "commit": "8c46d4e",
         "scope": "kklass_serializable.sh (defineSerializableClass, new _addSerializable_checkSep, addSerializable, _addSerializable_string, fromJSON return paths, saveObjects, loadObjects, export list), tests/134_SerializationContract.sh (new, 43 assertions), tests/131_JsonEscaping.sh (one title: the success contract is now kk._return), examples/43_nested_serialization.sh (one file per class; header 'Example 43'), docs/kklass_book.md (Serialization + API reference), PLAN.md R3.3 DONE note, this ledger",
         "implemented": {
           "S1_DR4": "defineSerializableClass: < 4 args -> rc 1 + usage line; FORMAT not string|json -> rc 1; separator checked by _addSerializable_checkSep -> rc 1; all BEFORE defineClass (nothing built); then defineClass || return 1; addSerializable. The inline generator copy is gone: fields = ${CLASS}_class_properties (inherited first, own, lazy + computed included). The toString/fromString entries the inline copy put in _decl_methods/_method_visibility are not reproduced: grep of every _decl_methods reader (kklass_decl.sh 265 [fallback for an UNBUILT parent only], 380 [abstract collection], 486/767/860 [own class while declaring/building], kklass_pascal.sh 183 [build]) and _method_visibility (decl 988-1012, runtime default public) -> no reader depends on them",
