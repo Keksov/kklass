@@ -1,6 +1,7 @@
 # `uses` — Pascal-like unit inclusion and duplicate identifiers (DISCUSSION DRAFT)
 
-**Status: DRAFT for discussion with the owner (2026-10-05). No decisions, no code.**
+**Status: DRAFT under discussion with the owner. Topic 1 (search directories, startup,
+config, project file, unit lookup) DECIDED 2026-10-05 — §5. Other topics open. No code.**
 Origin: round 4 (kklass/PLAN.md "Round 4", items N1 and C5 moved out). Owner, 2026-10-05:
 
 > Нужно разработать план реализации "директивы" uses, аналогично Pascal. uses должен
@@ -113,3 +114,39 @@ define, cycle state, reload) → U2 kklass: declaration site = the unit being lo
 duplicate-identifier rule (Q3–Q6) on classes; `.new` instance-name check through the
 registry (C5) → U3 migrate kcl units (and kkore/kklass modules) per Q9 → U4 docs
 (kklass_book, kcl README §1, a "Units and uses" chapter).
+
+## 5. Decisions — topic 1: where units are searched for (owner, 2026-10-05)
+
+The owner's flow (2026-10-05): (1) a user script first sources the core by a full or
+relative path reachable from the call site — possibly a new `kproject` unit like a
+project in FPC/Delphi; (2) a default config somewhere (`~/.kbool`, `/etc/kbool`, …)
+says where kbool lives; (3) `kk.project <project file>` — a full path or the name of a
+subfolder of `~/.kbool` — sets search paths and other settings; (4) `kk.uses` takes a
+full path or a bare unit name looked up on the project's unit search path, as in
+Delphi/FPC. Each point evaluated and decided by quiz:
+
+| # | Question | Decision |
+|---|---|---|
+| U1 | implicitly loaded units (FPC `System`) | **kkore only** (klib, kerr, kvar, kcfg, kuse); kklass is an ordinary unit: `kk.uses kklass` |
+| U2 | startup file | a separate **`kbool.sh`** in the kbool root loads the system units; **kuse** = the `uses` mechanism (the compiler's unit loader), **kproject** = the project description (`.lpi` analogue) |
+| U3 | how the user loads it | by a full/relative path, or `source kbool.sh` through `$PATH` (bash's built-in `sourcepath`, on by default on both bashes) — nothing to implement, documented |
+| U4 | no default config found | **silently use built-in defaults**: the kbool root is found from `kbool.sh`'s own location (`BASH_SOURCE[0]`), default paths `kkore`, `kklass`, `kcl/*` — no config is needed to locate kbool |
+| U5 | config lookup order (stronger first) | env var (`KBOOL_HOME` / `KBOOL_CONFIG`) → project file → `~/.kbool/config` → `/etc/kbool/config` → built-in defaults |
+| U6 | `~` differs between the bashes (Git-bash `/c/Users/1`, msys64 `/home/1`) | **also search `$USERPROFILE/.kbool`** on Windows (owner's choice over "document only"); order between `~/.kbool` and `$USERPROFILE/.kbool` — open (U-open-1) |
+| U7 | config / project file format | **`key = value`**, read by a small reader in kkore, no code executed (`tinifile` is in kcl, above kkore — unusable by the loader) |
+| U8 | `kk.project NAME` without a path | `~/.kbool/<name>/project.conf` |
+| U9 | relative paths inside a project file | relative to the **project file's directory** (Lazarus) — the project is relocatable |
+| U10 | auto-discovery of a project file | **no**, only an explicit `kk.project` (may be added later) |
+| U11 | project contents besides unit paths | the **`.ckk` cache directory**, the **debug level**, and **defines** (owner added defines; their use — conditional loading? a `kk.defined NAME` predicate? — is open, U-open-2) |
+| U12 | path vs unit name in `kk.uses` | contains `/` or ends in `.sh` → a path (relative = relative to the calling file); otherwise a unit name |
+| U13 | units in their own subfolder (`kcl/tlist/tlist.sh`) | a search-path entry ending in **`/*`** means "every subfolder" (FPC `-Fu/path/*`); each folder is probed for `<name>.sh` |
+| U14 | lookup order for a unit name | the calling file's folder → project paths in order → system paths |
+| U15 | the same unit name in two folders | **first match, silently** (FPC; owner's choice over "first + WARNING") |
+| U16 | lookup cache name → full path | yes, for the shell session |
+| U17 | the loading unit's own folder | the loader exports **`KK_UNIT_DIR`** while a unit is being sourced; units migrate to it (drops one `$(cd … && pwd)` fork per unit) |
+
+Open from topic 1: **U-open-1** order of `~/.kbool` vs `$USERPROFILE/.kbool` when both
+exist (and whether that holds for `/etc/kbool` under msys64 — `/etc` is also
+per-installation); **U-open-2** what defines are for and how a unit reads them.
+Next topics: Q2–Q10 of §3 (unit identity, repeated inclusion, declaration site,
+which identifiers count, error vs warning, reload, cycles, migration, caches/subshells).
