@@ -1,6 +1,6 @@
 # `uses` — Pascal-like unit inclusion and duplicate identifiers (DISCUSSION DRAFT)
 
-**Status: DRAFT under discussion with the owner. Topic 1 (search directories, startup,
+**Status: ALL TOPICS DECIDED by the owner 2026-10-05 (§5 U1–U17, §6 U18–U33); critic next; no code.** Earlier: topic 1 (search directories, startup,
 config, project file, unit lookup) DECIDED 2026-10-05 — §5. Other topics open. No code.**
 Origin: round 4 (kklass/PLAN.md "Round 4", items N1 and C5 moved out). Owner, 2026-10-05:
 
@@ -150,3 +150,34 @@ exist (and whether that holds for `/etc/kbool` under msys64 — `/etc` is also
 per-installation); **U-open-2** what defines are for and how a unit reads them.
 Next topics: Q2–Q10 of §3 (unit identity, repeated inclusion, declaration site,
 which identifiers count, error vs warning, reload, cycles, migration, caches/subshells).
+
+## 6. Decisions — topics 2–10 and the open points of topic 1 (owner, 2026-10-05)
+
+| # | Question | Decision |
+|---|---|---|
+| U18 (Q2) | unit identity in the loaded-units registry | the **canonical physical path** (`..` and symlinks resolved with `cd -P` in the current shell — no fork); the critic checks letter case and `C:\` vs `/c/` on Windows |
+| U19 (Q3a) | unit header | every unit starts with **`kk.unit NAME \|\| return 0`** (Pascal `unit X;`): registers the unit, exports `KK_UNIT_DIR`, and makes a repeated PLAIN `source` of the same file a no-op — replaces the 29 hand-written `_X_SOURCED` guards; files without the header keep working |
+| U20 (Q3b) | a file WITHOUT the header re-sourced, the same `declareClass X` again | **ignore + one WARNING** (kk.warn): X is not rebuilt (instances and `defineMethod` changes survive), the rest of that class block up to `end`/`build` is skipped silently |
+| U21 (Q4) | "the same declaration site" | **file + line**: the chain of `BASH_SOURCE:BASH_LINENO` frames up to the `source` frame. A re-source gives the same site (→ U20); a second definition on another line or through a wrapper function is a **Duplicate identifier** (error, rc 1, the class poisoned so the rest of the unit cannot rebuild the original). An interactive (`bash -i`) re-definition stays allowed (2026-10-05) |
+| U22 (Q5) | which names are taken | **classes + the unit registry**: when a unit is loaded the loader records the function namespaces it defined (`kk.`, `kv.`, `tca.` …); a CLASS or an INSTANCE with such a name is refused; the `.new` check is an assoc lookup (~1 µs, locale-exact); a unit loaded AFTER a class of the same name is caught at load. Plain functions/variables named X are not counted |
+| U23 (Q6) | error vs warning | different site → error (U21); same site, no header → warning (U20); interactive → allowed |
+| U24 (Q7) | reload | **not in the first version**: `kk.use --force` / `--check-mtime` are dropped |
+| U25 (Q8) | cyclic uses (A → B → A while A loads) | **error naming the chain** (rc 1), as Pascal does for interface sections |
+| U26 (Q9a) | migration | **everything, layer by layer**: kkore → kklass → the 29 kcl units, one phase per layer; `_X_SOURCED` guards and hard-coded `../../kklass/...` paths go away; tests may keep plain `source` |
+| U27 (Q9b) | a unit sourced directly while `kbool.sh` is not loaded | `kk.unit`'s line **bootstraps `kbool.sh`** relative to the unit itself — direct `source unit.sh` keeps working (all tests and examples unchanged) |
+| U28 (Q10) | a child bash with exported functions (assoc registry not inherited) | the child **starts with an empty registry**; re-loading the same files there is harmless (same site, U21) — the critic verifies |
+| U29 (U-open-1) | both `~/.kbool` and `$USERPROFILE/.kbool` exist | **first found**: `~/.kbool`, else `$USERPROFILE/.kbool` |
+| U30 (U-open-1b) | system config differs per bash install (`/etc`) | also read **`%PROGRAMDATA%\kbool`**; order **first found**: `/etc/kbool` → `$PROGRAMDATA/kbool` |
+| U31 (U-open-2) | defines | `defines = A B …` in the project; a unit tests them with the predicate **`kk.defined NAME`** (rc 0/1) in ordinary `if`; no conditional-loading syntax |
+| U32 | the command's name | **`kk.uses`** in kkore; **`uses`** as a synonym in the Pascal DSL (`kklass_pascal.sh`) |
+| U33 | `kk.unit NAME` differs from the file stem | **error** (FPC: the unit name must match the file name, else `kk.uses NAME` could never find it) |
+
+Config lookup, updated by U29/U30 (stronger first): `KBOOL_HOME`/`KBOOL_CONFIG` →
+project file → user (`~/.kbool/config`, else `$USERPROFILE/.kbool/config`) → system
+(`/etc/kbool/config`, else `$PROGRAMDATA/kbool/config`) → built-in defaults.
+
+**All topics decided 2026-10-05.** Next: the critic on the whole design, then the
+phases of §4 refined by U26 (U1 kkore: kbool.sh, kk.unit, kk.uses, kk.project, config
+reader, registry, kk.defined; U2 kklass: declaration sites, Duplicate identifier,
+registry checks in declareClass/.new, `uses` in the Pascal DSL; U3 kkore + kklass
+modules migrate; U4 the 29 kcl units migrate; U5 docs).
