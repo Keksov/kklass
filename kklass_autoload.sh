@@ -112,6 +112,14 @@ autoloadClasses() {
         elif [[ "$source_mtime" -gt "$compiled_mtime" ]]; then
             needs_compilation=true
             echo "[autoload] Source file is newer, recompiling" >&2
+        elif [[ "$KKLASS_LIB_DIR/kklass_compiler.sh" -nt "$compiled_file" \
+                || "$KKLASS_LIB_DIR/kklass.sh" -nt "$compiled_file" ]]; then
+            # A cache is a verbatim dump of what the runtime built, so one made
+            # by an older compiler or runtime is stale too (round 4 / P12, C15,
+            # DR12: caches from before the kv fix redefined all ten kkore kv.*
+            # functions when sourced). `-nt` is a stat, no fork.
+            needs_compilation=true
+            echo "[autoload] kklass compiler/runtime is newer than the cache, recompiling" >&2
         else
             needs_compilation=false
         fi

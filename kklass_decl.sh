@@ -21,6 +21,7 @@ kk.decl._remember_static_property() {
     kk.decl._validate_ident "$class_name" "class name" || return 1
     kk.decl._validate_static "$property_name" "static property name" || return 1
     kk.decl._static_clash "$class_name" "$property_name" property || return 1
+    kk.decl._prop_clash "$class_name" "$property_name" static || return 1
 
     kk.decl._append_unique "$static_props_var" "$property_name"
 }
@@ -64,6 +65,7 @@ kk.decl._remember_lazy_property() {
     kk.decl._validate_ident "$class_name" "class name" || return 1
     kk.decl._validate_member "$property_name" "lazy property name" || return 1
     kk.decl._validate_member "$init_method" "lazy init method name" || return 1
+    kk.decl._prop_clash "$class_name" "$property_name" instance || return 1
 
     kk.decl._append_unique "$props_var" "$property_name"
     vis_ref["$property_name"]="$KK_DECL_CURRENT_VISIBILITY"
@@ -80,11 +82,30 @@ kk.decl._error() {
 # generated code / variable names (defense against code injection via class,
 # property or method names). Empty values are allowed here so callers can keep
 # their own "required" checks; only non-empty invalid names are rejected.
+#
+# The reserved sets below (here, in kk.decl._validate_member and in
+# kk.decl._validate_static) are case-SENSITIVE, as bash names are: under
+# `shopt -s nocasematch` a `case` folds case, and `result`, `ifs`, `reply`,
+# `__KK_x`, a method `Delete` or a static `New` used to be refused as if they
+# were RESULT, IFS, REPLY, __kk_x, delete, new (round 4 / P12, finding L1/C10,
+# decision DR13). So the three validators run with nocasematch OFF and give
+# the caller's setting back (kk.decl._ncm_off). The probe `[[ a == A ]]` is true
+# only under nocasematch (cheap; $BASHOPTS confirms it).
+kk.decl._ncm_off() {   # CMD... — run CMD with nocasematch off, restore it, keep CMD's rc
+    shopt -u nocasematch
+    "$@"
+    local __kk_rc=$?
+    shopt -s nocasematch
+    return "$__kk_rc"
+}
+
 kk.decl._validate_ident() {
+    [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off kk.decl._validate_ident "$@"; return; }
     local name="$1"
     local label="${2:-name}"
 
-    # kk._is_ident (kklass.sh, P11/M3): locale-exact, BASH_REMATCH untouched.
+    # kk._is_ident (kkore/klib.sh since round 4 / P12): locale-exact,
+    # BASH_REMATCH untouched.
     if [[ -n "$name" ]] && ! kk._is_ident "$name"; then
         kk.decl._error "Invalid ${label}: '${name}' (must be a valid identifier: letters, digits, underscore; not starting with a digit)"
         return 1
@@ -120,6 +141,7 @@ kk.decl._validate_ident() {
 # instance). `new` is the class's constructor verb (Class.new). Static members
 # are class-level (Class.NAME) and are not checked here.
 kk.decl._validate_member() {
+    [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off kk.decl._validate_member "$@"; return; }
     local name="$1"
     local label="${2:-member name}"
 
@@ -143,6 +165,7 @@ kk.decl._validate_member() {
 # hijacked .new. Everything kk.decl._validate_ident checks applies as well.
 # Instance members are checked by kk.decl._validate_member instead.
 kk.decl._validate_static() {
+    [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off kk.decl._validate_static "$@"; return; }
     local name="$1"
     local label="${2:-static member name}"
 
@@ -205,6 +228,52 @@ kk.decl._static_clash() {
         return 1
     fi
     return 0
+}
+
+# kk.decl._prop_clash CLASS NAME KIND — KIND is instance|static (the kind of
+# property being declared). rc 1 + error when NAME is already a property of
+# the OTHER kind in CLASS (declared so far: fields, properties incl. lazy and
+# read/write ones / static properties incl. classVar) or in its BUILT parent
+# chain (the parent's merged _class_properties / _class_static_properties).
+# Round 4 / P12 (finding V1, decision DR10): inside a member body every
+# instance property AND every static property is a plain variable name
+# (kk._run_frame_body binds the instance namerefs, then the static ones), so
+# with both of one name the static HID the instance property — `x=v` in a
+# body wrote the static, on every path, own or inherited, either order.
+# kk._build_class_runtime repeats the check over the merged lists (a raw
+# build, a parent built later). Methods do not collide and are not checked.
+kk.decl._prop_clash() {
+    local class_name="$1" name="$2" kind="$3"
+    local parent_var="${class_name}_decl_parent"
+    local parent="${!parent_var:-}"
+    local clash=0
+
+    if [[ "$kind" == instance ]]; then
+        if kk.decl._array_contains "${class_name}_decl_static_properties" "$name"; then
+            clash=1
+        elif [[ -n "$parent" ]] && declare -p "${parent}_class_static_properties" &>/dev/null \
+            && kk.decl._array_contains "${parent}_class_static_properties" "$name"; then
+            clash=1
+        fi
+    else
+        if kk.decl._array_contains "${class_name}_decl_fields" "$name" \
+            || kk.decl._array_contains "${class_name}_decl_properties" "$name"; then
+            clash=1
+        elif [[ -n "$parent" ]] && declare -p "${parent}_class_properties" &>/dev/null \
+            && kk.decl._array_contains "${parent}_class_properties" "$name"; then
+            clash=1
+        fi
+    fi
+
+    if (( clash )); then
+        kk.decl._prop_clash_error "$class_name" "$name"
+        return 1
+    fi
+    return 0
+}
+
+kk.decl._prop_clash_error() {   # CLASS NAME
+    kk.decl._error "Instance/static property clash in class '${1}': '${2}' is both an instance property and a static property (inside a member body both are the variable ${2}, and the static one would hide the instance property)"
 }
 
 # ---------------------------------------------------------------------------
@@ -871,6 +940,7 @@ kk.decl._field() {
         return 1
     }
     kk.decl._validate_member "$field_name" "field name" || return 1
+    kk.decl._prop_clash "$class_name" "$field_name" instance || return 1
 
     if [[ ${#KK_DECL_NEXT_MODIFIERS[@]} -gt 0 ]]; then
         kk.decl._error "field: Modifiers are not supported for fields"
@@ -896,6 +966,7 @@ kk.decl._property() {
         return 1
     }
     kk.decl._validate_member "$property_name" "property name" || return 1
+    kk.decl._prop_clash "$class_name" "$property_name" instance || return 1
 
     if [[ ${#KK_DECL_NEXT_MODIFIERS[@]} -gt 0 ]]; then
         kk.decl._error "property: Modifiers are not supported for properties in this phase"

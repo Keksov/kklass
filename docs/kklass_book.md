@@ -939,8 +939,25 @@ Four more rules:
 - **A static property and a static method cannot share a name** — both would
   be `CLASS.NAME` (the method dispatcher used to replace the property accessor
   silently). This includes an inherited static of the other kind; a static
-  method may still override an inherited static *method*, and a static member
-  may share its name with an *instance* member (`CLASS.x` vs `obj.x`).
+  method may still override an inherited static *method*. A static member may
+  share its name with an instance *method* (`CLASS.x` vs `obj.x`), and a static
+  *method* also with an instance property — but a static *property* never with
+  an instance property or field (next rule).
+- **An instance property and a static property cannot share a name** (since
+  round 4 / P12). Inside a member body both are the plain variable `x` — the
+  instance property a nameref onto the instance's storage, the static one a
+  nameref onto the class's — and the static one is bound last, so it *hid* the
+  instance property: `x=v` in a body wrote the static and the instance's `x`
+  never changed. Refused for every instance property kind (`property`,
+  `field`, Pascal `var`, `.kkp` field, lazy, computed / read-write) against
+  every static property kind (`static_property`, `classVar`, Pascal
+  `static var`, `.kkp` `class var`), own or inherited, in either declaration
+  order; the error names both (`'x' is both an instance property and a static
+  property`) and the class is poisoned (below). Pairs that involve a method do
+  not collide and are still accepted: a method `x` next to a static property
+  `x` (`$this.x` runs the method, a bare `x` in a body is the static), and a
+  property `x` next to a static method `x` (`x` in a body is the instance's,
+  `CLASS.x` the static method).
 - **`kk.register_static_methods`** also refuses `__impl_*` (it keeps each
   registered body in `PREFIX.__impl_NAME`), and checks every name *before*
   generating anything.
@@ -1180,9 +1197,10 @@ is gone: `"$this.Home"` is now the plain string `obj.Home`, the same as
 `"$__inst__.Home"`, and a handler registered that way calls the method. An
 empty method body is a valid no-op through every call form (silent, rc 0).
 
-Compiled caches: a `.ckk` file is rebuilt only when its `.kk`/`.kkp` source is
-newer (see [Autoloading](#autoloading-with-kklass_autoloadsh)), so a cache
-compiled before R2_P8 still holds `$__inst__.call NAME` bodies. They keep
+Compiled caches: until round 4 / P12 a `.ckk` file was rebuilt only when its
+`.kk`/`.kkp` source was newer (see [Autoloading](#autoloading-with-kklass_autoloadsh);
+now also when `kklass.sh` or the compiler is newer), so a cache compiled before
+R2_P8 could still hold `$__inst__.call NAME` bodies. They keep
 working — `.call` dispatch is unchanged — but keep the old quoted-text and
 prefix behaviour until the cache is rebuilt (`kkload FILE --force-compile`,
 or touch the source).
@@ -1240,6 +1258,17 @@ function (`.new`, `.constructor`, static accessors and methods) with
   construction. Method calls are not faster in compiled mode — dispatch is the
   same.
 - **Distributes easily**: single file (it still `source`s `kklass.sh`).
+
+What is dumped is exactly the classes the runtime **built** while the input
+was sourced: every `X` with a function `X.new` *and* a table
+`${X}_class_methods` — abstract classes, empty raw builds, and the parent
+classes the input loaded itself (a compiled child needs them: its inherited
+methods resolve through them, so the file loads on its own). A function that
+is merely *named* `X.new` (a user factory, kkore's `kv.new`) is not a class
+and is not dumped (since round 4 / P12; before, every compile dumped a class
+"kv" — all ten `kv.*` functions — which then redefined kkore's when the
+compiled file was sourced), and neither is a class that was declared but
+never built. The compile prints nothing on stderr when the input is clean.
 
 Compile files that only *define* classes; instances created inside the input
 would be dumped too, as bare data arrays without their functions.
@@ -1307,7 +1336,11 @@ counter.delete
    put it elsewhere (for example a private directory per test run, so two
    runs never race on the same compiled file).
 2. **Subsequent Loads**: Uses cached compiled version
-3. **Smart Recompilation**: Recompiles if source is newer
+3. **Smart Recompilation**: Recompiles if the source is newer than the cache,
+   and (since round 4 / P12) also when `kklass_compiler.sh` or `kklass.sh` is
+   newer than the cache — a cache is a dump of what the runtime built, so one
+   made by an older compiler or runtime is stale too (two `-nt` stats, no
+   fork; ≈0.4 ms on msys next to ≈0.26 s for a cached `kkload`)
 4. **Force Compilation**: `kkload "file.kk" --force-compile`
 5. **Runtime Mode**: `kkload "file.kk" --no-compile` (skip compilation)
 6. **Loud failures**: a source file that fails to `source` (syntax error, a
@@ -2353,6 +2386,32 @@ TK2.new o; o.v = hello; o.probe
 # bash 5.3.9:  len=5 copylen=5   -v=false   nelem=0
 ```
 
+### Trap: A Body Called From a Body Sees the Caller's Properties
+
+Those namerefs are bash *locals*, and bash scopes locals **dynamically**: a
+function called from a member body sees every name the body has bound,
+unless it binds the same name itself. A member body of another class binds
+only *its own* class's members — so a **static method** (it binds no instance
+properties at all) or a method of **another class** that has no property `y`,
+called from an instance method of a class with a property `y`, sees the
+caller's `y` and **writes it** with a plain `y=…` (measured on bash 5.2.37 and
+5.3.9, round 4 critic C3; not fixed yet — a separate research round):
+
+```bash
+defineClass SThin "" static_method bump 'y=fromStatic'
+defineClass B     "" method m 'y=fromB'
+defineClass A     "" property y method go1 'SThin.bump' method go2 'b.m'
+A.new a; B.new b
+a.y = orig; a.go1; a.y     # -> fromStatic   (the static method wrote a.y)
+a.y = orig; a.go2; a.y     # -> fromB        (B's method wrote a.y)
+echo "${y-unset}"          # -> unset        (no global was created)
+```
+
+The same holds for plain shell functions called from a body. Until this is
+closed: in a static method, or in a method that may be called from another
+class's method, declare every scratch variable `local` (`local y=…`), and do
+not rely on a bare name being "global" there.
+
 ---
 
 ## API Reference
@@ -2572,21 +2631,32 @@ instance names (`defineClass` and the other builders, `CLASS.new`), and the
 arguments of `kk.isAbstract` / `kk.derivesFrom` / `loadObjects` — must be an
 ASCII identifier `[A-Za-z_][A-Za-z0-9_]*`. Since round 3 / P11 one helper,
 `kk._is_ident NAME` (rc 0/1, silent, fork-free), makes that check
-everywhere: a range glob evaluated under a function-local `LC_ALL=C`. It is
-exact in every locale × `globasciiranges` × `nocasematch` combination and
-never touches `BASH_REMATCH`. The `[[ =~ ]]` it replaced overwrote the
-caller's `BASH_REMATCH` on every `.new`, and under `shopt -s nocasematch` in a
-UTF-8 locale accepted the Turkish dotless `ı` / dotted `İ` — whose later
-indirect expansion aborted the caller's whole command (`kk.derivesFrom ı X`,
-`defineClass ı`) or produced a half-made instance (`CLASS.new ı`). The
-caller's `LC_ALL` (set or unset) and shell options are restored on return.
+everywhere. Since round 4 / P12 it lives in kkore (`kkore/klib.sh`, which
+kklass sources first; kkore's `kk._outName` and `kc.alias` follow the same
+rule): the range glob plus a `*[![:ascii:]]*` guard, and under
+`shopt -s nocasematch` the check runs with nocasematch switched off and the
+caller's setting restored. It is exact in every locale × `globasciiranges` ×
+`nocasematch` combination and never touches `BASH_REMATCH`. The `[[ =~ ]]` it
+replaced overwrote the caller's `BASH_REMATCH` on every `.new`, and under
+`shopt -s nocasematch` in a UTF-8 locale accepted the Turkish dotless `ı` /
+dotted `İ` — whose later indirect expansion aborted the caller's whole
+command (`kk.derivesFrom ı X`, `defineClass ı`) or produced a half-made
+instance (`CLASS.new ı`). (Round 3 got exactness from a function-local
+`LC_ALL=C`, which cost ≈4.5× under a UTF-8 caller locale — `kk.derivesFrom`
+70 → 213 µs; the helper no longer touches the locale.)
 
-`CLASS.new` itself carries an inline copy of the rule (the hottest path: a
-function call plus two locale switches cost ~18 µs per `.new` on bash 5.2): an
-explicit-letter glob — every allowed character listed, no ranges, so it is
-matched by character equality in every locale — and `kk._is_ident` only when
-`shopt -s nocasematch` is on (its case folding is the one way a non-ASCII
-letter can match an explicit list). Test 135 keeps the two equivalent.
+The reserved names (the tables in [Reserved Member Names](#reserved-member-names))
+are case-sensitive, as bash names are: under `nocasematch` a property
+`result`, a method `Delete` or a static method `New` is accepted, `RESULT`,
+`delete` and `new` are still refused.
+
+`CLASS.new` itself carries an inline copy of the rule (the hottest path: in
+round 3 the function call plus two locale switches cost ~18 µs per `.new` on
+bash 5.2): an explicit-letter glob — every allowed character listed, no
+ranges, so it is matched by character equality in every locale — and
+`kk._is_ident` only when `shopt -s nocasematch` is on (its case folding is the
+one way a non-ASCII letter can match an explicit list). Test 135 keeps the two
+equivalent.
 
 Constructor and destructor names (`constructor NAME`, the Pascal
 `destructor NAME`) and the class name of `implementConstructor` are
@@ -2758,7 +2828,9 @@ bash kklass_compiler.sh INPUT.kk OUTPUT.sh
 - `INPUT.kk`: Source class definition file (`.kk` or a `.kkp` unit)
 - `OUTPUT.sh`: Output compiled file
 
-**Returns:** rc 0 and the summary lines on success. rc 1 and nothing written
+**Returns:** rc 0 and the summary lines on success. The `Classes:` line lists the
+built classes that were dumped (see [Why Compile?](#why-compile)).
+ rc 1 and nothing written
 when sourcing the input fails, when no class was built, or (since round 3 /
 P11) when any class of the input refused a member — the error names each such
 class and member.

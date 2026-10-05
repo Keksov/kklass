@@ -54,11 +54,16 @@ echo "  template bytes: ${#TBench_instance_template}"
 echo
 
 # Round 3 / P11 (M3 + review R1): the .new instance-name check is an inline
-# explicit-letter glob (kk._is_ident, local LC_ALL=C + range glob, only under
-# nocasematch) instead of an inline `[[ =~ ]]`. Measured on the still-small
-# shell: a .new/.delete cycle of one name, and kk._is_ident (the rule's single
-# definition, used by every other entry path) against the regex it replaced.
-echo "instance-name guard (round 3 / P11):"
+# explicit-letter glob (kk._is_ident only under nocasematch) instead of an
+# inline `[[ =~ ]]`. Measured on the still-small shell: a .new/.delete cycle of
+# one name, and kk._is_ident (the rule's single definition, used by every other
+# entry path) against the regex it replaced. Round 4 / P12 (L1 + L2, DR13):
+# kk._is_ident moved to kkore/klib.sh without its `local LC_ALL=C` (≈4.5×
+# slower under a UTF-8 caller locale); kk.derivesFrom (two kk._is_ident calls,
+# thttprouter runs it per request) and kk._outName (kkore; every kcl
+# output-array member) are timed here too — run the bench with LC_ALL unset
+# AND with LC_ALL=en_US.UTF-8 to see the locale (in)dependence.
+echo "identifier guards (round 3 / P11, round 4 / P12):"
 now_us; t0=$NOW_US
 for (( i=0; i<300; i++ )); do TBench.new cyc; cyc.delete; done
 now_us; t1=$NOW_US
@@ -76,6 +81,19 @@ now_us; t0=$NOW_US
 for (( i=0; i<2000; i++ )); do __b_re TBenchInstanceName; done
 now_us; t1=$NOW_US
 report "the replaced =~ guard (reference)" $(( t1-t0 )) 2000 "call"
+defineClass TBenchD0 "" property a
+defineClass TBenchD1 TBenchD0 property b
+now_us; t0=$NOW_US
+for (( i=0; i<2000; i++ )); do kk.derivesFrom TBenchD1 TBenchD0; done
+now_us; t1=$NOW_US
+report "kk.derivesFrom (child, parent)" $(( t1-t0 )) 2000 "call"
+if declare -F kk._outName >/dev/null; then
+    now_us; t0=$NOW_US
+    for (( i=0; i<2000; i++ )); do kk._outName out_arr __tqs_; done
+    now_us; t1=$NOW_US
+    report "kk._outName NAME PREFIX (kkore)" $(( t1-t0 )) 2000 "call"
+fi
+echo "  (locale: LC_ALL=${LC_ALL-unset} LANG=${LANG-unset})"
 echo
 
 echo "instance creation / .delete scaling (F1):"

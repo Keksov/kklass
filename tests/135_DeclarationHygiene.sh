@@ -13,10 +13,12 @@
 #           class; endImplementation / build refuse it FIRST; a refused
 #           defineClass closes its class; a refused REdefinition keeps the old
 #           decl tables and abstract flag; the .kkp compile fails.
-#   M3/DR9  ONE fork-free identifier helper (kk._is_ident: local LC_ALL=C + a
-#           range glob, no =~) behind kk.isAbstract, kk.derivesFrom,
-#           kk.decl._validate_ident and .new: exact in every locale ×
-#           globasciiranges × nocasematch combination, BASH_REMATCH untouched.
+#   M3/DR9  ONE fork-free identifier helper (kk._is_ident, no =~; since round 4
+#           / P12 in kkore/klib.sh: ASCII ranges + a [![:ascii:]] guard,
+#           nocasematch off around the core, no locale switch) behind
+#           kk.isAbstract, kk.derivesFrom, kk.decl._validate_ident and .new:
+#           exact in every locale × globasciiranges × nocasematch combination,
+#           BASH_REMATCH untouched.
 #   debug   kklass.sh's VERBOSE_KKLASS=debug notes go to stderr (kk.debug).
 #   §A M1 static names   §B M2 poison flag   §C M3 identifier helper   §D debug
 
@@ -140,19 +142,19 @@ run kk._build_class_runtime TClKc TClPa static_method x 'echo km'
 o="$(TClPa.x = 5; TClPa.x)"; [[ "$o" == 5 ]] || bad+=" parent TClPa.x broken ('$o');"
 if [[ -z "$bad" ]]; then kt_test_pass "refused, parent intact"; else kt_test_fail "$bad"; fi
 
-kt_test_start "A11 no over-matching: legitimate static names, an overriding static method and a static next to a same-named INSTANCE member all build"
+kt_test_start "A11 no over-matching: legitimate static names, an overriding static method and a static method next to a same-named INSTANCE METHOD all build (round 4 DR10: never next to an instance PROPERTY, test 136)"
 bad=""
 run defineClass TStOk "" static_property newest static_property _static_x static_property decl_x \
     static_method constructors 'echo c' static_method impl_new 'echo i' static_method __impl 'echo u' \
-    static_method newx 'echo nx' property x method y 'echo y' static_method y 'echo sy' static_property x
+    static_method newx 'echo nx' method y 'echo y' static_method y 'echo sy'
 if [[ $RC -ne 0 ]]; then
     bad+=" refused rc=$RC err='$ERR';"
 else
-    TStOk.newest = 1; TStOk.x = 2
-    o="$(TStOk.newest)|$(TStOk.x)|$(TStOk.constructors)|$(TStOk.impl_new)|$(TStOk.__impl)|$(TStOk.newx)|$(TStOk.y)"
-    [[ "$o" == "1|2|c|i|u|nx|sy" ]] || bad+=" statics='$o';"
-    TStOk.new sto; sto.x = ix; o="$(sto.x)|$(sto.y)"
-    [[ "$o" == "ix|y" ]] || bad+=" instance='$o';"
+    TStOk.newest = 1
+    o="$(TStOk.newest)|$(TStOk.constructors)|$(TStOk.impl_new)|$(TStOk.__impl)|$(TStOk.newx)|$(TStOk.y)"
+    [[ "$o" == "1|c|i|u|nx|sy" ]] || bad+=" statics='$o';"
+    TStOk.new sto; o="$(sto.y)"
+    [[ "$o" == "y" ]] || bad+=" instance='$o';"
     sto.delete
 fi
 defineClass TStOvP "" static_method m 'echo parent'

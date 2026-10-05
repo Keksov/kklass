@@ -100,3 +100,17 @@ else
     kt_test_fail "kkp autoload compiled mode"
 fi
 
+
+# Round 4 / P12 (C15, DR12): the compile is clean — nothing on stderr (the
+# header's backquoted `source` used to RUN `source` with no argument) — and it
+# dumps exactly the unit's two classes (kkore's kv.new used to be dumped as a
+# class "kv").
+kt_test_start "kkp compile: empty stderr, exactly 'Classes: CounterKkp FancyCounterKkp'"
+rm -f "$compiled_file"
+bash "$KKLASS_DIR/kklass_compiler.sh" "$unit_file" "$compiled_file" >"$workdir/c.out" 2>"$workdir/c.err"; rc=$?
+classes_line="$(grep '^  Classes:' "$workdir/c.out")"
+if [[ $rc -eq 0 && ! -s "$workdir/c.err" && "$classes_line" == "  Classes: CounterKkp FancyCounterKkp" ]]; then
+    kt_test_pass "clean, 2 classes"
+else
+    kt_test_fail "rc=$rc classes='$classes_line' stderr='$(tr '\n' '|' < "$workdir/c.err")'"
+fi

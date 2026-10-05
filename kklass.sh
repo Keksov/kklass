@@ -183,27 +183,19 @@ kk._class_derives_from() {
     return 1
 }
 
-# kk._is_ident NAME — rc 0 when NAME is a plain bash identifier
-# ([A-Za-z_][A-Za-z0-9_]*), rc 1 otherwise; silent, fork-free. The ONE
-# identifier guard of the kklass entry paths (round 3 / P11, finding M3,
-# decision DR9): kk.isAbstract, kk.derivesFrom, kk.decl._validate_ident (every
-# class / member name of every builder), every generated CLASS.new (instance
-# name) and loadObjects (class name). It replaced
-# `[[ $x =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]`, which (a) overwrote the caller's
-# BASH_REMATCH on every call — every .new included — and (b) was not exact:
-# under `shopt -s nocasematch` in a UTF-8 locale it accepted the dotless ı /
-# dotted İ, whose indirect expansion then ABORTED the caller's whole command. A
-# bare range glob is not exact either (fullwidth Ａ on 5.2 en_US.UTF-8; é Ä ß
-# with globasciiranges off). A range glob under a function-local LC_ALL=C is
-# exact in all 12 locale × globasciiranges × nocasematch combinations on both
-# bashes (critic probe m3d; pinned by test 135); the local goes out of scope on
-# return, so bash restores the caller's locale (an unset LC_ALL stays unset).
-# It must stay a FUNCTION: a `local LC_ALL=C` inside .new itself would leak the
-# C locale into the constructor body.
-kk._is_ident() {
-    local LC_ALL=C
-    [[ -n "${1:-}" && "$1" != [!A-Za-z_]* && "$1" != *[!A-Za-z0-9_]* ]]
-}
+# kk._is_ident NAME — the ONE identifier guard of the kklass entry paths
+# (round 3 / P11, finding M3, decision DR9): kk.isAbstract, kk.derivesFrom,
+# kk.decl._validate_ident (every class / member name of every builder), the
+# generated CLASS.new under nocasematch (instance name) and loadObjects (class
+# name). It replaced `[[ $x =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]`, which overwrote
+# the caller's BASH_REMATCH on every call and, under nocasematch in a UTF-8
+# locale, accepted ı / İ (an indirect expansion of those ABORTED the caller's
+# command). Since round 4 / P12 (findings L1 + L2, decision DR13) it is
+# DEFINED in kkore/klib.sh — sourced above, before anything here — and shared
+# with kk._outName and kc.alias: ASCII ranges + a `*[![:ascii:]]*` guard,
+# nocasematch switched off around the core, NO locale switch (P11's
+# `local LC_ALL=C` cost ≈4.5× under a UTF-8 caller locale: kk.derivesFrom
+# 70 -> 213 us). kklass keeps exporting it (KKLASS_EXPORT_FUNCTIONS, test 135 D3).
 
 # kk.isAbstract CLASS — the public "would CLASS.new refuse?" predicate (round 2
 # / R2_P9, finding K4, decision DR3; replaces reading ${CLASS}_class_abstract).
@@ -880,6 +872,22 @@ kk._build_class_runtime() {
         fi
     done
 
+    # An instance property (plain, lazy, computed — inherited or own) and a
+    # static property of the same name are both the variable NAME inside a
+    # member body, and the static one hid the instance property (round 4 /
+    # P12, V1, DR10). Merged lists again: every build path ends here (the
+    # declarative verbs checked their own tables + the built parent already).
+    if (( ${#static_props_arr[@]} > 0 && ${#props_arr[@]} > 0 )); then
+        local -A __kk_prop_index=()
+        for p in "${props_arr[@]}"; do __kk_prop_index["$p"]=1; done
+        for sp in "${static_props_arr[@]}"; do
+            if [[ -n "${__kk_prop_index[$sp]+x}" ]]; then
+                kk.decl._prop_clash_error "$class_name" "$sp"
+                return 1
+            fi
+        done
+    fi
+
     # Finalize the bodies declared here (function trailer; no text rewrite
     # since R2_P8).
     local __kk_om
@@ -1104,8 +1112,10 @@ __INST__.delete() { kk._delete __INST__ \"\$@\"; }"
     #
     # Instance-name check (round 3 / P11, M3 + review remark R1): .new is the
     # hottest builder path, and on bash 5.2 a call of kk._is_ident (function
-    # call + two locale switches) cost +17.6 us per .new. So the check is
-    # INLINED here as an explicit-letter glob — every allowed character
+    # call + two locale switches, as it was then) cost +17.6 us per .new. So
+    # the check is INLINED here as an explicit-letter glob (round 4 / P12 kept
+    # it: the helper no longer switches the locale, but the call itself is
+    # still the cost on this path) — every allowed character
     # listed, NO ranges: a bracket of explicit characters is matched by
     # character equality, never by collation, so it is exact in every locale
     # and with globasciiranges on or off (critic probe m3d, list_g). Its one
