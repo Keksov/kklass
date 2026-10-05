@@ -1,6 +1,6 @@
-# `uses` — Pascal-like unit inclusion and duplicate identifiers (DISCUSSION DRAFT)
+# `uses` — Pascal-like unit inclusion and duplicate identifiers (design)
 
-**Status: ALL TOPICS DECIDED by the owner 2026-10-05 (§5 U1–U17, §6 U18–U33); critic next; no code.**
+**Status: DESIGN COMPLETE — decisions §5 (U1–U17), §6 (U18–U33), critic-amended §7 (owner 2026-10-06); phases §8; no code.**
 Origin: round 4 (kklass/PLAN.md "Round 4", items N1 and C5 moved out). Owner, 2026-10-05:
 
 > Нужно разработать план реализации "директивы" uses, аналогично Pascal. uses должен
@@ -180,3 +180,64 @@ phases of §4 refined by U26 (U1 kkore: kbool.sh, kk.unit, kk.uses, kk.project, 
 reader, registry, kk.defined; U2 kklass: declaration sites, Duplicate identifier,
 registry checks in declareClass/.new, `uses` in the Pascal DSL; U3 kkore + kklass
 modules migrate; U4 the 29 kcl units migrate; U5 docs).
+
+## 7. Critic record and amendments (critic 2026-10-05, owner decisions 2026-10-06)
+
+One Opus critic, probes on both bashes in scratchpad `critic5/`. Supervisor re-verified
+C1 (a bare-shell `kk.unit u || return 0` → "command not found", rc 0, unit NOT loaded),
+C5 (`cd -P` keeps letter case: `real/sub` and `Real/Sub` give two paths; `-ef` SAME),
+C16 (`$PROGRAMDATA` empty, `$ProgramData` = `C:\ProgramData`).
+
+### 7.1 Owner amendments (2026-10-06, quiz)
+
+| # | Finding | Amended decision |
+|---|---|---|
+| U19′ (C1, C2 — blocker) | the literal header cannot bootstrap kbool.sh, and `\|\| return 0` turns header errors into rc 0 (the ktests runner then sees a green file) | **two header lines** — line 1 bootstraps the loader relative to the unit, line 2 registers (see below). `kk.unit` returns 0 = load, 1 = already loaded (skip), 2 = error; `__kk_unit_rc` is 0 on skip and 2 on error, so an error makes the source rc 2 (ktests verdict "source returned rc=2"). Each unit keeps exactly ONE relative path — to kbool.sh (`../` in kkore/kklass, `../../` in kcl); this amends U26 |
+| U18′ (C5) | `cd -P` does not give one spelling on MSYS (case kept; `C:/` and junctions resolve to `/tmp/…` in Git-bash only; 0.7 ms) | unit identity = the **unit NAME** (unique by U33) + **`[[ -ef ]]`** against the registered file (the same name from a different file → error). Paths are normalised lexically (no `cd`) for messages only. kklass's class-site check compares the file parts with `-ef` before declaring a duplicate (today's guard already gives a false "already registered" for 3–4 of 5 spellings) |
+| U34 (C12) | a plain-sourced unit that failed mid-load stays registered; a later `kk.uses` skipped it silently | registered + not done + not on the source stack → **error "unit X not completely loaded"** |
+| U13′ (C18) | `kcl/*` holds non-units (16 `bench.sh`, `docs`, `fpjson`): `kk.uses bench` silently found `dateutils/bench.sh` | the name index counts a file as a unit only if its header carries `kk.unit <stem>` (read without a fork); other files stay reachable by path |
+| U35 (C8) | the registry protects namespaces, not plain words: a class/instance named `class`, `end`, `var`, `func`, `proc`, `build`, `property`, `field`, `uses`, … breaks the DSL | the **DSL verb names** (kklass_decl + kklass_pascal + `uses`) are refused as class and instance names; a test checks the list against the real function table |
+| U36 (C15) | the `.kkp` translator ignores `unit X;`; `uses A, B;` unsupported | `unit X;` → the two header lines (`kk.unit X`), `uses A, B;` → `kk.uses A B`; the unit name must match the file stem (U33) — example 45 (`unit CounterPascal;` in `counter_pascal.kkp`) renamed |
+| U7′ (C17) | list values: `:` breaks `C:`, a space breaks "Program Files" | **list keys repeat**, one value per line (`unitpath = kcl/*` twice appends); other keys override; `defines` = space-separated names; `#` comment lines; CRLF stripped |
+| U24′ (C20) | with headers an edited unit cannot be reloaded at a prompt | an escape hatch **`kk.unit --forget NAME`** (drops the registration; the next source loads it again; its classes follow the interactive re-definition rule) — not a full reload |
+| U37 | defines and project paths only exist after `kk.project` | **`kk.project` must come before the first non-system `kk.uses`**, else error; a second `kk.project` → error |
+| U2′ | where kproject lives | `kk.project` and the config reader live **in kuse.sh** — no separate kproject file |
+
+The two header lines (kcl unit `tlist`; kkore/kklass use `../` instead of `../../`):
+
+```bash
+[[ ${__KK_UNITS[@]@a} == A* ]] || source "${BASH_SOURCE%tlist.sh}../../kbool.sh" || return
+kk.unit tlist || return $__kk_unit_rc
+```
+
+A no-op re-source costs 212–239 µs (today's hand-written guard: 116 µs).
+
+### 7.2 Supervisor amendments (critic findings folded as stated)
+
+- **Loader guard (C3):** "is kbool loaded" = `[[ ${__KK_UNITS[@]@a} == A* ]]` with a sentinel element — set -u safe, no fork, not fooled by an exported scalar or exported functions (a child bash with KKLASS_EXPORT_FUNCTIONS=1 re-bootstraps with an empty registry — U28 holds). kbool.sh starts with the same guard.
+- **Unit dir (C4):** `${BASH_SOURCE%NAME.sh}` (not `%/*`): works for a no-slash `source tlist.sh` from the unit's dir; a file found through PATH already has an absolute BASH_SOURCE.
+- **Sink state machine (C6, U20):** for a header-less re-source the sink is keyed by class: it swallows the member verbs while X is open, `implement X.*`, `implementConstructor X`, `endImplementation X`; it ends at `endImplementation X`, `build X` or the next declareClass of X. Pascal bodies `X.m(){…}` are plain function definitions that the re-source REDEFINES before any verb runs, so `build X` on the sink path regenerates X's static wrappers from the tables and unsets the non-runtime `X.*` scratch functions (measured: otherwise `TU20.GetCount` returns `count=` instead of `count=2`). `defineClass` (one call) is ignored as a whole.
+- **Registry (C7, C8, C9):** a per-unit function-table diff costs 28 ms (5.2) / 7 ms (5.3) per update — +4.3 s / +1.07 s to load all of kcl if done per file. So `kk.unit`/`kk.uses` set a dirty flag and ONE diff runs lazily at the next `declareClass`/`.new` (capture: 5.3 `compgen -V`, 5.2 a temp file + `$(<…)`, no fork). Several units MAY share a namespace (`kk.` is defined by 5 files, `ths.` by 3); class namespaces and instances (`${X}_class` set) are excluded from the namespace set; class names come from the class registry. The `.new` lookup costs 0.5–0.7 µs (≈1 %).
+- **Positional args (C10):** `kk.uses` does `set --` before sourcing (units inherited the caller's `"$@"`: kklass.sh saw the compiler's args); kerr.sh's argument-driven `source kerr.sh set_trap` becomes an explicit `ke.setTrap` call (kkore 001, kklass 128 updated).
+- **Sourcing (C11):** `kk.uses` uses plain `source`, never `builtin source` (under set -e from `g || …` it exits the shell; 5.2 prints `pop_var_context`); all its locals carry the `__kk_` prefix (dynamic scope reaches unit file-scope code).
+- **Cycles (C12):** no RETURN trap (it would replace the ktests verdict trap); `kk.unit` records the unit's bottom-relative BASH_SOURCE index — a re-entry while that frame still holds the same path = cycle (O(1), nothing to clean up). `kk.uses` forgets a unit whose source returned non-zero, so a retry reloads it.
+- **Compiled caches (C13):** a `.ckk` load registers its classes — the compiler emits a register(NAME, site) line per class and loads kklass through `kk.uses kklass` instead of the hard-coded absolute `source …/kklass.sh`.
+- **Interactive allowance (C14):** a re-definition is "interactive" only when the declaration chain has no file frame (no `source` frame; the bottom BASH_SOURCE is `main`) — a file sourced at an interactive prompt is still checked.
+- **Environment (C16):** the Windows variable is **`ProgramData`** (bash is case-sensitive; `$PROGRAMDATA` is empty in both bashes); `USERPROFILE`/`ProgramData` may be unset (msys64 with a stripped env) — guard with `[[ -n ]]`, never probe `/.kbool`. No cygpath: `C:\…` and `C:/…` work for `-f` and `source`; `\` → `/` only for messages. HOME is `/home/1` only when msys64 bash is started from Git-bash.
+- **Lookup (C18):** a name index is built once per path entry (one glob of `kcl/*/*.sh` ≈ 2 ms; a lookup ≈ 10 µs); the U16 cache covers project/system paths only (caller-dir-first makes lookup caller-dependent); `\` counts as a path character (`C:\x\tlist` is a path).
+- **KK_UNIT_DIR (C19):** `kk.uses` saves/restores it around a nested load; a plain-sourced nested dependency can leave it stale, so code that needs its dir at RUN time keeps its own copy (math.sh `MATH_DIR`, kklass_autoload `KKLASS_LIB_DIR`, kklass_compiler `KKLASS_COMPILER_DIR`).
+- **Contradictions resolved:** U1 vs U19 — kuse.sh cannot carry a bootstrap header; kbool.sh sources it plainly and it registers itself afterwards. U19 vs U22 — header-less files never register namespaces (documented). U15 "first match silently" applies among HEADERED files of one name only.
+- **Migration census (C21):** 1471 `source` lines (kcl tests 911, kklass tests 219, kkore tests 38, ktests 72, examples 55, tools/bench 48, frozen kcl/docs repro 59); unit → unit lines that change: kkore 2, kklass 14 (+3 in experimental/), kcl 43 in 29 files. No test re-sources a unit to RESET state (instrumented: kklass 647/647 and kkore 465/465 with re-sources made no-ops). Expected test edits: 119 #2 (silent re-source vs the U20 WARNING), 119/121 wording, kkore 004/005 (kk.use / kk.getScriptDir dropped by U24), kkore 001 + kklass 128 (kerr set_trap), tawk/tsed/tfind footprint comments, tcustomapplication 031 (compgen -v — check). ktests does not use kkore — out of scope.
+
+## 8. Phases (refined)
+
+| phase | content | gate |
+|---|---|---|
+| **U1a** kkore loader | `kbool.sh`; `kuse.sh` rewrite: loader guard, `kk.unit` (rc 0/1/2, `__kk_unit_rc`, name = stem, `-ef` identity, cycle by frame index, incomplete-unit error, `--forget`), `kk.uses` (`set --`, plain source, name index of headered files, caller dir → project → system, `\` as path char, forget on failure, KK_UNIT_DIR save/restore), `kk.defined`; old `kk.use`/`kk.getScriptDir` removed | new kkore tests red-first; kkore + kklass suites unchanged, both bashes |
+| **U1b** config + project | the key = value reader (repeat-to-append lists, CR, `#`); lookup chain env → project → `~/.kbool` else `$USERPROFILE/.kbool` → `/etc/kbool` else `$ProgramData/kbool` → defaults (fixture dirs via env overrides; unset USERPROFILE); `kk.project PATH|NAME` (paths relative to the project file, ordering rule U37), `.ckk` dir, debug level, defines | new tests; both bashes |
+| **U2** kklass | class sites (frame chain, `-ef` on file parts); Duplicate identifier + poison; header-less re-source sink (C6 state machine incl. Pascal static restore + scratch cleanup) with one WARNING; prompt-only interactive allowance; lazy namespace registry checked in `declareClass`/`.new`; DSL verb names refused (U35); `.ckk` registration + `kk.uses kklass` in compiled files; `uses` synonym in the Pascal DSL; `.kkp` `unit`/`uses` translation (U36) | 119/121/135 updated as listed; kklass suite + new tests, both bashes |
+| **U3** kkore + kklass modules migrate | two-line headers; `ke.setTrap`; runtime dir variables kept where C19 says | kkore, kklass and every kcl suite (all units source kklass) |
+| **U4** kcl (29 files, in groups) | headers; drop `_X_SOURCED` and hard-coded `../../kklass/...`; footprint tests updated | per-group suites; then the master sweep on both bashes |
+| **U5** docs | kklass_book "Units and uses", kcl README §1, kkore docs | — |
+
+Red-first ideas per phase: the critic5 report (copied into the ledger when the phases start).
