@@ -946,7 +946,7 @@
         "name": "V1, C15, L1+L2, C3 docs",
         "status": "done",
         "date": "2026-10-05",
-        "commit": "PENDING",
+        "commit": "5ce5879 (kkore c5f8181)",
         "repos": "kklass + kkore (kkore has no plan/ledger of its own: its part is recorded here)",
         "scope": {
           "kklass": "kklass.sh (kk._is_ident definition removed -> kkore, comment + export kept; merged-list instance/static property clash in kk._build_class_runtime; .new guard comment), kklass_decl.sh (kk.decl._prop_clash + _prop_clash_error at field/property/lazy/static-property verbs; kk.decl._ncm_off + nocasematch-off wrappers on _validate_ident/_validate_member/_validate_static), kklass_compiler.sh (escaped backquotes in the HEADER heredoc; _collect_classes = X.new AND ${X}_class_methods), kklass_autoload.sh (recompile when kklass_compiler.sh or kklass.sh -nt the cache), bench/kklass_bench.sh (rows kk.derivesFrom, kk._outName, locale line), docs/kklass_book.md (instance/static property rule + A11 sentence, Identifier checks, case-sensitive reserved names, DC3 trap paragraph, compile/autoload notes), tests/063 (+1), tests/135 (A11 rewritten, header), tests/136_StaticInstanceClash.sh (new, 14), tests/137_CompilerDump.sh (new, 5), tests/138_IdentifierLocale.sh (new, 5), PLAN.md DONE note, this ledger",
