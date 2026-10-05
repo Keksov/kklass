@@ -1,7 +1,6 @@
 # `uses` — Pascal-like unit inclusion and duplicate identifiers (DISCUSSION DRAFT)
 
-**Status: ALL TOPICS DECIDED by the owner 2026-10-05 (§5 U1–U17, §6 U18–U33); critic next; no code.** Earlier: topic 1 (search directories, startup,
-config, project file, unit lookup) DECIDED 2026-10-05 — §5. Other topics open. No code.**
+**Status: ALL TOPICS DECIDED by the owner 2026-10-05 (§5 U1–U17, §6 U18–U33); critic next; no code.**
 Origin: round 4 (kklass/PLAN.md "Round 4", items N1 and C5 moved out). Owner, 2026-10-05:
 
 > Нужно разработать план реализации "директивы" uses, аналогично Pascal. uses должен
