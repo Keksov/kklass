@@ -270,3 +270,61 @@ C11 (example 43), C12 (static name collisions + entry paths), C13 (poison flag
 placement, open class after refused defineClass, wiped decl tables, .kkp), C14
 (locale-exact identifier guard), C15 (compiler noise — out of scope) are folded above.
 Supervisor re-verified C3, C7, C10, C14 (`scratchpad/r3/verify.sh`).
+
+# Round 4 — the round-3 leftovers (2026-10-03, critic-hardened 2026-10-05)
+
+**Status: PLANNED, critic-hardened (C1–C14 folded), decisions taken; no code.**
+Owner 2026-10-03: "Потом приступай к открытым пунктам" — the items round 3 left open
+(ledger `round3`: P11 found_in, `found_in_round3_critic`, the P11 review's open
+visibility question). The ktests items (T6, T7) are planned in `ktests/PLAN.md`
+"Round 4" and run FIRST. kkore has no plan of its own; its item (L1) is planned here.
+Order: **ktests P2 → kklass P12**. Ledger: `kklass_ledger.json` key `round4`.
+
+**Moved out of this round (owner 2026-10-05):** N1 (a class or instance named like an
+existing function namespace — `kk`, `kv`, a kcl helper — silently replaces framework
+functions) and C5 (the same for instance names). The owner's answer: duplicate names
+must be refused "as in any Pascal compiler", designed together with a Pascal-like
+`uses` directive that tracks which source files were already included — "это нужно
+подробно обсуждать и планировать". A separate design plan (`kklass/USES_PLAN.md`,
+draft for discussion) carries the critic's measurements (N1 follow-up: 8 re-declarations
+in the whole tree, all in kklass tests 119/121/135; a duplicate-identifier prototype
+broke 2 wording assertions; the imposter-rebuild loophole; frame-chain declaration
+sites; costs). Owner 2026-10-05: an interactive (`bash -i`) re-definition stays allowed.
+**Also moved out:** C3 — the dynamic-scope leak (a static method body, or another
+class's method body without property `y`, called from an instance method, sees and
+WRITES the caller's property namerefs: `SThin.bump` setting `y` changes `i.y`;
+re-verified 2026-10-05). Owner 2026-10-05: a separate research round; in P12 it is only
+documented in kklass_book as a trap and recorded in the ledger.
+
+## R4.1 Findings (critic numbers C#)
+
+| ID | Sev | Where | Symptom (measured) |
+|---|---|---|---|
+| V1 | medium | instance vs static PROPERTY of one name | (C1) Inside a body, a static property/classVar hides an instance property of the same name: every instance property kind (plain, field, lazy, computed/read-write) × static_property/classVar, own or inherited, either order, on every path (raw build, defineClass, declarative verbs, Pascal `var`+`static var`, .kkp field+`class var`) — 22 combos build rc 0, `x=fromBody` writes the STATIC. Pairs involving METHODS do not collide (method x + static_property x: `$this.x` runs the method; property x + static_method x; method x + static_method x on raw/defineClass). (C2) 135 A11 builds `TStOk` with `property x` + `static_property x` and the book (§Reserved static member names) says "a static member may share its name with an instance member" — both pin the pair DR10 refuses. No built kcl class has such a pair (39 classes scanned). |
+| C15 | low | `kklass_compiler.sh` | (C6) The backquoted `` `source` `` in a comment line of the UNQUOTED `<<HEADER` heredoc (:103-104) is a command substitution: every compile (.kk and .kkp, and every autoload compile) runs `source` with no argument → "line 98: source: filename argument required" (bash reports the heredoc's first line), and every generated header reads "load with ." — since ac5979f (2026-09-05). (C7) `_collect_classes` takes every function `*.new` → kkore's `kv.new` is dumped as a class (21 lines). In the fresh compiler process no class exists before the source, so a before/after snapshot is not the issue: the criterion "`X.new` is a function AND `${X}_class_methods` exists" selects exactly the built classes (abstract, raw empty, parents loaded by the source — which MUST be dumped, else a compiled child loses its inherited methods). (C8) 12 stale `.ckk` caches (kklass/.ckk ×5, examples/.ckk ×1, tests/.ckk ×6; gitignored) carry a `Class: kv` section that redefines all 10 kkore `kv.*` functions when sourced; autoload recompiles only on a newer source mtime. |
+| L1 | low | kkore `kk._outName` (`klib.sh:245`), `kc.alias` (`kcfg.sh:85`) | (C11) `kk._outName`'s range glob accepts ı İ Ａ (and é Ä ß with globasciiranges off) under en_US.UTF-8 on 5.2, İ under nocasematch elsewhere → the caller's `local -n` then prints a bash diagnostic. `kc.alias`: its `=~` is exact without nocasematch, but under nocasematch ı/İ pass → `declare -ng` prints a bash diagnostic; it clobbers BASH_REMATCH on EVERY call. (C10) Under nocasematch `kk._outName` over-refuses `result`, `Result`, `This`, `STATE`, `ifs`, `reply`; kklass `kk.decl._validate_ident` refuses `result`/`ifs`/`reply`/`__KK_x` (so `defineClass T "" property result` is rc 1). |
+| L2 | **major** (regression from round 3 P11) | kklass `kk._is_ident` | (C9) `local LC_ALL=C` costs ≈4.5× under a UTF-8 caller locale: `kk._is_ident` 81–114 µs, `kk.derivesFrom` 208–225 µs under en_US.UTF-8 (vs 10–17 / 58–75 µs with the locale unset — P11 measured only that); supervisor re-verified 70 → 213 µs. thttprouter calls `kk.derivesFrom` twice per request. |
+
+## R4.2 Decisions
+
+| # | Decision |
+|---|---|
+| DR10 | (owner 2026-10-03, scoped by C1) V1: an instance PROPERTY of any kind (property, field, lazy, computed/read-write) and a STATIC PROPERTY (static_property, classVar) of the same name — own or inherited, either order — are refused and poison the class (DR8). Pairs involving methods stay allowed (they do not collide). Two check sites: the declarative verbs (own decl tables + the BUILT parent's merged `_class_properties` / `_class_static_properties`) and the merged-list check in `kk._build_class_runtime` (every path ends there). 135 A11 rewritten to keep `method y` + `static_method y` only; book: "a static member may share its name with an instance METHOD, never with an instance property/field". |
+| DR12 | (supervisor, per C6–C8) C15: escape the backquotes in the heredoc (it stays unquoted for `$KKLASS_COMPILER_DIR`); `_collect_classes` = functions `X.new` with `${X}_class_methods` set (parents loaded by the source included; never a plain `X.new`); the 12 stale caches deleted once, and autoload also recompiles when `kklass_compiler.sh` or `kklass.sh` is newer than the cache (the critic's second option — the worker measures its cost on the autoload path). 063 asserts empty stderr and exactly "Classes: CounterKkp FancyCounterKkp". |
+| DR13 | (supervisor, per C9–C12) L1+L2: ONE identifier helper `kk._is_ident` moves to `kkore/klib.sh` (kklass.sh already sources klib.sh first; kklass drops its copy and keeps `export -f kk._is_ident` — 135 D3); `kcfg.sh` (standalone, kkore test 003 sources it alone) sources klib.sh under a guard. Body: NO locale switch — the existing ASCII ranges plus a `*[![:ascii:]]*` guard, and under nocasematch the core runs with `shopt -u nocasematch` and restores it (C9: exact on 213–215 names × 12 locale/globasciiranges/nocasematch combos × 2 bashes; +2–4 µs over today's kk._outName in every locale). `kk._outName` and `kc.alias` use it; reserved-word comparisons in `kk._outName` and `kk.decl._validate_ident` run with nocasematch off (C10 — the reserved set is case-sensitive). The `.new` inline guard stays equivalent (135 C5 re-run). Contract otherwise unchanged; `kc.alias` keeps its own message (red-first asserts "own message, no bash diagnostic", not rc). |
+| DC3 | (owner 2026-10-05) C3: kklass_book trap paragraph + ledger `found_for_round5`; no code. |
+
+## R4.3 Phase
+
+| phase | content | gate |
+|---|---|---|
+| **P12** | V1 (DR10), C15 (DR12), L1+L2 (DR13), C3 docs (DC3). Red-first: a body write for each colliding property×static-property pair on each path, inherited both ways → refused, not built; method+static_property and property+static_method still build with unchanged body semantics; compiler: empty stderr, header "load with \`source\`", Classes = the source's own built classes, a `.kk` that sources its parent dumps both and the compiled child's inherited call works when loaded alone, `Factory.new` and kv not dumped, abstract and empty raw classes dumped, a stale cache older than `kklass_compiler.sh` is recompiled; under nocasematch `kk._outName result` rc 0 and `RESULT` rc 2, `defineClass T "" property result` builds, ı İ Ａ é × 12 combos → rc 2 with no bash diagnostic, BASH_REMATCH preserved by `kc.alias` on a VALID name, nocasematch still set after each call. Bench rows `kk._outName`, `kk._is_ident`, `kk.derivesFrom`, `.new` with the locale unset AND en_US.UTF-8 (gate: no row slower than round-3 HEAD beyond noise in either locale; derivesFrom under en_US back near its unset-locale cost) | kklass + kkore suites both bashes (`--mode single` on 5.2); kcl suites that use statics (P11's list) + thttpserver; master sweep 0 [FAIL] both, totals identical except kklass/kkore |
+
+## R4.4 Critic record (2026-10-05)
+
+One Opus critic, probes on both bashes, scratchpad `critic4/{v1,n1,n1b,c15,l1,t6,t7}/`.
+C1/C2 (V1 pair map, A11 + book) → DR10; C3 (dynamic scope) → round 5; C4/C5 + the
+follow-up N1b (namespaces kk kkp kc kv ke kl — ktests has none; kcl helper namespaces
+tawk tca ths tpipe tsed tutil; shadowing needs no static member; duplicate-identifier
+prototype) → `USES_PLAN.md`; C6–C8 → DR12; C9–C12 → DR13; C13/C14 → ktests Round 4.
+Supervisor re-verified C3 (i.y = fromStatic), C6 (heredoc :100-104), C9 (70 → 213 µs).
