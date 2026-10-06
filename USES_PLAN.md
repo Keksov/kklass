@@ -253,12 +253,21 @@ Unit inside the kbool tree (kcl unit `tlist`; kkore/kklass modules use `../`):
 kk.unit tlist || return $__kk_unit_rc
 ```
 
-User unit outside the tree:
+User unit outside the tree (owner 2026-10-06, R5 of the U1a review: `${KBOOL_HOME:?…}`
+EXITS a non-interactive shell; this form fails the source with rc 2 — an empty
+KBOOL_HOME gives bash's "/kbool.sh: No such file or directory" — and the caller
+survives):
 
 ```bash
-[[ ${__KK_UNITS[@]@a} == A* ]] || source "${KBOOL_HOME:?kbool not loaded}/kbool.sh" || return
+[[ ${__KK_UNITS[@]@a} == A* ]] || source "${KBOOL_HOME-}/kbool.sh" || return 2
 kk.unit myunit || return $__kk_unit_rc
 ```
+
+**Placement (U1a review R4):** the two header lines must be the first lines of the
+file that are neither blank nor `#` lines (a shebang and a comment block may come
+first), and they must end within the file's first **512 characters** — the name
+index reads one 512-character block per candidate file. So: shebang, then the two
+header lines, then the unit's comment block. A CR at a line end is ignored.
 
 ## 8. Phases (refined)
 
@@ -270,5 +279,9 @@ kk.unit myunit || return $__kk_unit_rc
 | **U3** kkore + kklass modules migrate | two-line headers; `ke.setTrap`; runtime dir variables kept where C19 says | kkore, kklass and every kcl suite (all units source kklass); red-first P7 (kklass sourced directly first, then `kk.uses kklass`) |
 | **U4** kcl (29 files, in groups) | headers; drop `_X_SOURCED` and hard-coded `../../kklass/...`; footprint tests updated | mixed state supported; per-group suites AND a full master sweep on both bashes after EACH group (P10) |
 | **U5** docs | kklass_book "Units and uses", kcl README §1, kkore docs | — |
+
+- **U1a DONE 2026-10-06 (worker; awaiting critic + supervisor review, not committed).** `kbool.sh` (new, kbool root) + `kkore/kuse.sh` rewritten (kk.unit incl. `--forget`, kk.uses, kk.defined, unit → classes registry + `kk._unit_current` for U2; kk.use / kk.getScriptDir / kk.clearUseCache removed); kkore tests 009 (44) + 010 (24) new, 004/005 rewritten for the new API. Red vs HEAD: 004 3, 005 1, 009 44/44, 010 23/24 FAIL. Gate: kkore 533/533 threaded on 5.2.37 and 5.3.9 + `--mode single` on 5.2.37; kklass 647/647 on both; tcustomapplication (sources kuse.sh) 377/377 on both. P5: the first `kk.uses NAME` over kcl/* (48 files, 29 headered) 4–7 ms on both bashes — the index is lazy at two levels (candidate map by one glob, a header read per looked-up stem): reading every candidate's header up front measured 15–25 ms and could not meet the 10 ms gate. No-op re-source with the §7.4 header 206–213 µs (guard 121–137 µs). Deviations and measured facts (P8 via BASH_ARGC/BASH_ARGV, `declare -A` unassigned reads as loaded, U34 for plain sources, `${KBOOL_HOME:?}` exits the shell): `uses_ledger.json` → `phases.U1a`.
+- **U1a review round 1 DONE 2026-10-06 (worker; not committed).** R1 U34 taint only on structural errors (an optional dependency the unit handles leaves it complete); R2 kuse.sh without a guard variable, tables repaired on every source, `kk._unit_reset` = unset + redeclare, kbool.sh checks one function per system unit, `__KK_LOADED` (ownership, R14); R3 (owner) `kk.uses NAME` always resolves and compares — another file is rc 2 "already loaded from X; here it resolves to Y", resolutions cached per (caller dir, name); R4 header after a shebang/blank/`#` lines within 512 chars (rule in §7.4); R5 (owner) user line 1 `source "${KBOOL_HOME-}/kbool.sh" || return 2` (§7.4); R6 hermetic 009/010; R7 `--forget` refuses all system units; R8 a child with an inherited `kk.uses` loads `$KBOOL_HOME/kbool.sh`; R9 `kk.uses NAME` of a loaded unit 110–115 → 25–30 µs (wrapper + `kk._uses`: bash copies a function body per call); R10 exact executed-detection; R11 GLOBIGNORE; R12 one WARNING for another kbool.sh copy. kkore 550/550 on both bashes + single; kklass 647/647 both; tcustomapplication 377/377 both. Details: ledger `phases.U1a.review_round_1` and `deviations`.
+- **U1a R14 DONE 2026-10-06 (worker; not committed).** Registry ownership is the one-element assoc `__KK_LOADED` (`${__KK_LOADED[@]@a} == A`), checked first by every entry point (kk.uses, kk._uses, kk.unit, kk.defined, kk._unit_current/_add_class/_classes) before a table is subscripted by a non-literal key — a `set -a` child (functions exported, `bash -c` exec'd in the parent's PID) no longer evaluates a caller-path key as arithmetic. Subscript audit: ledger `phases.U1a.review_round_2`. kkore 554/554 on both bashes + single; kklass 647/647 both; tcustomapplication 377/377 both.
 
 Red-first ideas per phase: the critic5 report (copied into the ledger when the phases start).

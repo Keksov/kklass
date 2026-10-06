@@ -3,19 +3,141 @@
   "project": "kbool `uses` — Pascal-like unit inclusion and duplicate identifiers. Design: kklass/USES_PLAN.md (decisions U1-U37, critic §7.1-7.2, supervisor review §7.3 P1-P10, header shapes §7.4, phases §8).",
   "created": "2026-10-06",
   "updated": "2026-10-06",
-  "status": "U1a started 2026-10-06 (owner: 'Да, приступай к U1a по нашей схеме исполнитель-критик')",
+  "status": "U1a DONE+COMMITTED 2026-10-06; next U1b",
   "workflow": "per phase: Opus worker implements (red-first) -> Opus critic reviews the worker's result against the plan and the live tree (no edits) -> supervisor review + remarks -> full master sweep on bash 5.2.37 and 5.3.9 -> commit; push only on the owner's word",
   "phases": {
     "U1a": {
       "name": "kkore loader: kbool.sh, kk.unit, kk.uses, kk.defined, KBOOL_HOME, lazy name index",
-      "status": "in_progress",
+      "status": "done",
+      "date": "2026-10-06",
+      "commit": "kkore 9d7ec9c, kbool kbool.sh",
+      "files": [
+        "kbool.sh (new, kbool root)",
+        "kkore/kuse.sh (rewritten)",
+        "kkore/tests/009_UnitsAndUses.sh (new)",
+        "kkore/tests/010_KboolLoader.sh (new)",
+        "kkore/tests/unit_fixture.sh (new, shared fixture, not a test file)",
+        "kkore/tests/004_FrameUseErrorTrap.sh (kk.use tests 10-12 -> kk.uses)",
+        "kkore/tests/005_HardeningRegression.sh (P2.3 kk.getScriptDir -> removal check)",
+        "kkore/tests/unit_fixture.sh: opt, needa, shb, cmt, crlf, late units; proj/main1.sh, main2.sh, proj3/ (review round 1)"
+      ],
+      "red_before": {
+        "how": "new tests run against HEAD's kkore (old kuse.sh, no kbool.sh) in a scratch copy of the tree",
+        "004_FrameUseErrorTrap": "3 FAIL (kk.uses missing, kbool.sh missing)",
+        "005_HardeningRegression": "1 FAIL (old API still defined)",
+        "009_UnitsAndUses": "44/44 FAIL",
+        "010_KboolLoader": "23/24 FAIL (the one green: a user unit with neither kbool nor KBOOL_HOME — tests the header shape itself, bash's ${KBOOL_HOME:?})",
+        "suite": "533 tests, 71 FAIL"
+      },
+      "gate": {
+        "kkore_5.2.37_threaded": "554/554, 0 [FAIL] (after R14; 550 after round 1, 533 in round 0)",
+        "kkore_5.3.9_threaded": "554/554, 0 [FAIL]",
+        "kkore_5.2.37_single": "554/554, 0 [FAIL]",
+        "kklass_5.2.37_threaded": "647/647, 0 [FAIL]",
+        "kklass_5.3.9_threaded": "647/647, 0 [FAIL]",
+        "kcl_tcustomapplication (sources kuse.sh)": "377/377 on 5.2.37 and 5.3.9",
+        "master_sweep": "not run (reviewer)"
+      },
+      "measured": {
+        "P5_first_name_lookup": "tree = kbool.sh + kkore + a copy of kcl/*/*.sh (48 files, 29 with the kcl header prepended) + one tiny unit kcl/zzz. First `kk.uses zzz` in a fresh shell (glob + candidate map + 1 header read + source): 4.1-7.1 ms (5.3.9), 4.5-5.7 ms (5.2.37); first kk._unit_find tutil 3.5-5.9 / 4.0-4.8 ms; first miss 3.5-4.2 / 3.7-5.4 ms; a later NEW name 0.45-0.68 ms; resolving all 30 names one after another 18.6-23.3 ms. Probe: scratchpad worker_u1a/p5_measure.sh, p5_all.sh",
+        "P5_full_header_index_rejected": "reading the header of EVERY candidate at the first lookup (the literal U13'/P5 shape) costs 17-25 ms (5.2) / 15-19 ms (5.3) even with one `read -N 512` per file: glob 2.3-3.4 ms + one open+read ~110-180 us per file x 48 + a function call per file. Line-by-line `read` (3 lines) was 290-320 us/file, `read -N 512` 115-180 us/file, a bare open `: <f` 100-125 us/file (probe rd.sh, rd2.sh, rd3.sh, prof.sh)",
+        "noop_resource_final_header": "206-213 us per no-op re-source of a loaded unit with the §7.4 header (registry of 37 units) vs 121-137 us for today's hand-written guard; kk.unit's skip path alone 44-49 us after adding a one-test fast path (was 90-98 us); the guard line 13-15 us. Probe noop.sh, rep_drv.sh",
+        "declared_unassigned_assoc_reads_as_loaded": "`declare -gA R` (no assignment) makes `${R[@]@a}` expand to 'A' on both bashes; `declare -gA R=()` / `R=()` / unsetting the last element give ''. kuse.sh therefore declares `__KK_UNITS=()` — the first version declared it unassigned and the §7.4 guard then read 'kbool loaded' after a plain `source kuse.sh` (kkore 004 caught it; 009 now pins it). Probe g.sh",
+        "P8_detectable_without_extdebug": "`source FILE` WITHOUT arguments pushes FILE on BASH_ARGV with BASH_ARGC 1 (evalfile.c). WITH arguments the top entry is never that: bash pushes the arguments (a TOP-LEVEL `source F ARG` pushes them and leaves them stale on BASH_ARGV afterwards — critic C12) or nothing. So kk.unit tests BASH_ARGC[0]==1 && BASH_ARGV[0]==BASH_SOURCE[1] (under extdebug it skips its own frame: ARGC index 1, ARGV offset ARGC[0]). Detection holds on 5.2.37 and 5.3.9 for plain, with args, in a function, set -- in a function, no-slash, via PATH, extdebug. Known false negative: a single argument equal to the unit's own path, or a STALE top entry equal to it (`source wrap.sh FILE` where wrap.sh does `source \"$1\" x`). An inherited caller \"$@\" does not count as arguments",
+        "KBOOL_HOME_colon_question_exits": "the P1 user-unit line 1 `${KBOOL_HOME:?kbool not loaded}` with neither kbool nor KBOOL_HOME EXITS a non-interactive shell (rc 127 seen from the parent; nothing after the source runs) — it does not just fail the source. Probe uu.sh",
+        "FUNCNAME_frame_test": "a function defined in a unit and called at the depth of the unit's first load has BASH_SOURCE == the unit file at the same bottom-relative index; only FUNCNAME[k]=='source' tells a source frame apart, so the C12 on-stack test checks both (009 pins it with unit fnu)",
+        "kk_uses_already_loaded": "R9: `kk.uses NAME` of a loaded unit 115/110 us (5.2/5.3, round 1) -> 27-30 / 25-27 us; `kk.uses A B` 143/127 -> 47-54 / 43-48 us. Cause measured: bash copies a function's whole body on EVERY call (execute_function -> copy_command); the 150-line one-piece kk.uses cost ~70 us per call just to copy. Fix: kk.uses = a ~25-line wrapper (fast path: per argument one DONE test + one HIT compare, keyed by the absolute calling file) + kk._uses (the body). The same effect makes kk.unit's skip path 44-49 us (a split there is possible but was not asked). Probe worker_u1a/hot.sh, hot2.sh, hot3.sh",
+        "P5_after_round1": "first kk.uses zzz 5.1-5.7 ms (5.2) / 4.3-5.1 ms (5.3); first miss 3.7-4.3 / 3.9-6.1 ms; no-op re-source with the header 188-193 us (guard 108-109 us)"
+      },
+      "deviations": [
+        "P5/U13' index shape: the index is lazy at TWO levels — the first name lookup builds only the candidate map (stem -> files <stem>.sh in search order, one glob per path entry, no file read); a candidate's header is read when its stem is looked up, result cached per name (a miss as ''). Same answers as a full index of headered files with first-match-wins, but the first lookup is 4-6 ms instead of 15-25 ms (gate <= 10 ms). Reason: the full header read cannot meet the gate on this machine (measured)",
+        "U34 'not done' for PLAIN sources: bash gives no way to see a plain source's rc, so a plain-sourced unit counts as complete once its source frame has returned (lazily marked at the next kk.unit/kk.uses), unless a loader error happened while it was loading (a failing kk.uses called from its file scope, or a header error/cycle of a unit it sources) — that taints the innermost loading unit and a later kk.uses of it says 'not completely loaded' (rc 2) until kk.unit --forget. A plain-sourced unit failing by its own `return N` with no loader error stays undetectable (documented in kuse.sh). The literal reading (registered + not done by kk.uses = error) would make P7 / every 'test sources unit X, unit Y does kk.uses X' fail",
+        "loader messages: `kbool: error: ...` / `kbool: WARNING: ...` on stderr, printed unless VERBOSE_KKLASS=quiet (the kk.warn rule), not kk.debug: a loader error is a compile error, not a member's rc-1 miss",
+        "KK_UNIT_DIR is a plain global shell variable (not exported to the environment): it is meaningful only while a unit is being sourced in THIS shell; 'exports' in U17 read as 'provides'",
+        "kk.unit and kk.uses refuse to work (rc 2) unless kbool.sh is loaded (the [kbool] sentinel): this keeps the loader guard exact — the registry is non-empty iff kbool.sh is loaded — even when kuse.sh is sourced on its own (kklass 128, tcustomapplication do that)",
+        "kbool.sh registers the system units kuse, klib, kerr, kvar, kcfg AND itself as unit `kbool` (the sentinel, so `kk.uses kbool` is a no-op); on any failure it empties the whole registry and restores KBOOL_HOME (unset or the preset value), so the guard stays off and a retry works; KBOOL_HOME is always set to the folder kbool.sh was sourced from (a preset KBOOL_HOME pointing elsewhere is overwritten on success — config precedence is U1b)",
+        "KBOOL_HOME = the lexically normalised root only when `<normalised>/kbool.sh -ef BASH_SOURCE`, else the absolute spelled root (a symlinked `..` keeps the physical spelling)",
+        "kk.unit --forget: rc 0 forgotten, 1 not registered, 2 no name / `kbool` / the unit is loading right now; it calls kk._unit_forget_class CLASS (if defined — kklass, U2) for every class filed by kk._unit_add_class, then drops all registry entries. kk.uses' forget-on-failure uses the same drop. Added kk._unit_current (RESULT = the unit being loaded) as the hook U2 needs to file a class under its unit",
+        "kbool.sh executed (bash kbool.sh) prints an error and exits 2",
+        "REPLACED (R3, owner 2026-10-06 'найти и сравнить'): kk.uses NAME always resolves the name (caller dir -> project -> system) and compares it with the registered unit: same file (string first, -ef on mismatch) -> skip; another file -> rc 2 \"unit 'a' is already loaded from X; here it resolves to Y\". A loaded name that NO lookup finds (the system units until their U3 headers, kbool) counts as the registered file. Resolutions are cached per (caller dir, name) in __KK_UNIT_RES; the fast path per (absolute caller file, name) in __KK_UNIT_HIT (value = the registered file it matched, so a re-registration from another file misses it)",
+        "REPLACED (R4): header detection skips blank and `#` lines (shebang, a comment block) inside the one 512-character read; `kk.unit <stem>` must be the first or second remaining line; a line cut by the 512 limit does not count; CR ignored. Rule written into §7.4",
+        "R1 (accepted-in-part deviation 2, narrowed): the U34 taint is set only on STRUCTURAL errors inside a unit's load — a header error (usage, U33), a cycle, a unit-name/identity clash, a use of an incomplete unit — never on a dependency that is not found, has a bad name, or fails with its own rc (the unit may handle it: `kk.uses opt || fallback`)",
+        "R2: kuse.sh has no re-source guard variable any more (an inherited __KLIB_USE_SOURCED skipped the table declarations in a child); every source redefines the functions and kk._unit_tables repairs each table (an assigned assoc is kept; unset / unassigned / scalar / indexed is replaced by an empty assoc — attribute read with `${!t@a}` under a function-local `set +u`). kk._unit_reset = unset + kk._unit_tables. kbool.sh checks one function per system unit after sourcing it (klib kk.isInt, kerr ke.setTrap, kvar kv.framePush, kcfg kc.alias) -> rc 2. Ownership marker: first __KK_BOOT_PID (= $), REPLACED in R14 by the one-element assoc __KK_LOADED ([on]=1) — see review_round_2",
+        "R8: kk.uses in a shell whose registry is not its own (`${__KK_LOADED[@]@a} != A`) sources $KBOOL_HOME/kbool.sh first when KBOOL_HOME is set and the file exists; else rc 2",
+        "R7: kk.unit --forget refuses (rc 2) every unit kbool.sh registered — kbool, kuse, klib, kerr, kvar, kcfg (__KK_UNIT_SYS); an unknown name is still rc 1",
+        "R10: executed-detection is exact — a function called from kbool.sh's top level sees FUNCNAME[1]=='source' when sourced (also `bash -c 'source \"$0\"' kbool.sh`), 'main' when executed; kk._kbool_boot is unset on the failure path too (the rc is carried in __kk_unit_rc, no file-scope `set --`)",
+        "R12: a source of ANOTHER copy of kbool.sh (not -ef the registered one) while kbool is loaded is a no-op with one `kbool: WARNING: X is ignored: kbool is already loaded from Y` line (silenced by VERBOSE_KKLASS=quiet); the same file in any spelling stays silent",
+        "R11: kk._unit_index_build runs with a function-local, unset GLOBIGNORE",
+        "R5 (owner): the user-unit line 1 is `source \"${KBOOL_HOME-}/kbool.sh\" || return 2` (fixture + §7.4); with neither kbool nor KBOOL_HOME the source fails with rc 2 and the caller continues"
+      ],
+      "found_in_U1a": [
+        "for U3/U4 (C11 consequence, not new): a unit loaded by kk.uses runs INSIDE kk.uses, so file-scope `local` and `declare` without -g become kk.uses locals and vanish; checked: no kcl unit / kklass / kkore file has one today (only kcl/*/bench.sh, which are not units)",
+        "for U3/U4 (critic C11): add a lint test that fails on file-scope `declare`/`local`/`typeset` without -g in every unit file (they would become kk._uses locals)",
+        "for U1b (critic C13): KBOOL_HOME has two meanings — U5 makes it the strongest config source, while kbool.sh overwrites a preset value with its own folder on success (accepted deviation 6); U1b must decide which wins",
+        "for U3 (measured in R9): bash copies a function body per call, so kk.unit's no-op skip path (44-49 us of the 188-193 us re-source) could drop further with the same wrapper split as kk.uses — frame indices in a split kk.unit shift by one"
+      ],
+      "review_round_1": {
+        "date": "2026-10-06",
+        "remarks": "R1-R13 from the critic (scratchpad critic_u1a/) and the supervisor",
+        "red_before_round_fix": {
+          "how": "new tests run against the round-1 kuse.sh + kbool.sh (scratch copy)",
+          "009": "8 of the 10 new tests FAIL (R1 opt plain, R3 x3, R4, R7, R8, R11); green: R1 through kk.uses, R3/R9 repeat",
+          "010": "7/7 new FAIL (R2 x4, R10 x2, R12)",
+          "R5": "fixture/doc change (header shape), no code"
+        },
+        "status": "done, awaiting review"
+      },
+      "review_round_2": {
+        "date": "2026-10-06",
+        "remark": "R14 (supervisor, major): under `set -a` bash exports the loader FUNCTIONS and scalars (incl. __KK_BOOT_PID) but never the assoc tables, and `bash -c` may exec the child in the parent's PID, so `__KK_BOOT_PID == $$` held in a registry-less child; kk.uses then subscripted __KK_UNIT_RES by a caller-path key on a non-assoc table -> evaluated as ARITHMETIC ('operand expected'; with a folder named d[$(touch PWN)] an injection vector)",
+        "measured": "the exec'd child really has the parent's $$ on both bashes (`bash -c 'set -a; source kbool.sh; bash -c \"echo $__KK_BOOT_PID/$$\"'` -> equal); kk.defined's `${__KK_DEFINES[$1]+x}` in a registry-less child with $1='x[$(touch PWN)]' returned 1 (no PWN in that case, but the subscript was not protected)",
+        "fix": "ownership = `${__KK_LOADED[@]@a} == A` (a one-element assoc set by kbool.sh after kk._unit_reset, unset by it; set -u safe, O(1), never inherited by a child bash, inherited by ( ) / $( ) subshells which DO have the tables). Checked FIRST in every entry point that subscripts a table by a non-literal key; __KK_BOOT_PID removed",
+        "red_before": "010: 3 of 4 new tests FAIL on both bashes ((a) set -a child kk.uses NAME; (b) all functions exported, kk.defined / kk.unit --forget before any bootstrap -> rc 1 instead of 2; (c) caller in d[$(touch PWN)] inside an exec'd set -a child -> arithmetic error). (c) in the normal shell was green (assoc keys are never evaluated)",
+        "subscript_audit": {
+          "kbool.sh": "guard branch: ${__KK_UNITS[kbool]} (literal key) only after `${__KK_UNITS[@]@a} == A*`; boot: __KK_UNITS[kbool], __KK_UNIT_SYS[kbool], __KK_UNIT_DONE[kbool] (literal keys) only after kk._unit_reset re-declared every table as an assoc",
+          "kk.uses (wrapper)": "fast path: __KK_UNIT_DONE/__KK_UNIT_HIT/__KK_UNITS by name and caller path — inside `if [[ ${__KK_LOADED[@]@a} == A && ... ]]`; otherwise the bootstrap branch, which subscripts nothing",
+          "kk._uses": "20 subscripts (RES, HIT, UNITS, DONE, FAIL, FILES by name / path / caller dir) — guarded by its own first line `${__KK_LOADED[@]@a} == A || return 2` (it is exported too and could be called directly)",
+          "kk.unit": "fast path: `${__KK_LOADED[@]@a} == A` is the second test of the one [[ ]], before DONE/UNITS; slow path: refuses (rc 2, __kk_unit_rc=2) before --forget dispatch and before any subscript",
+          "kk._unit_forget": "reached only through kk.unit (guarded)",
+          "kk.defined": "`${__KK_LOADED[@]@a} == A || rc 2` before __KK_DEFINES[$1]",
+          "kk._unit_current": "guard -> RESULT='' rc 1 (U2 API)",
+          "kk._unit_add_class": "guard -> rc 2 (U2 API)",
+          "kk._unit_classes": "guard -> RESULT='' rc 0 (U2 API)",
+          "kk._unit_check, kk._unit_taint, kk._unit_find, kk._unit_index_build, kk._unit_drop": "internal: called only from kk.unit / kk._uses after their guard",
+          "kk._unit_register": "internal: called only by kbool.sh after kk._unit_reset + __KK_LOADED",
+          "kk._unit_tables, kk._unit_reset": "no keyed subscripts (`${!t@a}`, unset, declare -gA, eval of literal table names)"
+        },
+        "tests": "010 +4: (a) set -a parent, exec'd child calls kk.uses a / kk.uses a b -> rc 0, loaded once, no diagnostic; (b) export -f of every function, child calls kk.defined 'x[$(touch PWN)]' and kk.unit --forget 'y[$(touch PWN)]' first -> rc 2 each, no PWN, then kk.uses bootstraps; (c) a caller file in fx/inj/d[$(touch PWN)]/ in the normal shell and in an exec'd set -a child -> correct result, no PWN. Fixture: uf_run unsets __KK_LOADED instead of __KK_BOOT_PID (arrays never reach env anyway)",
+        "cost": "kk.uses NAME already loaded 26-30 us (was 25-30); 'A B' 45-54 us; no-op re-source with the header 190-197 us; kk.unit skip path 48 us",
+        "status": "done, awaiting review"
+      },
+      "supervisor_review": "supervisor 2026-10-06: critic_u1a C1-C15 → remarks R1-R13 (owner: C3 resolve-and-compare, P1 user header returns 2); own probe scratchpad/r5/v_u1a.sh found R14 (set -a child: fast path subscripted a non-assoc table → arithmetic evaluation of the caller path, injection vector) → fixed with the __KK_LOADED ownership marker checked before every non-literal subscript; re-probe both bashes green; full sweep 29/29 0 [FAIL] 0 [WARN] both bashes, totals identical except kkore 465->554, sum 8223->8312"
+    },
+    "U1b": {
+      "name": "config reader + kk.project",
+      "status": "planned",
       "commit": ""
     },
-    "U1b": { "name": "config reader + kk.project", "status": "planned", "commit": "" },
-    "U2": { "name": "kklass: class sites, Duplicate identifier, sink, namespace registry, .ckk, .kkp, uses synonym", "status": "planned", "commit": "" },
-    "U3": { "name": "kkore + kklass modules migrate to headers", "status": "planned", "commit": "" },
-    "U4": { "name": "29 kcl units migrate (groups, sweep after each)", "status": "planned", "commit": "" },
-    "U5": { "name": "docs", "status": "planned", "commit": "" }
+    "U2": {
+      "name": "kklass: class sites, Duplicate identifier, sink, namespace registry, .ckk, .kkp, uses synonym",
+      "status": "planned",
+      "commit": ""
+    },
+    "U3": {
+      "name": "kkore + kklass modules migrate to headers",
+      "status": "planned",
+      "commit": ""
+    },
+    "U4": {
+      "name": "29 kcl units migrate (groups, sweep after each)",
+      "status": "planned",
+      "commit": ""
+    },
+    "U5": {
+      "name": "docs",
+      "status": "planned",
+      "commit": ""
+    }
   },
   "critic_design": {
     "date": "2026-10-05",
