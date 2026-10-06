@@ -202,6 +202,7 @@ C16 (`$PROGRAMDATA` empty, `$ProgramData` = `C:\ProgramData`).
 | U24′ (C20) | with headers an edited unit cannot be reloaded at a prompt | an escape hatch **`kk.unit --forget NAME`** (drops the registration; the next source loads it again; its classes follow the interactive re-definition rule) — not a full reload |
 | U37 | defines and project paths only exist after `kk.project` | **`kk.project` must come before the first non-system `kk.uses`**, else error; a second `kk.project` → error |
 | U2′ | where kproject lives | `kk.project` and the config reader live **in kuse.sh** — no separate kproject file |
+| U38 (owner 2026-10-06, critic_u1a C13) | KBOOL_HOME had two meanings: the strongest config source (U5) and the folder kbool.sh was loaded from (U1a overwrites a preset) | **split**: `KBOOL_HOME` = only "where the loaded kbool lives", always written by kbool.sh (a preset pointing elsewhere → one WARNING); the config chain head is **`KBOOL_CONFIG`** only (a path to a config file). U5 reads: `KBOOL_CONFIG` → project file → user → system → defaults |
 
 The two header lines (kcl unit `tlist`; kkore/kklass use `../` instead of `../../`):
 
