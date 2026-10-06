@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "project": "kbool `uses` — Pascal-like unit inclusion and duplicate identifiers. Design: kklass/USES_PLAN.md (decisions U1-U37, critic §7.1-7.2, supervisor review §7.3 P1-P10, header shapes §7.4, phases §8).",
+  "created": "2026-10-06",
+  "updated": "2026-10-06",
+  "status": "U1a started 2026-10-06 (owner: 'Да, приступай к U1a по нашей схеме исполнитель-критик')",
+  "workflow": "per phase: Opus worker implements (red-first) -> Opus critic reviews the worker's result against the plan and the live tree (no edits) -> supervisor review + remarks -> full master sweep on bash 5.2.37 and 5.3.9 -> commit; push only on the owner's word",
+  "phases": {
+    "U1a": {
+      "name": "kkore loader: kbool.sh, kk.unit, kk.uses, kk.defined, KBOOL_HOME, lazy name index",
+      "status": "in_progress",
+      "commit": ""
+    },
+    "U1b": { "name": "config reader + kk.project", "status": "planned", "commit": "" },
+    "U2": { "name": "kklass: class sites, Duplicate identifier, sink, namespace registry, .ckk, .kkp, uses synonym", "status": "planned", "commit": "" },
+    "U3": { "name": "kkore + kklass modules migrate to headers", "status": "planned", "commit": "" },
+    "U4": { "name": "29 kcl units migrate (groups, sweep after each)", "status": "planned", "commit": "" },
+    "U5": { "name": "docs", "status": "planned", "commit": "" }
+  },
+  "critic_design": {
+    "date": "2026-10-05",
+    "probes": "scratchpad/critic5/",
+    "red_first_ideas": {
+      "U1": "bare-shell direct source bootstraps the loader and loads the unit once; no-slash source from the unit's own dir; source found via PATH; exported-functions child with an exported scalar of the same name; set -u double source; U33 mismatch -> rc 2 and a ktests 'source returned rc=2' verdict; cycles via kk.uses, plain source and mixed; failed unit then retry reloads it; set -e plus `kk.uses x || ...` survives a failing unit; positional args do not leak into units; same unit name from a different file -> error; `kk.uses bench` behaviour defined",
+      "U1b": "ProgramData (not PROGRAMDATA) is read; unset USERPROFILE does not probe /.kbool; C:\\ paths in the project file work; relative paths resolve against the project dir; CRLF config; kk.project after a kk.uses -> error",
+      "U2": "Pascal static method intact after a header-less re-source, no scratch functions left; declarative sink covers implement/endImplementation; same file through C:/, /C/, a junction and .. spellings -> no false duplicate; wrapper and second-line definitions -> Duplicate identifier; prompt-only allowance (a file sourced in bash -i is still checked); .new kv / .new string refused incl. a unit loaded after an instance (lazy refresh); a unit sharing kk. with another unit is not a conflict; a .ckk-loaded class cannot be replaced from another file",
+      "U3_U4": "kerr ke.setTrap path; a KK_UNIT_DIR runtime copy for math; unit footprint tests updated"
+    }
+  }
+}
