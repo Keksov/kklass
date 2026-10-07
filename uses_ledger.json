@@ -2,8 +2,8 @@
   "schema_version": 1,
   "project": "kbool `uses` — Pascal-like unit inclusion and duplicate identifiers. Design: kklass/USES_PLAN.md (decisions U1-U37, critic §7.1-7.2, supervisor review §7.3 P1-P10, header shapes §7.4, phases §8).",
   "created": "2026-10-06",
-  "updated": "2026-10-06",
-  "status": "U1a DONE+COMMITTED 2026-10-06; next U1b",
+  "updated": "2026-10-07",
+  "status": "U1b DONE+COMMITTED 2026-10-07; STOP before U2 (owner)",
   "workflow": "per phase: Opus worker implements (red-first) -> Opus critic reviews the worker's result against the plan and the live tree (no edits) -> supervisor review + remarks -> full master sweep on bash 5.2.37 and 5.3.9 -> commit; push only on the owner's word",
   "phases": {
     "U1a": {
@@ -98,14 +98,17 @@
           "kk.uses (wrapper)": "fast path: __KK_UNIT_DONE/__KK_UNIT_HIT/__KK_UNITS by name and caller path — inside `if [[ ${__KK_LOADED[@]@a} == A && ... ]]`; otherwise the bootstrap branch, which subscripts nothing",
           "kk._uses": "20 subscripts (RES, HIT, UNITS, DONE, FAIL, FILES by name / path / caller dir) — guarded by its own first line `${__KK_LOADED[@]@a} == A || return 2` (it is exported too and could be called directly)",
           "kk.unit": "fast path: `${__KK_LOADED[@]@a} == A` is the second test of the one [[ ]], before DONE/UNITS; slow path: refuses (rc 2, __kk_unit_rc=2) before --forget dispatch and before any subscript",
-          "kk._unit_forget": "reached only through kk.unit (guarded)",
           "kk.defined": "`${__KK_LOADED[@]@a} == A || rc 2` before __KK_DEFINES[$1]",
           "kk._unit_current": "guard -> RESULT='' rc 1 (U2 API)",
           "kk._unit_add_class": "guard -> rc 2 (U2 API)",
           "kk._unit_classes": "guard -> RESULT='' rc 0 (U2 API)",
-          "kk._unit_check, kk._unit_taint, kk._unit_find, kk._unit_index_build, kk._unit_drop": "internal: called only from kk.unit / kk._uses after their guard",
-          "kk._unit_register": "internal: called only by kbool.sh after kk._unit_reset + __KK_LOADED",
-          "kk._unit_tables, kk._unit_reset": "no keyed subscripts (`${!t@a}`, unset, declare -gA, eval of literal table names)"
+          "kk._unit_tables, kk._unit_reset": "no keyed subscripts (`${!t@a}`, unset, declare -gA, eval of literal table names)",
+          "kk._unit_check, kk._unit_taint": "U1b R2: first statement `${__KK_LOADED[@]@a} == A || return 2`, then the MIN argument checked as digits (it reaches (( ))) — exported functions can be called directly in a registry-less child; also a sourced file named `x[$(touch PWN)].sh` reaches _taint/_check through BASH_SOURCE stems",
+          "kk._unit_register, kk._unit_drop, kk._unit_find, kk._unit_index_build, kk._unit_forget": "U1b R2: first statement `${__KK_LOADED[@]@a} == A || return 2` (no exemption for internal functions: every function is exported under set -a / export -f)",
+          "kk._cfg_read, kk._cfg_merge, kk._cfg_apply, kk._cfg_boot (U1b)": "first statement the ownership check; keys are `LEVEL/key` built from literals — on a non-assoc table even literal-looking keys are arithmetic and a variable named like the level (user, env) is evaluated recursively (measured)",
+          "kk.project, kk.config, kk.defined (U1b)": "kk.project: ownership (bootstrap from KBOOL_HOME, else rc 2) before any subscript; kk.config: ownership before __KK_CFG[...] (and the key is matched against the four literal keys first); kk.defined: ownership before __KK_DEFINES[$1]",
+          "kk._cfg_fold, kk._cfg_path, kk._cfg_userfile, kk._unit_dir, kk._unit_lexnorm, kk._unit_has_header": "no table subscripts",
+          "probe": "critic_u1b/sec1.sh: every loader function called directly in an export -f child and a set -a child with x[$(touch PWN)] arguments and level-named env variables: 0 PWN (after U1b R2), both bashes; taint.sh: no PWN"
         },
         "tests": "010 +4: (a) set -a parent, exec'd child calls kk.uses a / kk.uses a b -> rc 0, loaded once, no diagnostic; (b) export -f of every function, child calls kk.defined 'x[$(touch PWN)]' and kk.unit --forget 'y[$(touch PWN)]' first -> rc 2 each, no PWN, then kk.uses bootstraps; (c) a caller file in fx/inj/d[$(touch PWN)]/ in the normal shell and in an exec'd set -a child -> correct result, no PWN. Fixture: uf_run unsets __KK_LOADED instead of __KK_BOOT_PID (arrays never reach env anyway)",
         "cost": "kk.uses NAME already loaded 26-30 us (was 25-30); 'A B' 45-54 us; no-op re-source with the header 190-197 us; kk.unit skip path 48 us",
@@ -115,8 +118,97 @@
     },
     "U1b": {
       "name": "config reader + kk.project",
-      "status": "planned",
-      "commit": ""
+      "status": "done",
+      "date": "2026-10-07",
+      "commit": "kkore 3a09ab5, kbool kbool.sh",
+      "files": [
+        "kkore/kuse.sh (Configuration section: kk._cfg_fold/_path/_read/_merge/_apply/_userfile/_boot, kk.project, kk.config; kk.defined doc; U37 'used' flag in kk.unit + kk._uses; 5 new tables/scalars in kk._unit_tables/_reset)",
+        "kbool.sh (step 5 kk._cfg_boot on the P3 failure path; __KK_UNIT_USED reset after the system units; U38 WARNING; header doc)",
+        "kkore/tests/011_ConfigProject.sh (new, 49 tests)",
+        "kkore/tests/unit_fixture.sh (uf_run hermetic for config: -u KBOOL_CONFIG USERPROFILE ProgramData PROGRAMDATA, HOME=<fixture>/home, __KK_CFG_ETC=<fixture>/etc/kbool; uf_win, uf_cfg helpers)"
+      ],
+      "red_before": {
+        "how": "011 run against the U1a HEAD (kbool 9249bf5 kbool.sh + kkore 9d7ec9c) in a scratch tree (worker_u1b/redtree) with the new fixture",
+        "011_ConfigProject": "42/49 FAIL on 5.2.37 and on 5.3.9. Green at HEAD (silent cases that already hold): WARNINGs silenced by quiet, HOME empty -> no .kbool probe, built-in system paths last, U38 same folder / empty preset / quiet, a caller's set -f kept",
+        "009/010 with the new hermetic uf_run": "0 FAIL at HEAD (the fixture change alone breaks nothing)"
+      },
+      "gate": {
+        "kkore_5.2.37_threaded": "629/629, 0 [FAIL] (554 + 011 = 75)",
+        "kkore_5.3.9_threaded": "629/629, 0 [FAIL]",
+        "kkore_5.2.37_single": "629/629, 0 [FAIL]",
+        "kklass_5.2.37_threaded": "647/647, 0 [FAIL]",
+        "kklass_5.3.9_threaded": "647/647, 0 [FAIL]",
+        "kcl_tcustomapplication": "377/377 on 5.2.37 and 5.3.9",
+        "hermetic": "critic_u1b/hermetic.sh clean / hostile / missing: 004 12, 009 54, 010 35, 011 75, 0 FAIL each",
+        "probes": "critic_u1b/sec1.sh 0 PWN (both child modes), taint.sh no PWN, paths2.sh all six spellings found, fmt.sh as designed",
+        "master_sweep": "not run (reviewer)"
+      },
+      "decisions": {
+        "merge_rule": "scalar keys (debug, ckkdir): the strongest level that sets the key wins; an empty value counts (sets it to nothing). List keys (unitpath, defines): every level's entries, strongest level first (env KBOOL_CONFIG, project, user, system), each in file order, exact duplicates dropped — so project folders are searched before user ones and those before the system config's, the same order as U14 (caller -> project -> system). An EMPTY list value (U39, owner 2026-10-07) drops the entries above it in its own file and every weaker ENVIRONMENT level's (user, system) — never the project's lists; the project resets the inherited user/system entries with its own empty value. The built-in system paths (kkore, kklass, kcl/*) are not a config level: always searched last, never reset",
+        "unknown_keys": "WARNING with file:line, the line skipped (not silent: a misspelt `unit_path` would otherwise do nothing without a trace; not an error: a config shared by two kbool versions still loads in the older one)",
+        "keys": "unitpath (list, folder), defines (list, space-separated ASCII identifiers, case-sensitive), debug (quiet | default | debug; '' = default), ckkdir (folder)",
+        "kk_config_shape": "kk.config KEY [OUTVAR]: scalar -> RESULT, rc 1 + RESULT='' when unset/empty; list without OUTVAR -> RESULT newline-joined; list with OUTVAR -> array + RESULT = count (kcl 1.7), rc 1 + RESULT='' + OUTVAR emptied when the list is empty; printed inside $( ) (kcl 1.1); rc 2 silent (kk.debug) for no / unknown key, OUTVAR on a scalar, a bad or reserved OUTVAR (kk._outName), extra args; rc 2 printed when kbool.sh is not loaded in this shell; an OUTVAR that is associative or readonly -> rc 2 silent; keys exact under nocasematch (kcl 1.6); kk.defined with more than one argument -> rc 2",
+        "debug_level": "the config writes VERBOSE_KKLASS only when it is unset or still holds the value the config itself wrote (__KK_CFG_VKW): a VERBOSE_KKLASS from the environment (even empty) or set by the script always wins; `debug = default` after a config-written level unsets it again. Not exported (a child re-reads the config levels itself); under `set -a` the config-written value is `export -n`-ed (R7a); LIMITATION (R7b): a script that assigns exactly the value the config wrote cannot be told from it, so a later kk.project may change it",
+        "kk_project_relative_path": "a relative PATH is relative to the CALLING file's folder ($PWD at a prompt), like kk.uses PATH (U12); NAME = no `/` or `\\` and not ending in `.conf`; `.` and `..` refused",
+        "U37_scope": "kk.project is refused after the first use of a non-system unit: any kk.uses argument that is a path or a name kbool.sh did not load (found or not, failing or not) AND any unit registered by kk.unit (a plain source) — a plain-sourced unit could have consulted kk.defined or resolved names without the project. kbool.sh clears the flag after its system units (future-proof for U3, when they register through kk.unit); a unit kbool.sh loaded, named by its PATH, is that unit (no-op, kk.project stays open — R9a)",
+        "second_kk_project": "owner 2026-10-07 (R9c): the SAME file (string or -ef, any spelling) -> rc 0 no-op, like kk.uses, also after units were used; another file -> rc 2 naming the project already set",
+        "registry_less_child": "kk.project bootstraps $KBOOL_HOME/kbool.sh first (like kk.uses, R8); kk.config and kk.defined refuse with rc 2 (queries, like U1a's kk.defined)",
+        "test_hook": "__KK_CFG_ETC replaces /etc/kbool (read from the environment, never assigned) so tests never read a real /etc/kbool; HOME/USERPROFILE/ProgramData are plain env overrides",
+        "file_format": "UTF-8 (a leading BOM is skipped), LF or CRLF; UTF-16 (FF FE / FE FF), any NUL byte, or CR-only line ends -> ONE WARNING and the whole file ignored; lines over 4096 characters -> WARNING file:line, skipped; files over 64 KiB -> WARNING, read to the limit, the cut last line dropped; a define line with non-names -> ONE WARNING listing them, the names on it kept",
+        "paths": "every FOLDER value gets `\\` -> `/`; a relative one is joined to the file's folder with `.`/`..` folded; an absolute one keeps its drive / root spelling (R1: `C:\\x\\units\\*` is the every-subfolder form)"
+      },
+      "measured": {
+        "reader_cost": "kk._cfg_read of a 10-line CRLF file (3 unitpath, 2 defines, ckkdir, debug, 2 comments, 1 blank): 738 us (5.2.37) / 636 us (5.3.9), best of 9 in a loaded shell; of that the one `read -N` is 113-146 us and the call itself (bash copies the ~100-line body per call, U1a R9) ~100 us. critic5 C17's 0.5-0.6 ms was a bare split without path resolution or validation. First version 1.3-1.5 ms: kk._cfg_path walked every segment of the long base folder (161 us per path) and `-f` + `-r` stats cost 150-230 us each; fixed by folding the base once per file, a no-fold fast path, `-r` only when the read returned nothing, one newline word split instead of per-line slicing. Probe worker_u1b/cost.sh, micro.sh, prof2.sh",
+        "merge_apply": "kk._cfg_merge 272-376 us, kk._cfg_apply 139-212 us; kk._cfg_boot with one 10-line user config 1.2-1.4 ms; kk.project PATH (10 lines) 1.2-1.4 ms; kk.config scalar 32-45 us, list into OUTVAR 108-180 us; kk.defined 13-14 us",
+        "kbool_load": "no config anywhere: merge/apply skipped (2 `-f` probes, ~0.2 ms); kbool.sh load 44.2 vs 45.9 ms (5.2) and 41.4 vs 43.8 ms (5.3) against the U1a HEAD copy — within noise. Probe worker_u1b/load.sh",
+        "stat_cost": "`[[ -f ]]` on MSYS 78-230 us (first call in a shell the dearest); `$(<file)` is fork-free on both bashes (109 us with 3000 functions defined, same as without)",
+        "literal_subscript_injection": "a table that is NOT an assoc, subscripted by LITERAL-looking keys `$lv/$k` (env/debug, user/unitpath), is evaluated arithmetically, and a variable named like the level is evaluated recursively: `env -i user='a[$(touch PWN)]' bash -c 'lv=user k=debug; [[ -n ${T[$lv/$k]+x} ]]'` creates PWN. So every kk._cfg_* function that subscripts (_read, _merge, _apply, _boot) checks __KK_LOADED first, though they are internal (011 pins it with exported functions in a registry-less child)",
+        "msys64_from_gitbash_env": "msys64 bash started from Git-bash: HOME=/home/1, USERPROFILE and ProgramData EMPTY (C16 confirmed) — the user level there is ~/.kbool only",
+        "reader_cost_round1": "kk._cfg_read of the 10-line CRLF sample: 1017 us (5.2) / 905 us (5.3) — was 738 / 636: the NUL-detecting `read -d '' -n 65536` is byte-wise (~1.2 us per byte; 64 KiB = 73-80 ms) where `read -N` was 116-146 us. kk._cfg_merge 216-239 us, kk._cfg_apply 63-70 us (one word split instead of a loop). Probe worker_u1b/cost.sh",
+        "worst_case_round1": "kk._cfg_read under the limits, 5.2.37 / 5.3.9, files of 51-65 KiB: 5957 lines `defines = Z` 245 / 223 ms (+ merge 16 ms); one 65 000-char line 75 / 79 ms; 15 lines of 700 names 99 / 111 ms (+ merge 37 ms); 16 lines of 2040 non-names 256 / 235 ms; 16 relative 4080-char paths 240 / 203 ms; lines over the 4096 cap 77 ms. Before the round-1 fixes: 5957 lines 835 ms, a 64 KiB single line 550 ms (BOM strip 451 ms), 32 000 non-name warnings 1156 ms. critic numbers before any cap: 8000-char line 8.4 ms, 1.1 MB single line 142 s, 90 000 lines 223 s. Probe worker_u1b/worst.sh, pat.sh",
+        "bom_cut": "`${x#$'\\xef\\xbb\\xbf'}` on a 64 KiB value without a BOM: 451 ms on 5.2 (`[[ $x == $'\\xef\\xbb\\xbf'* ]]` 0 ms); `${x%$'\\n'*}` on a 64 KiB line without a newline: 465 ms",
+        "outvar_attributes": "`${!n@a}` of an array reads element 0 (an assigned assoc gives ''); `n=\"$2[@]\"; ${!n@a}` gives A for any assoc (also declared-unassigned and through a nameref), r for readonly; under set -u an unset name aborts, so kk.config reads it under a function-local set +u"
+      },
+      "deviations": [
+        "kk.config rc 2 for an unknown KEY (kcl 1.2: a malformed call), silent unless VERBOSE_KKLASS=debug; the not-loaded case prints like kk.defined (U1a)",
+        "all CRs are dropped (not only at a line end): a CR inside a config line is never meaningful",
+        "KBOOL_CONFIG set but not a file (missing, a folder) -> kbool.sh rc 2 with 'KBOOL_CONFIG names no config file'; an EMPTY KBOOL_CONFIG counts as unset",
+        "U38 WARNING printed only on a SUCCESSFUL load (a failed load restores the preset KBOOL_HOME, so nothing was ignored), through kk._unit_warn (silenced by VERBOSE_KKLASS=quiet — also by a config `debug = quiet` read in the same load)",
+        "an unreadable (not -r) config file is rc 2 'cannot read the config file' — not covered by a test: chmod cannot make a file unreadable on this NTFS/MSYS setup",
+        "REPLACED (R1): every FOLDER value gets `\\` -> `/`, also an absolute one (drive / root spelling kept, no `..` folding there); relative values are joined and folded lexically",
+        "REPLACED (R4): the file cap is 64 KiB (was 1 MiB) and a line cap of 4096 characters; the define-name WARNING is one line per config line listing every non-name (\"FILE:LINE: not a define name, ignored: 'a' 'b'\")",
+        "R3: the whole-file read is byte-wise on MSYS (`read -d ''` stops at a NUL; `read -N` drops NULs silently and is the only fast read): a 10-line file costs ~0.2-0.3 ms more than in round 0"
+      ],
+      "found_in_U1b": [
+        "for U2/U3 (consumer): kk.config ckkdir is stored and exposed only; kklass does not read it yet",
+        "for U3 (R6): before U3, every kklass / kcl test that loads kbool.sh reads the developer's ~/.kbool/config (and /etc/kbool, $ProgramData, KBOOL_CONFIG) — kkore 004/009/010/011 are isolated now; U3 must decide whether the ktests runner isolates the config for ALL suites (e.g. HOME / __KK_CFG_ETC / KBOOL_CONFIG set per test file)",
+        "FIXED in round 1 (R2): the U1a internals kk._unit_register/_check/_taint/_drop/_find/_forget/_index_build now check ownership first"
+      ],
+      "review_round_1": {
+        "date": "2026-10-07",
+        "remarks": "R1-R10 from the critic (scratchpad critic_u1b/) and the supervisor; owner decisions R9b (U39) and R9c",
+        "red_before_round_fix": {
+          "how": "the final 011 + 004 run against the round-0 kuse.sh/kbool.sh (critic_u1b/fx copy) in worker_u1b/red_r1, on 5.3.9 (that scratch path is /tmp/... under Git-bash 5.2, where the C:\\ spelling tests cannot work)",
+          "011_ConfigProject": "19 FAIL of the round-1 test set (R1 x3, R2 x2, R3 x5, R4 x2, R5, R7a, R8, R9a, R9b x2, R9c). Green on round-0 code among the new tests: empty / CRLF-only KBOOL_CONFIG, a project reset cutting user+system, hostile content, hostile / spaced project folders, trailing backslashes, kk.project from a unit file scope and from $( ), non-ASCII defines",
+          "004_FrameUseErrorTrap": "2 FAIL under critic hermetic.sh `missing` (KBOOL_CONFIG=<missing> exported) before the test change; 0 after"
+        },
+        "fixes": {
+          "R1": "kk._cfg_path: an absolute value gets `\\` -> `/` too (drive / root spelling kept): `C:\\x\\units\\*` = `C:/x/units/*` (was a literal folder `*`); probe critic_u1b/paths2.sh: all six spellings find fl / pk1",
+          "R2": "ownership check first in kk._unit_register/_check/_drop/_find/_forget/_taint/_index_build (+ digit check of the MIN argument of _check/_taint); 011 runs every internal in an export -f child and a set -a child with hostile arguments and a hostile file stem",
+          "R3": "the read is `read -r -d '' -n 65536` (stops at a NUL: `read -N` drops NULs silently); a NUL or a FF FE / FE FF start -> ONE WARNING 'UTF-16 or binary content (a NUL byte) is not supported - save it as UTF-8; the file is ignored'; a leading UTF-8 BOM is cut (prefix test + length cut: `${all#$'\\xef\\xbb\\xbf'}` cost 450 ms on 64 KiB); CR without LF -> one WARNING, file ignored",
+          "R4": "lines over 4096 characters -> WARNING file:line, skipped; files over 64 KiB -> WARNING, the cut last line dropped (unset of the last split element, not `${all%$'\\n'*}`, which was 465 ms on a 64 KiB line); loop rewritten to ~12 statements for the usual line, values accumulated in locals; a define line mixing names and non-names prints ONE WARNING listing the non-names (was one per word: 32 000 warnings = 1.16 s)",
+          "R5": "kk._cfg_boot makes a relative KBOOL_CONFIG absolute ($PWD + lexical fold) after the read; the assignment keeps its export attribute",
+          "R6": "kkore 004 unsets KBOOL_CONFIG/USERPROFILE/ProgramData and points HOME and __KK_CFG_ETC at empty tmp folders for its kbool.sh load",
+          "R7": "a config-written VERBOSE_KKLASS is `export -n`-ed when $- has a (set -a); limitation (b) documented in kuse.sh: a script assigning exactly the config-written value cannot be told from it",
+          "R8": "kk.config: nocasematch-safe (core runs with it off, restored); an OUTVAR whose `${OUT[@]@a}` has A or r -> rc 2 silent; kk.defined with more than one argument -> rc 2",
+          "R9a": "kk.uses PATH of a unit kbool.sh loaded (same string or -ef the registered file) is a no-op like the name and does not close kk.project (was: re-sourced as a header-less file and kk.project refused)",
+          "R9b": "merge: an empty list value cuts the weaker ENVIRONMENT levels (user, system) and the entries above it in its own file; never the project (U39)",
+          "R9c": "a second kk.project naming the same file (string or -ef) -> rc 0 no-op, even after units were used; another file -> rc 2",
+          "R10": "tests: hostile content, hostile + spaced project folders, trailing backslash USERPROFILE/ProgramData, empty and CRLF-only KBOOL_CONFIG, kk.project from a unit file scope and from $( ), nothing-applied state pinned after refused kk.project calls"
+        },
+        "status": "done, awaiting review"
+      },
+      "supervisor_review": "supervisor 2026-10-07: critic_u1b C1-C10 → remarks R1-R10 (owner: U39 an empty list value never cuts the project lists; same-file second kk.project = rc 0); own probe scratchpad/r5/v_u1b.sh both bashes: a backslash C: unitpath with a trailing star found, BOM keeps the first key, UTF-16 one warning + ignored, six internals in a set -a child → no PWN, U39 + same-file kk.project; full sweep 29/29 0 [FAIL] 0 [WARN] both bashes, totals identical except kkore 554->629, sum 8312->8387"
     },
     "U2": {
       "name": "kklass: class sites, Duplicate identifier, sink, namespace registry, .ckk, .kkp, uses synonym",
