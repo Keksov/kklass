@@ -3,7 +3,7 @@
   "project": "kbool `uses` — Pascal-like unit inclusion and duplicate identifiers. Design: kklass/USES_PLAN.md (decisions U1-U37, critic §7.1-7.2, supervisor review §7.3 P1-P10, header shapes §7.4, phases §8).",
   "created": "2026-10-06",
   "updated": "2026-10-07",
-  "status": "U1b DONE+COMMITTED 2026-10-07; STOP before U2 (owner)",
+  "status": "U1 pushed 2026-10-07; U2a started (owner: Да — push U1 and start U2)",
   "workflow": "per phase: Opus worker implements (red-first) -> Opus critic reviews the worker's result against the plan and the live tree (no edits) -> supervisor review + remarks -> full master sweep on bash 5.2.37 and 5.3.9 -> commit; push only on the owner's word",
   "phases": {
     "U1a": {
@@ -211,9 +211,19 @@
       "supervisor_review": "supervisor 2026-10-07: critic_u1b C1-C10 → remarks R1-R10 (owner: U39 an empty list value never cuts the project lists; same-file second kk.project = rc 0); own probe scratchpad/r5/v_u1b.sh both bashes: a backslash C: unitpath with a trailing star found, BOM keeps the first key, UTF-16 one warning + ignored, six internals in a set -a child → no PWN, U39 + same-file kk.project; full sweep 29/29 0 [FAIL] 0 [WARN] both bashes, totals identical except kkore 554->629, sum 8312->8387"
     },
     "U2": {
-      "name": "kklass: class sites, Duplicate identifier, sink, namespace registry, .ckk, .kkp, uses synonym",
-      "status": "planned",
-      "commit": ""
+      "name": "kklass (split by the supervisor 2026-10-07 into U2a + U2b)",
+      "status": "in_progress",
+      "commit": "",
+      "U2a": {
+        "name": "class declaration sites (frame chain + -ef), Duplicate identifier + poison, header-less re-source sink (C6 state machine incl. Pascal static restore + scratch cleanup) with one WARNING, prompt-only interactive allowance (C14), unit->classes registration + --forget class hook (P4)",
+        "status": "in_progress",
+        "commit": ""
+      },
+      "U2b": {
+        "name": "lazy namespace registry checked in declareClass/.new (U22), DSL verb names refused (U35), .ckk registration + unit by NAME + kk.uses kklass (C13, P9), uses synonym in the Pascal DSL (U32), .kkp unit/uses translation (U36, example 45)",
+        "status": "planned",
+        "commit": ""
+      }
     },
     "U3": {
       "name": "kkore + kklass modules migrate to headers",
