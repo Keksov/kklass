@@ -218,7 +218,7 @@
         "name": "class declaration sites (frame chain + -ef), Duplicate identifier + poison, header-less re-source sink (C6 state machine incl. Pascal static restore + scratch cleanup) with one WARNING, prompt-only interactive allowance (C14), unit->classes registration + --forget class hook (P4)",
         "status": "done",
         "date": "2026-10-07",
-        "commit": "PENDING",
+        "commit": "kklass ba9c51d, kkore 774746b",
         "files": [
           "kklass/kklass.sh: 'Class declaration sites' section replaces _KKLASS_CANON_CACHE / kk._caller_source_file / kk._check_class_owner: kk._class_tables (ownership __KKLASS_TABLES), kk._class_site, kk._class_site_same, kk._class_site_text, kk._class_verdict, kk._class_register, kk._unit_forget_class; kk._class_static_api (static accessors + dispatchers from the stored tables, split out of kk._build_class_runtime, byte-identical functions); kk._build_class_runtime judges/uses the site before any state and registers at the END (was: at check time, so a refused raw build stayed 'registered'); defineClass ends the sink (one call); export list",
           "kklass/kklass_decl.sh: declareClass verdict (dup -> poison + sink d, rc 1; same site -> sink s + WARNING, rc 0; else _KKLASS_DECL_SITE); sink helpers kk.decl._sink_enter/_sink_end/_sunk/_sink_mode; one sink line in privateSection protectedSection publicSection virtual override abstract classVar field property constructor kk.decl._declare_method endClass implement implementConstructor endImplementation; export list",
