@@ -1009,6 +1009,36 @@ a property called `state` simply shadows it inside that class. Internal locals
 of the dispatcher are all `__kk_`-prefixed, so ordinary names such as
 `method_body` or `frame_id` are safe.
 
+### Taken Class and Instance Names
+
+A class `X` and an instance `X` both create functions `X.*`, so some names are
+taken (uses phase U2b, USES_PLAN.md U22 / U35 / U40):
+
+| Taken name | Why | As a class | As an instance (`T.new X`) |
+|---|---|---|---|
+| a DSL verb (`class`, `end`, `var`, `build`, `uses`, `declareClass`, `defineClass`, …) | it would shadow the DSL | refused | refused |
+| a built class | `X.new`, `X.<static>` | the site rules (*Duplicate identifier* from another place) | refused |
+| a **declared namespace** | someone's functions `X.*` | refused (unless declared by its owner) | refused |
+
+Declared namespaces are kkore's `kk kl ke kv kc`, kklass's `kkp`, the name of
+every unit (`kk.unit tlist` declares `tlist`) and every `kk.namespace X [Y …]`
+a file calls (`kk.namespace ths` in a unit that defines `ths.*` helpers). The
+check is one table lookup — nothing lists bash's function table. A unit may
+declare a class with its own name (`class dateutils` in `dateutils.sh`), and
+`kk.unit` / `kk.namespace` refuse a name that already is a class or a live
+instance.
+
+```bash
+defineClass kv "" property a     # kklass: Duplicate identifier: 'kv' is a function namespace (kv.* of unit kvar (...kkore/kvar.sh)); ...
+TList.new kc                     # Invalid instance name: kc (a function namespace: kc.* of unit kcfg (...))
+```
+
+**Not protected:** a plain library that has neither a unit header nor a
+`kk.namespace` line declares nothing — `source libns.sh; TB.new libns` still
+replaces its `libns.*` functions. Give such a library a header or a
+`kk.namespace libns` line. (kcl's own helper namespaces — tawk, tpipe, tsed,
+tutil, ths, tca — are declared when the kcl units get their headers, phase U4.)
+
 ### Silent Calls: kk.call_silent
 
 A `function` method echoes its `RESULT` when it runs in a subshell (that is how
@@ -1402,10 +1432,12 @@ Load it exactly like a `.kk` file:
 
 ```bash
 source "kklass_autoload.sh"
-kkload "counter_pascal.kkp"
+kkload "CounterPascal.kkp"
 ```
 
 `--no-compile` works for `.kkp` as well and routes through the same translated runtime path instead of the compiled cache.
+
+**Units (`unit X;`, `uses A, B;`).** `unit X;` must be the first statement and `X` the file's stem (`unit CounterPascal;` lives in `CounterPascal.kkp`); otherwise the translation fails. It becomes the two unit header lines of a unit outside the kbool tree (`kk.unit X`, the user form of USES_PLAN.md §7.4), so the translated file is a unit: loaded once, registered with kbool, which it loads from `KBOOL_HOME` when kbool is not loaded yet (`kkload` and `kklass_compiler.sh` set `KBOOL_HOME` to their own kbool when it is unset; a translation sourced by hand needs kbool loaded or `KBOOL_HOME` set). `uses A, B;` (outside a class, may span lines) becomes `kk.uses A B`. Put comments on their own lines: text after a `unit` / `uses` statement's `;` is an error naming FILE:LINE. A translated unit only loads from a file named `X.sh`: the runtime translation is `<cache>/X.sh`. A compiled cache names such a unit by its unit name (`# Source unit: X`) and registers its classes like a build does.
 
 ### Autoload Helper Functions
 

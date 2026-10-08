@@ -174,7 +174,7 @@ if [[ -z "$BAD" ]]; then kt_test_pass "5 refused"; else kt_test_fail "$BAD"; fi
 kt_test_start "A8 .kkp: a field and a class var of the same name → compile rc 1, nothing written; the translated unit's endImplementation rc 1"
 BAD=""
 cat > "$TMPD/u.kkp" <<'EOF'
-unit U;
+unit u;
 interface
 type
   KP = class
@@ -196,7 +196,7 @@ bash "$KKLASS_DIR/kklass_compiler.sh" "$TMPD/u.kkp" "$TMPD/u.ckk.sh" >"$OUTF" 2>
 [[ ! -e "$TMPD/u.ckk.sh" ]] || BAD+=" output written;"
 grep -q "'x'" "$ERRF" || BAD+=" compile error does not name 'x': '$(tr '\n' '|' < "$ERRF")';"
 bash "$KKLASS_DIR/kklass_kkp.sh" "$TMPD/u.kkp" "$TMPD/u.sh" >/dev/null 2>&1 || BAD+=" translate failed;"
-o="$(bash -c 'source "$1/kklass.sh"; source "$2" 2>/dev/null; r=$?; declare -p KP_class_methods &>/dev/null && echo "built:$r" || echo "refused:$r"' _ "$KKLASS_DIR" "$TMPD/u.sh")"
+o="$(KBOOL_HOME="${KKLASS_DIR%/*}" bash -c 'source "$1/kklass.sh"; source "$2" 2>/dev/null; r=$?; declare -p KP_class_methods &>/dev/null && echo "built:$r" || echo "refused:$r"' _ "$KKLASS_DIR" "$TMPD/u.sh")"
 [[ "$o" == refused:1 ]] || BAD+=" translated unit '$o';"
 if [[ -z "$BAD" ]]; then kt_test_pass "refused"; else kt_test_fail "$BAD"; fi
 

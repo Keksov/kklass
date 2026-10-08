@@ -13,18 +13,22 @@ source "$KTESTS_LIB_DIR/ktest.sh"
 kt_test_init "KkpMultilineSignatures" "$(dirname "$0")" "$@"
 
 KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# a translated `unit X;` is a unit outside the kbool tree (§7.4 user header): it
+# finds kbool.sh through KBOOL_HOME (uses U2b R5)
+export KBOOL_HOME="$(cd "$KKLASS_DIR/.." && pwd)"
 
 workdir="$(cd "$(kt_fixture_tmpdir)" && pwd)"
 ckk_dir="$workdir/ckk"
 export KKLASS_CKK_DIR="$ckk_dir"
 mkdir -p "$ckk_dir"
 unit_file="$workdir/multiline_counter.kkp"
-translated_file="$workdir/multiline_counter.runtime.sh"
+# a translated unit loads only from <unit>.sh (kk.unit checks the stem, U33/U36)
+translated_file="$workdir/multiline_counter.sh"
 compiled_file="$workdir/multiline_counter.ckk.sh"
 autoload_compiled_file="$ckk_dir/multiline_counter.ckk.sh"
 
 cat > "$unit_file" <<'EOF'
-unit MultilineCounter;
+unit multiline_counter;
 
 interface
 

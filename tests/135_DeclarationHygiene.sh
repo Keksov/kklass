@@ -287,9 +287,10 @@ else
 fi
 
 kt_test_start "B12 .kkp: a refused member (procedure delete;) → compile rc 1, nothing written; a reserved class var/procedure → rc 1"
-mk_kkp() { # FILE MEMBER-LINE
+mk_kkp() { # FILE MEMBER-LINE  (the unit name is the file stem, U33)
+    local u="${1##*/}"; u="${u%.kkp}"
     cat > "$1" <<EOF
-unit U;
+unit $u;
 
 interface
 
@@ -577,7 +578,7 @@ if [[ -z "$bad" ]]; then kt_test_pass "ok"; else kt_test_fail "$bad"; fi
 
 kt_test_start "E3 .kkp: a constructor name with a command substitution → compile rc 1, nothing executed, nothing written"
 cat > "$TMPD/ck.kkp" <<'EOF'
-unit U;
+unit ck;
 
 interface
 

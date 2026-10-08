@@ -56,6 +56,10 @@ source "${KKLASS_DIR}/../kkore/kvar.sh"
 #   _KKLASS_DECL_SITE[X]     the site of X's declaration still being built
 #                            (declareClass -> endImplementation)
 #   _KKLASS_SINK_AT[X]       "BOT|FILE": the `source` frame that opened X's sink
+#   _KKLASS_TAKEN[N]         verb | class | ns: names no class / instance may take
+#   _KKLASS_NS_OWNER[X]      "UNIT<US>FILE" that declared the namespace X
+#   _KKLASS_SINK_NS[X]       `declare -f` text of the namespace X's functions a
+#                            swallowed verb named (sink mode n), restored at its close
 #   __KKLASS_TABLES          ([on]=1) OWNERSHIP: the tables are this shell's.
 # A child bash never inherits assoc arrays (functions exported with set -a /
 # KKLASS_EXPORT_FUNCTIONS=1 do arrive): every entry point checks
@@ -72,12 +76,194 @@ source "${KKLASS_DIR}/../kkore/kvar.sh"
 # one class (a header-less file).
 kk._class_tables() {
     unset _KKLASS_CLASS_SITE _KKLASS_CLASS_SOURCE _KKLASS_DECL_SITE _KKLASS_SINK_AT \
-          __KKLASS_TABLES __kk_decl_snap_taken
+          __KKLASS_TABLES __kk_decl_snap_taken _KKLASS_TAKEN _KKLASS_NS_OWNER _KKLASS_SINK_NS
     declare -gA _KKLASS_CLASS_SITE=() _KKLASS_CLASS_SOURCE=() _KKLASS_DECL_SITE=() _KKLASS_SINK_AT=()
     declare -gA __kk_decl_snap_taken=()   # kklass_decl.sh: redefinition snapshots, keyed by class
+    # the taken names (uses U2b, "Taken names" below): verbs, classes, declared
+    # namespaces and their owners; snapshots of a refused namespace declaration
+    declare -gA _KKLASS_TAKEN=() _KKLASS_NS_OWNER=() _KKLASS_SINK_NS=()
     declare -gA __KKLASS_TABLES=([on]=1)
     declare -g __KK_SINK="" __KK_SINK_OPEN="" __KK_SINK_FNS="" __KK_SINK_LAST=""
+    kk._taken_init
 }
+
+# ---------------------------------------------------------------------------
+# Taken names (uses phase U2b; USES_PLAN.md U22 as amended by U40, U35).
+#
+# A class X creates the functions X.* and the variables X_*, and so does an
+# instance X. A name that is already a kklass DSL VERB, a CLASS or a declared
+# function NAMESPACE (the X of functions X.* a library defines: kkore's kk kl ke
+# kv kc, kklass's kkp, a unit's own name, a `kk.namespace X`) must not be taken
+# again: `defineClass kv` replaced kv.new, `T.new kc` replaced kc.delete, a
+# Pascal `class ke; proc enableErrorReport` deleted kkore's function (n1b).
+#
+# _KKLASS_TAKEN[NAME] = verb | class | ns — ONE assoc lookup on every path, no
+# listing of bash's function table anywhere (U40: a listing costs O(functions)
+# after any definition, measured ~quadratic: 16k functions ~0.9 s):
+#   verb   every public dotless function of kklass.sh, kklass_decl.sh,
+#          kklass_pascal.sh, kklass_serializable.sh, plus `uses` (U35, U32);
+#   class  added when a class is registered (built, also from a .ckk cache);
+#   ns     the namespaces DECLARED to kkore (kuse.sh "Declared namespaces":
+#          every unit's name, kk.namespace X, the kkore namespaces of
+#          kbool.sh — imported when the tables are created, then pushed by
+#          kkore's hook call kk._namespace_add), plus the namespaces kklass
+#          loads itself (kk kl ke kv from kkore, kkp) so they are taken also
+#          when kbool is not loaded. _KKLASS_NS_OWNER[X] = "UNIT<US>FILE".
+#  * A CLASS declaration (declareClass — so every builder —, a raw
+#    kk._build_class_runtime, a .ckk load) of a class not built yet: a verb is
+#    refused; a namespace is refused unless the declaration comes from its
+#    owner (a position of the declaration's site is the owner's file: kcl's
+#    dateutils unit declares `class dateutils`). (An UNdeclared prefix is not
+#    taken: `kk.register_static_methods X X ...` turns it into a class.) "kklass: Duplicate identifier: 'X' is ...", rc 1; the
+#    class is poisoned and the rest of its block swallowed (kklass_decl.sh, the
+#    sink; mode n for a namespace: every namespace function a swallowed verb
+#    names is snapshotted and restored when the sink closes).
+#  * An INSTANCE name (CLASS.new NAME) that is a verb, a class or a namespace:
+#    "Invalid instance name: NAME (...)", rc 1, nothing created.
+#  * The other direction (U22: a unit loaded AFTER a class of that name): kkore
+#    asks kk._name_in_use before it declares a namespace — kk.unit NAME and
+#    kk.namespace X refuse (rc 2) a built class or a live instance.
+# GAP (U40, documented): a plain library that has no unit header and never calls
+# `kk.namespace` declares nothing, so its functions are not protected.
+
+# kk._taken_init — _KKLASS_TAKEN / _KKLASS_NS_OWNER = the verbs, kklass's own
+# namespaces and every namespace kkore declared so far (the caller owns the
+# tables). The lists are literal (a child that inherited the functions gets no
+# arrays); test 140 recomputes the verbs from the live function table.
+kk._taken_init() {
+    local __kk_v __kk_d=${KKLASS_DIR-}
+    _KKLASS_TAKEN=()
+    _KKLASS_NS_OWNER=()
+    for __kk_v in \
+        declareClass privateSection protectedSection publicSection classVar field property \
+        constructor virtual override abstract procedure declareProcedure func declareFunction \
+        classProcedure classFunction endClass finalizeClass implement implementConstructor \
+        endImplementation finalizeImplementation \
+        class end public private protected static var proc destructor build uses \
+        defineClass defineMethod defineProcedure defineFunction \
+        defineSerializableClass addSerializable saveObjects loadObjects; do
+        _KKLASS_TAKEN[$__kk_v]=verb
+    done
+    kk._namespace_add kk kklass "$__kk_d/kklass.sh"
+    kk._namespace_add kkp kklass "$__kk_d/kklass_kkp.sh"
+    kk._namespace_add kl klib "${__kk_d%/*}/kkore/klib.sh"
+    kk._namespace_add ke kerr "${__kk_d%/*}/kkore/kerr.sh"
+    kk._namespace_add kv kvar "${__kk_d%/*}/kkore/kvar.sh"
+    if [[ ${__KK_LOADED[@]@a} == A && ${__KK_NAMESPACES[@]@a} == A* ]]; then
+        for __kk_v in "${!__KK_NAMESPACES[@]}"; do
+            kk._namespace_add "$__kk_v" "${__KK_NAMESPACES[$__kk_v]%%$'\x1f'*}" "${__KK_NAMESPACES[$__kk_v]#*$'\x1f'}"
+        done
+    fi
+    return 0
+}
+
+# kk._namespace_add X UNIT FILE — X is a declared namespace (kkore's hook call,
+# kuse.sh kk._ns_declare). A class or a verb of that name stays what it is; a
+# namespace keeps its first owner. rc 2 for an X that is not an identifier.
+kk._namespace_add() {
+    kk._is_ident "${1-}" || return 2
+    [[ ${__KKLASS_TABLES[@]@a} == A ]] || kk._class_tables
+    [[ -z ${_KKLASS_TAKEN[$1]+x} ]] || return 0
+    _KKLASS_TAKEN[$1]=ns
+    _KKLASS_NS_OWNER[$1]="${2-}"$'\x1f'"${3-}"
+    return 0
+}
+
+# kk._name_in_use X FILE — kkore's hook before it declares the namespace X from
+# FILE (kk.unit, kk.namespace): rc 0 when X is a live instance or a built class
+# not declared from FILE (RESULT = "an instance of CLASS" / "a class declared at
+# SITE"); rc 1 otherwise.
+kk._name_in_use() {
+    RESULT=""
+    kk._is_ident "${1-}" || return 1
+    [[ ${__KKLASS_TABLES[@]@a} == A ]] || kk._class_tables
+    local __kk_v=${1}_class __kk_p __kk_site_txt
+    local -a __kk_a
+    if [[ -n ${!__kk_v+x} ]]; then
+        RESULT="an instance of ${!__kk_v}"
+        return 0
+    fi
+    [[ -n ${_KKLASS_CLASS_SITE[$1]+x} ]] || return 1
+    IFS=$'\x1f' read -r -a __kk_a <<<"${_KKLASS_CLASS_SITE[$1]#*$'\x1d'}"
+    for __kk_p in "${__kk_a[@]}"; do
+        __kk_p=${__kk_p%:*}
+        if [[ -n $__kk_p && -n ${2-} ]] && [[ $__kk_p == "$2" || $__kk_p -ef $2 ]]; then return 1; fi
+    done
+    kk._class_site_text "${_KKLASS_CLASS_SITE[$1]}"
+    RESULT="a class declared at $__kk_site_txt"
+    return 0
+}
+
+# kk._ns_txt X -> __kk_ns_txt: "X.* of unit U (FILE)" / "X.* (FILE)" for messages.
+kk._ns_txt() {
+    [[ ${__KKLASS_TABLES[@]@a} == A ]] || kk._class_tables     # ownership first (R14)
+    __kk_ns_txt="${1-}.*"
+    kk._is_ident "${1-}" || return 0
+    local __kk_o=${_KKLASS_NS_OWNER[$1]-} __kk_u __kk_f __kk_site_txt
+    __kk_u=${__kk_o%%$'\x1f'*}
+    __kk_f=${__kk_o#*$'\x1f'}
+    __kk_ns_txt="$1.*"
+    [[ -z $__kk_u ]] || __kk_ns_txt+=" of unit $__kk_u"
+    if [[ -n $__kk_f ]]; then
+        kk._class_site_text $'\x1d'"$__kk_f:0"
+        __kk_ns_txt+=" (${__kk_site_txt%:0})"
+    fi
+}
+
+# kk._taken_check CLASS — may a class CLASS that is not built yet be declared?
+# rc 0 yes; rc 1 CLASS is a DSL verb or a declared namespace it does not own:
+# printed (the caller's __kk_site names the refused declaration), the loading
+# unit marked incomplete (U34); __kk_taken_kind = verb | ns for the caller.
+kk._taken_check() {
+    [[ ${__KKLASS_TABLES[@]@a} == A ]] || kk._class_tables     # ownership first (R14)
+    kk._is_ident "${1-}" || return 0
+    local __kk_site_txt __kk_ns_txt __kk_what __kk_f __kk_p
+    local -a __kk_ra __kk_aa
+    __kk_taken_kind=""
+    case ${_KKLASS_TAKEN[$1]-} in
+        verb)
+            __kk_taken_kind=verb
+            __kk_what="a kklass DSL verb"
+            ;;
+        ns)
+            # its owner may declare it as a class (a unit `dateutils` -> class dateutils)
+            __kk_f=${_KKLASS_NS_OWNER[$1]-}
+            __kk_f=${__kk_f#*$'\x1f'}
+            if [[ -n $__kk_f ]]; then
+                IFS=$'\x1f' read -r -a __kk_ra <<<"${__kk_site%%$'\x1d'*}"
+                IFS=$'\x1f' read -r -a __kk_aa <<<"${__kk_site#*$'\x1d'}"
+                for __kk_p in "${__kk_ra[@]}" "${__kk_aa[@]}"; do
+                    __kk_p=${__kk_p%:*}
+                    [[ -n $__kk_p ]] || continue
+                    if [[ $__kk_p == "$__kk_f" || $__kk_p -ef $__kk_f ]]; then return 0; fi
+                done
+            fi
+            __kk_taken_kind=ns
+            kk._ns_txt "$1"
+            __kk_what="a function namespace ($__kk_ns_txt)"
+            ;;
+        *) return 0 ;;
+    esac
+    kk._class_site_text "$__kk_site"
+    echo "kklass: Duplicate identifier: '$1' is $__kk_what; refusing to declare a class '$1' at ${__kk_site_txt}" >&2
+    if [[ ${__KK_LOADED[@]@a} == A ]]; then kk._unit_taint 1; fi
+    return 1
+}
+
+# kk._new_refused NAME — the message of a .new refused by _KKLASS_TAKEN.
+kk._new_refused() {
+    [[ ${__KKLASS_TABLES[@]@a} == A ]] || kk._class_tables     # ownership first (R14)
+    local __kk_ns_txt __kk_w
+    case ${_KKLASS_TAKEN[${1:-.}]-} in
+        verb)  __kk_w="a kklass DSL verb" ;;
+        class) __kk_w="the name of a class" ;;
+        ns)    kk._ns_txt "$1"; __kk_w="a function namespace: $__kk_ns_txt" ;;
+        *)     __kk_w="a taken name" ;;
+    esac
+    echo "Invalid instance name: ${1-} ($__kk_w)" >&2
+    return 1
+}
+
 [[ ${__KKLASS_TABLES[@]@a} == A ]] || kk._class_tables
 
 # kk._class_site — the site of the class verb being run (see above), into the
@@ -191,16 +377,27 @@ kk._class_site_text() {
     __kk_site_txt=$__t
 }
 
-# kk._class_verdict CLASS — may CLASS be built from the current site?
+# kk._class_verdict CLASS [SITE] — may CLASS be built from the current site
+# (or from SITE: a compiled cache names the site its class was built from)?
 #   rc 0 yes (not built yet, or a prompt redefinition), __kk_site = the site;
 #   rc 1 "Duplicate identifier" (printed; the loading unit tainted, U34);
-#   rc 2 the same site again (WARNING printed).
-# Needs the caller's locals __kk_site __kk_site_tty __kk_site_open.
+#   rc 2 the same site again (WARNING printed);
+#   rc 3 not built yet, but CLASS is a DSL verb or a function namespace
+#        (printed, "Taken names" above; __kk_taken_kind = verb | ns).
+# Needs the caller's locals __kk_site __kk_site_tty __kk_site_open
+# __kk_taken_kind.
 kk._class_verdict() {
     local __kk_c=$1 __kk_site_txt __kk_old
     [[ ${__KKLASS_TABLES[@]@a} == A ]] || kk._class_tables
-    kk._class_site
-    [[ -n ${_KKLASS_CLASS_SITE[$__kk_c]+x} ]] || return 0
+    if (( $# > 1 )); then
+        __kk_site=$2 __kk_site_tty=0 __kk_site_open="-1|"
+    else
+        kk._class_site
+    fi
+    if [[ -z ${_KKLASS_CLASS_SITE[$__kk_c]+x} ]]; then
+        kk._taken_check "$__kk_c" || return 3
+        return 0
+    fi
     (( __kk_site_tty )) && return 0
     kk._class_site_text "${_KKLASS_CLASS_SITE[$__kk_c]}"; __kk_old=$__kk_site_txt
     if kk._class_site_same "${_KKLASS_CLASS_SITE[$__kk_c]}" "$__kk_site"; then
@@ -224,6 +421,7 @@ kk._class_register() {
     __kk_f=${__kk_f%:*}
     _KKLASS_CLASS_SITE[$1]=$2
     _KKLASS_CLASS_SOURCE[$1]=${__kk_f:-(no file)}
+    _KKLASS_TAKEN[$1]=class
     unset '_KKLASS_DECL_SITE[$1]'
     if [[ ${__KK_LOADED[@]@a} == A ]]; then
         __kk_r=${RESULT-}
@@ -263,6 +461,78 @@ kk.class() {
     [[ ${__KKLASS_TABLES[@]@a} == A ]] || kk._class_tables
     [[ -n ${_KKLASS_CLASS_SITE[$2]+x} ]] || return 1
     kk._unit_forget_class "$2"
+}
+
+# ---------------------------------------------------------------------------
+# Compiled caches (.ckk, uses U2b: C13, P9, U11). kklass_compiler.sh writes, per
+# class, `if kk._ckk_class CLASS SITE; then <the dump>; kk._ckk_built CLASS; fi`
+# after one `kk._ckk_begin UNIT REL ABS`, and `kk._ckk_end` at the end. A class
+# loaded from a cache is so registered like a built one: declared again from
+# another file it is a Duplicate identifier (before U2b it was replaced
+# silently), from the same place a WARNING (U20) — and a cache whose class is
+# already built from another place, or named like a verb or a namespace, skips
+# that class's dump instead of overwriting it.
+# SITE is the declaration site the compiler saw, the compiled source file as
+# the placeholder $'\x1e'; kk._ckk_begin UNIT REL ABS resolves it to (first
+# that applies):
+#   1. the file autoloadClasses is loading (its local __kk_ckk_from: the source
+#      made absolute; for a .kkp its runtime translation <cache>/<stem>.sh) —
+#      so a cached and a runtime load of one source are the same site;
+#   2. REL, the source relative to the cache's folder (P9, review R2: a project
+#      moved together with its cache), when ABS is empty (a .kkp's runtime
+#      translation, which need not exist) or that file exists;
+#   3. the source UNIT by name, when the source is a unit and kbool is loaded:
+#      the file `kk.uses UNIT` finds from the folder above the cache;
+#   4. ABS, the absolute path at compile time.
+
+# kk._ckk_begin UNIT REL [ABS] — a compiled cache starts (see above).
+kk._ckk_begin() {
+    local __kk_d=${BASH_SOURCE[1]-} __kk_found __kk_f="" __kk_r=${2-}
+    [[ ${__KKLASS_TABLES[@]@a} == A ]] || kk._class_tables
+    case $__kk_d in
+        */*|*\\*) __kk_d=${__kk_d%[/\\]*} ;;
+        *) __kk_d=. ;;
+    esac
+    [[ $__kk_d == /* || $__kk_d == [A-Za-z]:* ]] || __kk_d=$PWD/$__kk_d
+    [[ -z $__kk_r || $__kk_r == /* || $__kk_r == [A-Za-z]:* ]] || __kk_r=$__kk_d/$__kk_r
+    if [[ -n ${__kk_ckk_from-} ]]; then
+        __kk_f=$__kk_ckk_from
+    elif [[ -n $__kk_r ]] && [[ -z ${3-} || -f $__kk_r ]]; then
+        __kk_f=$__kk_r
+    elif [[ -n ${1-} && ${__KK_LOADED[@]@a} == A ]] && declare -F kk._unit_find >/dev/null \
+         && kk._unit_find "$1" "${__kk_d%[/\\]*}" 2>/dev/null; then
+        __kk_f=$__kk_found
+    else
+        __kk_f=${3:-$__kk_r}
+    fi
+    [[ -z $__kk_f || $__kk_f == /* || $__kk_f == [A-Za-z]:* ]] || __kk_f=$PWD/$__kk_f
+    __KK_CKK_FILE=$__kk_f
+    __KK_CKK_SITE=""
+    return 0
+}
+
+# kk._ckk_class CLASS SITE — rc 0: load CLASS's dump (its resolved site is kept
+# for kk._ckk_built); rc 1: skip it — already built from another place
+# (Duplicate identifier), from the same place (WARNING), or a verb / namespace
+# (printed by kk._class_verdict).
+kk._ckk_class() {
+    local __kk_site __kk_site_tty __kk_site_open __kk_taken_kind __kk_s=${2-}
+    kk._is_ident "${1-}" || { echo "kklass: a compiled cache names an invalid class: '${1-}'" >&2; return 1; }
+    __kk_s=${__kk_s//$'\x1e'/${__KK_CKK_FILE-}}
+    kk._class_verdict "$1" "$__kk_s" || return 1
+    __KK_CKK_SITE=$__kk_site
+    return 0
+}
+
+# kk._ckk_built CLASS — the dump of CLASS is loaded: register it (site, unit).
+kk._ckk_built() {
+    kk._class_register "$1" "${__KK_CKK_SITE-}"
+}
+
+# kk._ckk_end — the cache is loaded.
+kk._ckk_end() {
+    unset __KK_CKK_FILE __KK_CKK_SITE
+    return 0
 }
 
 # Scratch global used by kk._find_method to return the resolving class
@@ -929,7 +1199,7 @@ kk._build_class_runtime() {
     # call is judged here: another site -> rc 1, the same site again -> one
     # WARNING and rc 0 without rebuilding. The site is registered at the end,
     # once the class is built.
-    local __kk_site __kk_site_tty __kk_site_open
+    local __kk_site __kk_site_tty __kk_site_open __kk_taken_kind
     if [[ ${FUNCNAME[1]-} == endImplementation && ${__KKLASS_TABLES[@]@a} == A \
           && -n ${_KKLASS_DECL_SITE[$class_name]+x} ]]; then
         __kk_site=${_KKLASS_DECL_SITE[$class_name]}
@@ -938,6 +1208,7 @@ kk._build_class_runtime() {
         case $? in
             1) return 1 ;;
             2) return 0 ;;
+            3) return 1 ;;     # a DSL verb or a function namespace (printed)
         esac
     fi
 
@@ -1343,11 +1614,16 @@ __INST__.delete() { kk._delete __INST__ \"\$@\"; }"
     # THIS INLINE COPY MUST STAY EQUIVALENT TO kk._is_ident (the single
     # definition of the rule); test 135 C5 runs one name table through both
     # in every locale × globasciiranges × nocasematch combination.
+    # Then the taken names (uses U2b, "Taken names" at the top): a verb, a
+    # class or a declared namespace is refused — one ownership test (R14) and
+    # one assoc lookup; nothing lists the function table.
     local __kk_new_guard='if [[ ":$BASHOPTS:" != *:nocasematch:* ]]; then
             [[ -n "$instname" && "$instname" != [!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_]* && "$instname" != *[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_]* ]]
         else
             kk._is_ident "$instname"
-        fi || { echo "Invalid instance name: $instname" >&2; return 1; }'
+        fi || { echo "Invalid instance name: $instname" >&2; return 1; }
+        [[ ${__KKLASS_TABLES[@]@a} == A ]] || kk._class_tables
+        [[ -z ${_KKLASS_TAKEN[$instname]+x} ]] || { kk._new_refused "$instname"; return 1; }'
     eval "${class_name}.new() {
         local instname=\"\$1\"
         shift
@@ -1647,4 +1923,5 @@ source "${KKLASS_DIR}/kklass_decl.sh"
 if [[ "${KKLASS_EXPORT_FUNCTIONS:-0}" == "1" ]]; then
     export -f kk._processMethodBody kk.call_silent kk._class_derives_from kk._is_ident kk.isAbstract kk.derivesFrom kk._warn_visibility kk._build_class_runtime _defineMethodType defineClass defineMethod defineProcedure defineFunction kk.register_static_methods
     export -f kk._class_tables kk._class_site kk._class_site_same kk._class_site_text kk._class_verdict kk._class_register kk._unit_forget_class kk.class kk._class_static_api
+    export -f kk._taken_init kk._namespace_add kk._name_in_use kk._ns_txt kk._taken_check kk._new_refused kk._ckk_begin kk._ckk_class kk._ckk_built kk._ckk_end
 fi

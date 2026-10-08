@@ -1,10 +1,14 @@
 #!/bin/bash
 
 SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
+# a `unit X;` file is a unit outside the kbool tree: it finds kbool.sh through
+# KBOOL_HOME (the §7.4 user header)
+export KBOOL_HOME="${KBOOL_HOME:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
 source "$SCRIPT_DIR/../kklass_autoload.sh"
 
 workdir="$(mktemp -d)"
-unit_file="$workdir/counter_pascal.kkp"
+# the unit name is the file stem (U33/U36): unit CounterPascal; lives in CounterPascal.kkp
+unit_file="$workdir/CounterPascal.kkp"
 
 cat > "$unit_file" <<'EOF'
 unit CounterPascal;

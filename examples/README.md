@@ -96,7 +96,7 @@ The examples are organized into five main sections:
 | [42_json_serialization.sh](42_json_serialization.sh) | JSON Serialization | Converting objects to/from JSON format |
 | [43_nested_serialization.sh](43_nested_serialization.sh) | Nested Serialization | Serialization of nested objects and complex structures |
 | [44_pascal_declare_implement.sh](44_pascal_declare_implement.sh) | Pascal-style Declare/Implement | Class declaration and implementation split with `classVar` |
-| [45_pascal_unit_kkp.sh](45_pascal_unit_kkp.sh) | Pascal-style `.kkp` Unit | Loading a Pascal-like unit with multiline signatures through `kkload` |
+| [45_pascal_unit_kkp.sh](45_pascal_unit_kkp.sh) | Pascal-style `.kkp` Unit | Loading a Pascal-like unit (`unit CounterPascal;` in `CounterPascal.kkp` — a unit name is its file stem) with multiline signatures through `kkload` |
 | [46_visibility_modifiers.sh](46_visibility_modifiers.sh) | Visibility Modifiers | `private`/`protected`/`public` sections and access warnings for out-of-class member access |
 
 ### Section 5: Pascal DSL

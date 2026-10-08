@@ -38,6 +38,7 @@
 #   abstract <proc|func>         no body; class cannot be instantiated until overridden
 #   override <proc|func>         guard: errors unless an ancestor has the method
 #   build N                      extract bodies + finalize the class
+#   uses A B ...                 load units once (= kk.uses; kbool.sh must be loaded)
 
 if [[ -n "${_KKLASS_PASCAL_SOURCED:-}" ]]; then
     return
@@ -319,6 +320,24 @@ build() {
     return 0
 }
 
+# ---- uses (Pascal `uses A, B;`, USES_PLAN.md U32) ---------------------------
+
+# `uses A B ...` — the Pascal-DSL synonym of kkore's `kk.uses A B ...` (load
+# units once: a NAME is looked up from the calling file's folder, then the
+# project and system paths; a PATH is relative to the calling file). Only
+# meaningful when kbool.sh is loaded in this shell (a unit's header loads it);
+# otherwise rc 2 with a message. It calls kk.uses' body with the CALLER's file
+# (a plain `kk.uses "$@"` here would resolve names from kklass_pascal.sh's
+# folder); the frames below it are kk.uses' own, so kk.uses' cycle and
+# incomplete-unit checks see the same stack.
+uses() {
+    if [[ ${__KK_LOADED[@]@a} != A ]] || ! declare -F kk._uses >/dev/null; then
+        echo "uses: kbool.sh is not loaded in this shell (uses = kk.uses; source kbool.sh first, or start the file with a unit header)" >&2
+        return 2
+    fi
+    kk._uses "${BASH_SOURCE[1]-}" "$@"
+}
+
 kk.pascal._ancestor_has_method() {
     local class="$1" method="$2"
     local pvar="${class}_parent_class"
@@ -335,5 +354,5 @@ kk.pascal._ancestor_has_method() {
 if [[ "${KKLASS_EXPORT_FUNCTIONS:-0}" == "1" ]]; then
     export -f class end public private protected static override abstract var proc func \
         destructor build kk.pascal._declare_method kk.pascal._body kk.pascal._ancestor_has_method \
-        kk.pascal._check_ctor_static
+        kk.pascal._check_ctor_static uses
 fi

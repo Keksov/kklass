@@ -12,6 +12,11 @@ autoloadClasses_runtime_source() {
 
     if [[ "$source_file" == *.kkp ]]; then
         bash "$KKLASS_LIB_DIR/kklass_kkp.sh" "$source_file" "$runtime_file" || return 1
+        # a `unit X;` translation bootstraps kbool from ${KBOOL_HOME-} (§7.4 user
+        # form): with neither kbool nor KBOOL_HOME, this kklass's own kbool (U2b R5)
+        if [[ ${__KK_UNITS[@]@a} != A* && -z ${KBOOL_HOME-} ]]; then
+            KBOOL_HOME=${KKLASS_LIB_DIR%/*}
+        fi
         source "$runtime_file"
     else
         source "$source_file"
@@ -53,11 +58,22 @@ autoloadClasses() {
     # Generate compiled filename (.kk -> .ckk/filename.ckk.sh). The cache dir is
     # $(pwd)/.ckk by contract (tests 027-033, 063); KKLASS_CKK_DIR overrides it
     # so that e.g. two test runs on different bash versions do not race on the
-    # same compiled file.
+    # same compiled file; between the two, when kbool is loaded, the config's
+    # `ckkdir` (kk.config ckkdir: KBOOL_CONFIG / project / user / system, U11,
+    # uses U2b).
     local source_dir="$(dirname "$source_file")"
     local source_name="$(basename "$source_file")"
     local source_stem="$source_name"
-    local ckk_dir="${KKLASS_CKK_DIR:-$(pwd)/.ckk}"
+    local ckk_dir="${KKLASS_CKK_DIR:-}"
+    if [[ -z "$ckk_dir" ]]; then
+        local __kk_al_r="${RESULT-}"
+        if [[ ${__KK_LOADED[@]@a} == A ]] && declare -F kk.config >/dev/null && kk.config ckkdir 2>/dev/null; then
+            ckk_dir="$RESULT"
+        fi
+        RESULT="$__kk_al_r"
+        [[ -n "$ckk_dir" ]] || ckk_dir="$PWD/.ckk"
+    fi
+    [[ "$ckk_dir" == /* || "$ckk_dir" == [A-Za-z]:* ]] || ckk_dir="$PWD/$ckk_dir"
     local runtime_file=""
 
     case "$source_name" in
@@ -73,13 +89,17 @@ autoloadClasses() {
     esac
 
     local compiled_file="$ckk_dir/${source_stem}.ckk.sh"
-    runtime_file="$ckk_dir/${source_stem}.runtime.sh"
+    # a .kkp's runtime translation: <stem>.sh — a `unit X;` header (U36) loads
+    # only from a file named X.sh (kk.unit checks the stem, U33)
+    runtime_file="$ckk_dir/${source_stem}.sh"
     
     # Create .ckk directory if it doesn't exist
     if [[ ! -d "$ckk_dir" ]]; then
         mkdir -p "$ckk_dir" 2>/dev/null || {
             echo "Warning: Could not create $ckk_dir, using source directory" >&2
             compiled_file="${source_dir}/${source_stem}.ckk.sh"
+            # (never <stem>.sh next to the source: it could overwrite a real file;
+            # a .kkp unit then fails its header loudly, U33)
             runtime_file="${source_dir}/${source_stem}.runtime.sh"
         }
     fi
@@ -113,7 +133,8 @@ autoloadClasses() {
             needs_compilation=true
             echo "[autoload] Source file is newer, recompiling" >&2
         elif [[ "$KKLASS_LIB_DIR/kklass_compiler.sh" -nt "$compiled_file" \
-                || "$KKLASS_LIB_DIR/kklass.sh" -nt "$compiled_file" ]]; then
+                || "$KKLASS_LIB_DIR/kklass.sh" -nt "$compiled_file" \
+                || ( "$source_file" == *.kkp && "$KKLASS_LIB_DIR/kklass_kkp.sh" -nt "$compiled_file" ) ]]; then
             # A cache is a verbatim dump of what the runtime built, so one made
             # by an older compiler or runtime is stale too (round 4 / P12, C15,
             # DR12: caches from before the kv fix redefined all ten kkore kv.*
@@ -143,7 +164,13 @@ autoloadClasses() {
         echo "[autoload] Using cached compiled file: $compiled_file" >&2
     fi
     
-    # Load compiled file
+    # Load compiled file. The cache registers its classes (uses U2b): their
+    # declaration sites name the file this load stands for — the source, or a
+    # .kkp's runtime translation — so a cached and a runtime load of one source
+    # are the same place (kk._ckk_begin reads __kk_ckk_from).
+    local __kk_ckk_from="$source_file"
+    [[ "$source_file" != *.kkp ]] || __kk_ckk_from="$runtime_file"
+    [[ "$__kk_ckk_from" == /* || "$__kk_ckk_from" == [A-Za-z]:* ]] || __kk_ckk_from="$PWD/$__kk_ckk_from"
     source "$compiled_file"
     
     # Set flag to indicate compiled mode is active

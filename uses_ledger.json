@@ -3,7 +3,7 @@
   "project": "kbool `uses` — Pascal-like unit inclusion and duplicate identifiers. Design: kklass/USES_PLAN.md (decisions U1-U37, critic §7.1-7.2, supervisor review §7.3 P1-P10, header shapes §7.4, phases §8).",
   "created": "2026-10-06",
   "updated": "2026-10-08",
-  "status": "U2a DONE+COMMITTED 2026-10-08; U2b next",
+  "status": "U2 (U2a+U2b) DONE+COMMITTED 2026-10-09; STOP before U3 (owner)",
   "workflow": "per phase: Opus worker implements (red-first) -> Opus critic reviews the worker's result against the plan and the live tree (no edits) -> supervisor review + remarks -> full master sweep on bash 5.2.37 and 5.3.9 -> commit; push only on the owner's word",
   "phases": {
     "U1a": {
@@ -212,7 +212,7 @@
     },
     "U2": {
       "name": "kklass (split by the supervisor 2026-10-07 into U2a + U2b)",
-      "status": "in_progress",
+      "status": "done",
       "commit": "",
       "U2a": {
         "name": "class declaration sites (frame chain + -ef), Duplicate identifier + poison, header-less re-source sink (C6 state machine incl. Pascal static restore + scratch cleanup) with one WARNING, prompt-only interactive allowance (C14), unit->classes registration + --forget class hook (P4)",
@@ -319,8 +319,90 @@
       },
       "U2b": {
         "name": "lazy namespace registry checked in declareClass/.new (U22), DSL verb names refused (U35), .ckk registration + unit by NAME + kk.uses kklass (C13, P9), uses synonym in the Pascal DSL (U32), .kkp unit/uses translation (U36, example 45)",
-        "status": "in_progress",
-        "commit": ""
+        "status": "done",
+        "date": "2026-10-08",
+        "commit": "PENDING",
+        "files": [
+          "kklass/kklass.sh: 'Taken names' (kk._taken_init: verbs + kklass's own namespaces kk kkp kl ke kv + import of kkore's __KK_NAMESPACES; kk._namespace_add and kk._name_in_use = kkore's hooks; kk._ns_txt, kk._taken_check, kk._new_refused — ownership first in every helper); kk._class_tables declares _KKLASS_TAKEN / _KKLASS_NS_OWNER / _KKLASS_SINK_NS; kk._class_verdict CLASS [SITE] (rc 3 = verb / namespace); kk._class_register adds TAKEN[X]=class; kk._build_class_runtime maps rc 3; the .new guard (ownership + one TAKEN lookup); 'Compiled caches' (kk._ckk_begin UNIT REL ABS / _ckk_class / _ckk_built / _ckk_end); export list",
+          "kklass/kklass_decl.sh: declareClass rc 3 -> poison '(reserved name)' + sink n (namespace) or d (verb); sink mode n in _sink_end / _sink_close (restore) / _sunk (per swallowed member: kk.decl._ns_snap NS NAME) / _sink_mode; export list",
+          "kklass/kklass_pascal.sh: `uses` (U32) = kk._uses with the CALLER's file; rc 2 without kbool; doc + export list",
+          "kklass/kklass_kkp.sh: `unit X;` -> the two §7.4 USER header lines (no baked path, R5), U33 check before anything is written; FILE:LINE on unit/uses errors; text after a unit/uses ';' is an error (R4); `uses A, B;` (multi-line) -> kk.uses A B || return",
+          "kklass/kklass_compiler.sh: .kkp translated into mktemp -d/<stem>.sh with KBOOL_HOME defaulted to the compiler's kbool; kk.compiler._fold / _relpath / _site_part; header '# Source unit: X', the kklass loading prologue, kk._ckk_begin UNIT REL ABS (REL relative to the cache folder, R2); per class `if kk._ckk_class C SITE; then <dump>; kk._ckk_built C; fi`; kk._ckk_end",
+          "kklass/kklass_autoload.sh: ckk dir = KKLASS_CKK_DIR, else kk.config ckkdir, else $PWD/.ckk, made absolute; a .kkp's runtime translation <ckkdir>/<stem>.sh (KBOOL_HOME defaulted to this kklass's kbool when neither kbool nor KBOOL_HOME is there); mtime rule + kklass_kkp.sh for .kkp sources; __kk_ckk_from",
+          "kkore/kuse.sh: 'Declared namespaces' (U40): __KK_NAMESPACES table, kk._ns_declare, kk._ns_free, public kk.namespace X [Y...]; kk.unit declares its NAME and refuses (rc 2, __kk_unit_rc 2) a NAME that is a built class or a live instance (kklass hook); API doc",
+          "kbool.sh: declares the kkore namespaces kk kl ke kv kc at boot; checks kk._ns_declare exists",
+          "kkore/tests/012_DeclaredNamespaces.sh (new, 5 tests)",
+          "kklass/tests/140_TakenNames.sh (new, 18 tests)",
+          "kklass/tests/063, 065 (unit name = file stem, translated file <stem>.sh, KBOOL_HOME exported), 135 (B12 mk_kkp unit = stem, E3 unit ck), 136 (A8 unit u, KBOOL_HOME for the hand-sourced translation), 139 (S24: unit -> silent second load + a header-less variant keeps the one WARNING)",
+          "kklass/examples/45_pascal_unit_kkp.sh (CounterPascal.kkp, KBOOL_HOME), examples/README.md, docs/kklass_book.md ('Taken Class and Instance Names' incl. the U40 gap; .kkp units: user header, comments)"
+        ],
+        "red_before": {
+          "how": "the new / changed tests run against HEAD's kkore + kklass + kbool.sh (scratch copy worker_u2b/base)",
+          "140_TakenNames": "18/18 FAIL on 5.2.37 (round 0: 15/15 on both bashes)",
+          "012_DeclaredNamespaces (kkore)": "5/5 FAIL",
+          "139_ClassDeclarationSites": "1 FAIL on both (S24)",
+          "063/065/135/136": "0 FAIL at HEAD (the unit-name / KBOOL_HOME edits are needed by U33 and the R5 header only)",
+          "review_round_1": "the round-0 U2b code is not kept as a tree; the review items were red on it per the critic's probes: s3.sh (R3: kk._taken_check hz in a fresh set -a child -> PWN), k1.sh (R2: moved project -> Duplicate identifier, kk.uses fails), the c-probes for R4 (a comment after `unit X;` -> 'malformed unit statement', after `uses a, b;` -> lines swallowed), R5 (baked translator root), R7 (n/a: kkp was a listed namespace only with kklass_kkp loaded)"
+        },
+        "gate": {
+          "kklass_5.2.37_threaded": "689/689, 0 [FAIL] (671 + 140's 18)",
+          "kklass_5.3.9_threaded": "689/689, 0 [FAIL]",
+          "kklass_5.2.37_single": "689/689, 0 [FAIL]",
+          "kkore_5.2.37_threaded": "634/634, 0 [FAIL] (629 + 012's 5)",
+          "kkore_5.3.9_threaded": "634/634, 0 [FAIL]",
+          "kcl_26_suites_5.2.37": "6676/6676, 0 [FAIL] 0 [WARN] (dateutils 444, math 177, tarray 98, tawk 592, tcustomapplication 377, tdictionary 148, tdirectory 320, tfile 250, tfind 226, tgrep 185, thashset 149, thead 182, thttpserver 497, tinifile 191, tlist 134, tobjectlist 52, tpath 243, tpipe 190, tqueuestack 98, tregex 246, tsed 293, tstopwatch 61, tstringhelper 922, tstringlist 192, ttail 200, tutil 209) — totals unchanged",
+          "kcl_26_suites_5.3.9": "6676/6676, 0 [FAIL] 0 [WARN], same per-suite totals",
+          "kklass_examples": "48 on both bashes vs the HEAD copy, root-normalised: no delta except timing lines (5.2: ex 16 'Object age'; 5.3: ex 27 / 28 timer); example 45 output identical",
+          "probes": "critic_u2b s3.sh 0 PWN, k1.sh moved project: WARNING (same place), unit=0, kk.uses=0; c1.sh: kk kv kc ke kl kkp + verbs refused (class and instance), kcl helper prefixes tca ths tpipe tsed tutil tawk NOT refused as classes (U4, found_in); c4.sh: hostile kv.helper + defineClass kv refused, kk.register_static_methods kv kv refused, KKLASS_CKK_DIR (relative) over ckkdir",
+          "master_sweep": "not run (reviewer)"
+        },
+        "measured": {
+          "listing_cost (U40)": "bash rebuilds its function list on the first listing after ANY definition (pcomplete's itemlist marked dirty): compgen -A function, compgen -V, a name-less declare -F all pay it; ~3 us per function on MSYS and growing ~quadratically (critic: 2k 9 ms, 8k 150 ms, 16k ~0.9 s, 24k ~2.8 s; worker p13-p16: 4.3-5.5 ms per probe with kcl loaded, 0.2-0.43 s at 10-13k functions, 1.4 s for the first compgen -V with kcl + 2000 instances). The round-0 `compgen -A function -- X.` probe (26-36 us) held only for an UNCHANGED table (best-of-5 hid the rebuild). A single-name `declare -F NAME` / `declare -f NAME` stays O(1) (22-35 us after 15k definitions, p17.sh)",
+          "round0_scan (superseded)": "the round-0 lazy scan: 5.3 compgen -V + dedupe 93-206 ms, 5.2 a `$( )` capture 850-870 ms with kcl + 2000 instances; a scan per plugin load / new declaring file (critic: 1.2-2 s per plugin at 2000 instances, a 10-class library 8.3 s vs 0.8 s). Note (critic): a leftover worker probe p8.sh was spinning a core during the round-0 bench and its '1-1.8 s per scan' numbers",
+          "census": "with all 26 kcl units loaded: helper namespaces that are no class: ths TSet TDict tpipe TQueueStack tsed tca tutil tawk (+ kkore's); every kcl unit declares at least one class; tawk.* tpipe.* tsed.* tutil.* are defined after the unit's first class (p2.sh, p3.sh) — they are declared in U4 (kk.namespace + headers)",
+          "bench": "worker_u2b/bench2.sh: all 26 kcl units loaded (~7550 functions incl. kcl class wrappers), EXTRA dummy functions defined, then 10 defineClass, 1000 .new of fresh names, 1000 re-creations; alternating HEAD copy / U2b, medians (5 runs at EXTRA 0, 3 at 5000 / 15000). 5.2.37 HEAD -> U2b: EXTRA 0 defineClass 93.0 -> 106.1 ms, .new 148.7 -> 156.2 us, re-new 138.2 -> 141.3 us; EXTRA 5000 125.7 -> 131.1 ms, 141.7 -> 156.8 us, 143.6 -> 144.5 us; EXTRA 15000 117.2 -> 103.5 ms, 137.6 -> 158.2 us, 129.5 -> 142.4 us. 5.3.9: EXTRA 0 86.7 -> 82.8 ms, 161.0 -> 170.4 us, 137.4 -> 152.8 us; EXTRA 5000 91.1 -> 87.9 ms, 137.6 -> 143.9 us, 145.6 -> 142.8 us; EXTRA 15000 129.5 -> 117.6 ms, 139.0 -> 144.4 us, 131.6 -> 134.1 us. No growth with the function count on either tree (single runs vary 30-50 % on this machine). The .new check alone (micro5.sh, 20 000 iterations, best of 5): 4.9 us (5.2) / 4.0 us (5.3), with 15 000 more functions 5.1 / 4.0 us — the R14 ownership test  (~2-3 us here; a bare [[ ]] costs 0.5-1 us on this machine) + one assoc lookup; nothing lists the table"
+        },
+        "deviations": [
+          "SUPERSEDED by U40 (review R1): round 0 consulted a lazily rescanned registry built by LISTING the function table, probed the table while it was stale, kept a generation counter (__KK_UNIT_GEN) and a pending state. All removed: namespaces are DECLARED (kk.unit, kk.namespace, kbool.sh, kklass), the paths do one assoc lookup",
+          "ACCEPTED (review): a class may take a namespace declared by its own owner — the declaration's site contains the owner's file (U40 form of the round-0 'own call chain' exemption: kcl's `class dateutils` in the unit dateutils). kk.register_static_methods X X no longer bypasses a DECLARED namespace (`kk.register_static_methods kv kv ...` is refused); an undeclared prefix is not taken at all, so it needs no bypass",
+          "SUPERSEDED by U40: the round-0 full rescan with extdebug attribution; messages now name the declared owner: 'X.* of unit U (FILE)'",
+          "SUPERSEDED by U40: staleness / pending / 'new declaring file' machinery",
+          "ACCEPTED (review): sink mode n for a refused namespace — now per swallowed member: the swallowed verb (proc/func/procedure/...) snapshots the namespace's function of that name (one `declare -F` + `declare -f` of that name, no listing) before an imposter's body can replace it; the close unsets the recorded names and re-defines the snapshots. A body for a name no swallowed verb declared is not restored (documented)",
+          "ACCEPTED (review): the verb list = every public dotless function of kklass.sh, kklass_decl.sh, kklass_pascal.sh, kklass_serializable.sh + uses; literal in kk._taken_init",
+          "ACCEPTED (review): messages 'kklass: Duplicate identifier: 'X' is a function namespace (X.* of unit U (FILE)) / a kklass DSL verb; refusing to declare a class 'X' at SITE'; .new 'Invalid instance name: X (a function namespace: ... | a kklass DSL verb | the name of a class)', rc 1; kk.unit / kk.namespace: 'kbool: error: ...: 'X' is already an instance of C / a class declared at SITE; ...', rc 2",
+          "ACCEPTED (review): the cache loads kklass with `kk.uses \"$KBOOL_HOME/kklass/kklass.sh\"` (by PATH) until kklass carries its unit header (U3)",
+          "REPLACED (review R2): the cache's source reference: kk._ckk_begin UNIT REL ABS — (1) the file autoloadClasses loads, (2) REL = the source relative to the cache folder (always for a .kkp's runtime translation; for other sources when that file exists), (3) the unit by NAME from the folder ABOVE the cache, (4) ABS. A project moved together with its cache keeps working (critic k1, test 140 N16)",
+          "REPLACED (review R5, owner 2026-10-08): a translated .kkp unit uses the §7.4 USER header form `source \"${KBOOL_HOME-}/kbool.sh\" || return 2` — no baked translator root, no third form; autoloadClasses' runtime mode and kklass_compiler.sh set KBOOL_HOME to their own kbool when neither kbool nor KBOOL_HOME is there; a translation sourced by hand needs one of them (tests 063/065/136 and example 45 export KBOOL_HOME)",
+          "ACCEPTED (review): test 139 S24 — a .kkp with `unit cnt;` is a unit: its second autoload is a silent no-op; the WARNING pin moved to a header-less variant",
+          "ACCEPTED (review): the autoload mtime rule also recompiles a .kkp cache older than kklass_kkp.sh (test 140 N17)",
+          "ACCEPTED (review): example 45's FILE renamed (CounterPascal.kkp), the unit name kept",
+          "R4: text after the ';' of a `unit` / `uses` statement is a translation error naming FILE:LINE ('comments after a statement are not supported; put them on their own line'); the other unit/uses errors name FILE:LINE too; the output file is removed",
+          "kkore side (U40): kk._ns_declare first owner wins (several units may share a namespace); kk.unit declares NAME only when it is an identifier; kk.unit --forget does not drop the namespace (a reload re-declares it from the same owner); kk.namespace refuses rc 2 when kbool is not loaded in this shell (no registry), like kk.defined"
+        ],
+        "found_in_U2b": [
+          "for U4: kcl's helper namespaces (tawk tpipe tsed tutil ths tca TSet TDict TQueueStack ...) are NOT declared until the kcl units get their headers + `kk.namespace` lines — until then `defineClass tawk` / `T.new tpipe` are not refused (critic c1: class 0/new 1 for tca ths tpipe tsed tutil tawk). U4 must add `kk.namespace` to every unit that defines a prefix other than its unit name, and a test that each kcl helper prefix is taken",
+          "for U3: switch the .ckk prologue to `kk.uses kklass` once kklass.sh carries its unit header (kklass_compiler.sh, one line); old caches recompile by the P12 mtime rule",
+          "for U3/U5: a .ckk load does not register the unit it was compiled from — kk.uses of that unit later sources it and its class declarations are ignored with one WARNING each (same place)",
+          "pre-existing, not changed: a CLASS may still take the name of a live INSTANCE (instances are not namespaces); the reverse (kk.unit / kk.namespace) is refused now",
+          "pre-existing: KKLASS_EXPORT_FUNCTIONS=1 children cannot call CLASS.new (class functions are never exported)",
+          "for U5 docs: a recompiled cache of an already-loaded class is ignored in the same shell (same place, U20) — `kk.class --forget X` first",
+          "U40 gap (documented in the plan, the book and here): a plain third-party library with neither a unit header nor `kk.namespace` declares nothing and is not protected (test 140 N7 pins it, and the same case refused with kk.namespace)"
+        ],
+        "review_round_1": {
+          "date": "2026-10-08",
+          "remarks": "R1-R7 from the critic (scratchpad critic_u2b/) and the supervisor; owner decisions U40 (R1) and R5",
+          "fixes": {
+            "R1": "U40: the listing registry replaced by declared namespaces (kkore kk.namespace, kk.unit declares its name, kbool.sh the kkore ones, kklass its own); one assoc lookup in declareClass and .new; kk.unit / kk.namespace refuse a built class or a live instance; __KK_UNIT_GEN, __KKLASS_NS_GEN/_AT, kk._ns_refresh, the probe, the pending state, kk._fn_list, kk._ns_foreign/_where/_files removed; test 140 N4 greps the paths for listings and times declareClass/.new with 5000 extra functions",
+            "R2": "the cache's source reference is relative to the cache folder; unit lookup from the folder above it; ABS last (test 140 N16 = critic k1)",
+            "R3": "ownership first in every helper that subscripts a table (kk._taken_check, kk._new_refused, kk._ns_txt, kk._namespace_add, kk._name_in_use, kk.decl._ns_snap; verdict / register / ckk already); test 140 N9 calls each helper FIRST in a fresh set -a child (critic s3)",
+            "R4": "comments after a unit/uses statement -> error with FILE:LINE (test 140 N14)",
+            "R5": "§7.4 user header for translated units; KBOOL_HOME defaulted by autoload / compiler; tests 063/065/136 and example 45 export KBOOL_HOME; §7.4 note",
+            "R6": "tests: KKLASS_CKK_DIR (relative) over config ckkdir (N12), the kklass_kkp.sh mtime rule (N17, a copied tree), a moved project (N16), helpers first in a fresh set -a child (N9)",
+            "R7": "kklass declares kk kkp kl ke kv at load: `defineClass kkp` refused without kklass_kkp.sh loaded (N18)"
+          },
+          "status": "done, awaiting review"
+        },
+        "supervisor_review": "supervisor 2026-10-09: critic_u2b found the function-listing registry quadratic (16k fns ~0.9 s) → plugin loads 10-50x slower with live instances; owner U40: declared namespaces (kk.unit NAME, kk.namespace X), no listing; owner: translated .kkp uses the user header form; remarks R1-R7 done; own probe scratchpad/r5/v_u2b.sh both bashes: kv/kc/kk/kkp/class/end/uses refused as class, kc refused as instance with kc.alias intact, kk.namespace libns protects a plain library, a unit loaded after a same-named class fails rc 2, .new+delete cost flat with +15000 functions; a stray tail -f on a task output killed; full sweep 29/29 0 [FAIL] 0 [WARN] both bashes, totals identical except kklass 671->689 and kkore 629->634, sum 8411->8434"
       }
     },
     "U3": {

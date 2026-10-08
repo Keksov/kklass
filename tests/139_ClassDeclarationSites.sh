@@ -698,16 +698,21 @@ end;
 
 end.
 EOF
+sed '1d' "$TMPD/cnt.kkp" | sed 's/TCU/TCH/g' > "$TMPD/cnth.kkp"     # the same without `unit cnt;`
 cat > "$TMPD/S24.sh" <<'EOF'
 export KKLASS_CKK_DIR=$TMPD/ckk
 source "$KKLASS_DIR/kklass_autoload.sh"
-autoloadClasses "$TMPD/cnt.kkp" --no-compile >/dev/null 2>&1; echo "first=$?"
+autoloadClasses "$TMPD/cnt.kkp" --no-compile >/dev/null 2>&1; echo "first=$? unit=${__KK_UNITS[cnt]+registered}"
 TCU.new a 5
 autoloadClasses "$TMPD/cnt.kkp" --no-compile 2>"$TMPD/S24.err2" >/dev/null; echo "second=$? warn=$(grep -c "WARNING: class 'TCU'" "$TMPD/S24.err2")"
 TCU.new b 7; echo "b=$(b.GetValue) total=$(TCU.GetTotal) a=$(a.GetValue) sink=[$__KK_SINK]"
+autoloadClasses "$TMPD/cnth.kkp" --no-compile >/dev/null 2>&1; echo "h-first=$?"
+TCH.new c 3
+autoloadClasses "$TMPD/cnth.kkp" --no-compile 2>"$TMPD/S24.err3" >/dev/null; echo "h-second=$? warn=$(grep -c "WARNING: class 'TCH'" "$TMPD/S24.err3")"
+TCH.new d 4; echo "d=$(d.GetValue) total=$(TCH.GetTotal) c=$(c.GetValue) sink=[$__KK_SINK]"
 EOF
-kt_test_start "S24 R9: a .kkp unit loaded twice through autoload (runtime translation): one WARNING, not rebuilt, the static total kept"
+kt_test_start "S24 R9 + U36: a .kkp loaded twice through autoload (runtime translation): with \`unit cnt;\` it is a unit — the second load is a silent no-op; without it one WARNING; neither rebuilt, the static totals kept"
 case_run S24
-if [[ "$OUT" == $'first=0\nsecond=0 warn=1\nb=7 total=2 a=5 sink=[]' ]]; then kt_test_pass "ok"; else kt_test_fail "out='${OUT//$'\n'/|}' err='$ERR'"; fi
+if [[ "$OUT" == $'first=0 unit=registered\nsecond=0 warn=0\nb=7 total=2 a=5 sink=[]\nh-first=0\nh-second=0 warn=1\nd=4 total=2 c=3 sink=[]' ]]; then kt_test_pass "ok"; else kt_test_fail "out='${OUT//$'\n'/|}' err='$ERR'"; fi
 
 kt_test_log "139_ClassDeclarationSites.sh completed"

@@ -394,7 +394,7 @@ kk.decl._abandon_class() {   # CLASS MEMBER
 #   * implement X.*, implementConstructor X;
 #   * endImplementation X and Pascal build X END the sink, as does the next
 #     declareClass of X; defineClass (one call) ends it at once.
-# A swallowed verb returns 0 in mode s and 1 in mode d. The method-ish verbs
+# A swallowed verb returns 0 in mode s and 1 in modes d and n. The method-ish verbs
 # record X.NAME in __KK_SINK_FNS: a Pascal re-run defines X.NAME body
 # functions before `build`, and the swallowed build drops them and regenerates
 # X's static API from its tables (kk.decl._sink_close).
@@ -405,7 +405,16 @@ kk.decl._abandon_class() {   # CLASS MEMBER
 # the stale sink is first CLOSED like a swallowed build (the re-run's body
 # functions dropped, the static API restored). declareClass closes stale
 # sinks of every class too.
-# State: __KK_SINK = " X:s  Y:d " (every class in a sink), __KK_SINK_OPEN,
+# Mode n (uses U2b): `declareClass X` refused because X is a function
+# namespace — swallowed like d (rc 1), and every namespace function X.NAME a
+# swallowed verb names is snapshotted when that verb runs — before the
+# imposter's own body function X.NAME() can replace it (_KKLASS_SINK_NS[X],
+# kk.decl._ns_snap: one `declare -F` / `declare -f` of that one name, no
+# listing) — and re-defined from it when the sink closes, after the close has
+# unset the recorded names: so the swallowed `build` does not delete kkore's
+# ke.enableErrorReport (critic n1b) and the imposter's body does not replace
+# it. A body for a name no swallowed verb declared is not restored.
+# State: __KK_SINK = " X:s  Y:d  Z:n " (every class in a sink), __KK_SINK_OPEN,
 # __KK_SINK_FNS = " X.a  X.b ", _KKLASS_SINK_AT; reset with the site tables
 # (kk._class_tables) — the scalars reach a set -a child, the ownership table
 # does not, so a sink is only honoured in the shell that owns __KKLASS_TABLES.
@@ -416,6 +425,19 @@ kk.decl._sink_enter() {   # CLASS MODE (s|d) OPENER
     KK_DECL_CURRENT_CLASS=""
     KK_DECL_CURRENT_VISIBILITY="public"
     kk.decl._reset_next_modifiers
+}
+
+# kk.decl._ns_snap NS NAME — sink mode n: keep the `declare -f` text of the
+# function NS.NAME (when it exists and is not kept yet) in _KKLASS_SINK_NS[NS].
+# Called by kk.decl._sunk after its ownership check; NS and NAME are
+# identifiers. An error path: the capture may fork.
+kk.decl._ns_snap() {   # NS NAME
+    [[ ${__KKLASS_TABLES[@]@a} == A ]] || return 0          # ownership first (R14)
+    kk._is_ident "${1-}" && kk._is_ident "${2-}" || return 0
+    declare -F "$1.$2" >/dev/null || return 0
+    local __kk_nl=$'\n'
+    [[ $__kk_nl${_KKLASS_SINK_NS[$1]-} != *"$__kk_nl$1.$2 ()"* ]] || return 0
+    _KKLASS_SINK_NS[$1]+=$__kk_nl$(declare -f "$1.$2")
 }
 
 # kk.decl._sink_mine — the sink state is this shell's (else it is cleared, rc 1).
@@ -431,6 +453,8 @@ kk.decl._sink_end() {   # CLASS — drop CLASS from the sink (no-op when it is n
     kk._is_ident "${1-}" || return 0
     __KK_SINK=${__KK_SINK//" $1:s "/}
     __KK_SINK=${__KK_SINK//" $1:d "/}
+    __KK_SINK=${__KK_SINK//" $1:n "/}
+    unset '_KKLASS_SINK_NS[$1]'
     unset '_KKLASS_SINK_AT[$1]'
     [[ ${__KK_SINK_OPEN-} != "$1" ]] || __KK_SINK_OPEN=""
     if [[ ${__KK_SINK_FNS-} == *" $1."* ]]; then
@@ -454,7 +478,7 @@ kk.decl._sink_close() {   # CLASS
     [[ -n ${__KK_SINK-} ]] || return 0
     kk.decl._sink_mine || return 0
     kk._is_ident "${1-}" || return 0
-    [[ $__KK_SINK == *" $1:"[sd]" "* ]] || return 0
+    [[ $__KK_SINK == *" $1:"[sdn]" "* ]] || return 0
     local cls="$1" m w ctor_var="${1}_decl_constructor_name"
     local -a fns=()
     if declare -p "${cls}_decl_methods" &>/dev/null; then
@@ -472,6 +496,12 @@ kk.decl._sink_close() {   # CLASS
         esac
         unset -f "$w"
     done
+    # mode n (a refused namespace): its functions as they were before the refused
+    # declaration — the swallowed verbs or an imposter's bodies may have replaced
+    # or (just above) unset some of them
+    if [[ -n ${_KKLASS_SINK_NS[$cls]+x} ]]; then
+        eval "${_KKLASS_SINK_NS[$cls]}"
+    fi
     if declare -p "${cls}_class_static_methods" &>/dev/null; then
         kk._class_static_api "$cls"
     fi
@@ -526,12 +556,14 @@ kk.decl._sunk() {
     kk.decl._sink_mine || return 1
     kk.decl._sink_here "$__KK_SINK_OPEN" || return 1
     __kk_sr=0
-    [[ ${__KK_SINK-} != *" $__KK_SINK_OPEN:d "* ]] || __kk_sr=1
+    [[ ${__KK_SINK-} == *" $__KK_SINK_OPEN:s "* ]] || __kk_sr=1
     if [[ -n ${1-} ]] && kk._is_ident "$1"; then
         case $1 in
             new|constructor|__*) ;;
             *) __KK_SINK_FNS+=" $__KK_SINK_OPEN.$1 " ;;
         esac
+        # mode n: the namespace's own function of that name, before a body replaces it
+        [[ ${__KK_SINK-} != *" $__KK_SINK_OPEN:n "* ]] || kk.decl._ns_snap "$__KK_SINK_OPEN" "$1"
     fi
     return 0
 }
@@ -545,6 +577,7 @@ kk.decl._sink_mode() {
     case ${__KK_SINK-} in
         *" $1:s "*) __kk_m=0 ;;
         *" $1:d "*) __kk_m=1 ;;
+        *" $1:n "*) __kk_m=1 ;;
         *) return 1 ;;
     esac
     kk.decl._sink_here "$1" || return 1
@@ -1003,7 +1036,7 @@ declareClass() {
     __KK_SINK_LAST=""
     [[ -z ${__KK_SINK_OPEN-} ]] || __KK_SINK_OPEN=""
     [[ -z ${__KK_SINK-} ]] || kk.decl._sink_sweep "$class_name"
-    local __kk_site __kk_site_tty __kk_site_open
+    local __kk_site __kk_site_tty __kk_site_open __kk_taken_kind
     kk._class_verdict "$class_name"
     case $? in
         1)  # Duplicate identifier (printed): poison the class so nothing in
@@ -1011,6 +1044,17 @@ declareClass() {
             # that block silently.
             printf -v "${class_name}_decl_refused" '%s' "(duplicate declaration)"
             kk.decl._sink_enter "$class_name" d "$__kk_site_open"
+            return 1
+            ;;
+        3)  # a DSL verb or a declared namespace (printed, uses U2b, U40): refused
+            # like a Duplicate identifier; for a namespace the sink (mode n) keeps
+            # the functions its swallowed verbs name and restores them at its close
+            printf -v "${class_name}_decl_refused" '%s' "(reserved name)"
+            if [[ $__kk_taken_kind == ns ]]; then
+                kk.decl._sink_enter "$class_name" n "$__kk_site_open"
+            else
+                kk.decl._sink_enter "$class_name" d "$__kk_site_open"
+            fi
             return 1
             ;;
         2)  # the same site again (WARNING printed): not rebuilt, the block is
@@ -1622,5 +1666,5 @@ if [[ "${KKLASS_EXPORT_FUNCTIONS:-0}" == "1" ]]; then
     export -f declareClass privateSection protectedSection publicSection virtual override abstract
     export -f field property classVar procedure declareProcedure func declareFunction classProcedure classFunction constructor
     export -f endClass finalizeClass implement implementConstructor endImplementation finalizeImplementation
-    export -f kk.decl._sink_enter kk.decl._sink_mine kk.decl._sink_end kk.decl._sink_close kk.decl._sink_alive kk.decl._sink_here kk.decl._sink_sweep kk.decl._sunk kk.decl._sink_mode
+    export -f kk.decl._sink_enter kk.decl._sink_mine kk.decl._sink_end kk.decl._sink_close kk.decl._sink_alive kk.decl._sink_here kk.decl._sink_sweep kk.decl._sunk kk.decl._sink_mode kk.decl._ns_snap
 fi
