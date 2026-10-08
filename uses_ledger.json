@@ -2,7 +2,7 @@
   "schema_version": 1,
   "project": "kbool `uses` — Pascal-like unit inclusion and duplicate identifiers. Design: kklass/USES_PLAN.md (decisions U1-U37, critic §7.1-7.2, supervisor review §7.3 P1-P10, header shapes §7.4, phases §8).",
   "created": "2026-10-06",
-  "updated": "2026-10-07",
+  "updated": "2026-10-08",
   "status": "U2a DONE+COMMITTED 2026-10-08; U2b next",
   "workflow": "per phase: Opus worker implements (red-first) -> Opus critic reviews the worker's result against the plan and the live tree (no edits) -> supervisor review + remarks -> full master sweep on bash 5.2.37 and 5.3.9 -> commit; push only on the owner's word",
   "phases": {
@@ -319,7 +319,7 @@
       },
       "U2b": {
         "name": "lazy namespace registry checked in declareClass/.new (U22), DSL verb names refused (U35), .ckk registration + unit by NAME + kk.uses kklass (C13, P9), uses synonym in the Pascal DSL (U32), .kkp unit/uses translation (U36, example 45)",
-        "status": "planned",
+        "status": "in_progress",
         "commit": ""
       }
     },
