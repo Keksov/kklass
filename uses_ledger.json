@@ -321,7 +321,7 @@
         "name": "lazy namespace registry checked in declareClass/.new (U22), DSL verb names refused (U35), .ckk registration + unit by NAME + kk.uses kklass (C13, P9), uses synonym in the Pascal DSL (U32), .kkp unit/uses translation (U36, example 45)",
         "status": "done",
         "date": "2026-10-08",
-        "commit": "PENDING",
+        "commit": "kklass 8011ca5, kkore 8c1de55, kbool kbool.sh",
         "files": [
           "kklass/kklass.sh: 'Taken names' (kk._taken_init: verbs + kklass's own namespaces kk kkp kl ke kv + import of kkore's __KK_NAMESPACES; kk._namespace_add and kk._name_in_use = kkore's hooks; kk._ns_txt, kk._taken_check, kk._new_refused — ownership first in every helper); kk._class_tables declares _KKLASS_TAKEN / _KKLASS_NS_OWNER / _KKLASS_SINK_NS; kk._class_verdict CLASS [SITE] (rc 3 = verb / namespace); kk._class_register adds TAKEN[X]=class; kk._build_class_runtime maps rc 3; the .new guard (ownership + one TAKEN lookup); 'Compiled caches' (kk._ckk_begin UNIT REL ABS / _ckk_class / _ckk_built / _ckk_end); export list",
           "kklass/kklass_decl.sh: declareClass rc 3 -> poison '(reserved name)' + sink n (namespace) or d (verb); sink mode n in _sink_end / _sink_close (restore) / _sunk (per swallowed member: kk.decl._ns_snap NS NAME) / _sink_mode; export list",
