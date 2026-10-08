@@ -59,6 +59,9 @@ defineSerializableClass() {
     _addSerializable_checkSep "$separator" defineSerializableClass || return 1
 
     defineClass "$class_name" "$parent_class" "$@" || return 1
+    # The same declaration site again (a file sourced again, uses U20): the
+    # class was not rebuilt, so it already has its serializer.
+    [[ ${__KK_SINK_LAST-} != "$class_name" ]] || return 0
     addSerializable "$class_name" "$separator" "$format"
 }
 

@@ -61,7 +61,7 @@ kt_test_start "cross-file redefinition is refused"
 : >"$ERRF"
 source "$TMPD/imposter.sh" 2>"$ERRF"; rc=$?
 err="$(<"$ERRF")"
-if [[ "$err" == *"already registered"* ]]; then
+if [[ $rc -eq 1 && "$err" == *"Duplicate identifier"* && "$err" == *"orig.sh:1"* && "$err" == *"imposter.sh:1"* ]]; then
     kt_test_pass "refused (rc=$rc)"
 else
     kt_test_fail "not refused: rc=$rc err='$err'"

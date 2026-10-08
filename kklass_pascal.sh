@@ -62,6 +62,8 @@ class() {
     fi
 
     declareClass "$name" "$parent" || return 1
+    # the same site again (uses U20): the class is not rebuilt, nothing is reset
+    [[ ${__KK_SINK_OPEN-} != "$name" ]] || return 0
     eval "declare -ga ${name}__pascal_overrides=()"
     eval "${name}_decl_destructor_name=''"
     __KK_PASCAL_STATIC=""
@@ -107,9 +109,11 @@ protected() { protectedSection; }
 
 # ---- modifiers (prefix form: `static proc X`, `override func Y`) ------------
 
-static()   { __KK_PASCAL_STATIC=1; "$@"; }
-override() { __KK_PASCAL_OVERRIDE=1; "$@"; }
-abstract() { kk.decl._push_next_modifier "abstract"; "$@"; }
+# In a sink (uses U20/U21, kklass_decl.sh) a modifier only passes the member
+# verb on, which the sink swallows — no flag is left behind for the next class.
+static()   { [[ -z ${__KK_SINK_OPEN-} ]] || ! kk.decl._sunk || { "$@"; return; }; __KK_PASCAL_STATIC=1; "$@"; }
+override() { [[ -z ${__KK_SINK_OPEN-} ]] || ! kk.decl._sunk || { "$@"; return; }; __KK_PASCAL_OVERRIDE=1; "$@"; }
+abstract() { [[ -z ${__KK_SINK_OPEN-} ]] || ! kk.decl._sunk || { "$@"; return; }; kk.decl._push_next_modifier "abstract"; "$@"; }
 
 # ---- members ---------------------------------------------------------------
 
@@ -130,6 +134,7 @@ func() { kk.pascal._declare_method "function"  "$1"; }
 
 kk.pascal._declare_method() {
     local kind="$1" name="$2"
+    [[ -z ${__KK_SINK_OPEN-} ]] || ! kk.decl._sunk "$name" || return $__kk_sr
     if [[ -n "$__KK_PASCAL_STATIC" ]]; then
         __KK_PASCAL_STATIC=""
         kind="class_${kind}"          # class_procedure | class_function
@@ -153,6 +158,7 @@ kk.pascal._declare_method() {
 
 destructor() {
     local name="${1:-Destroy}"
+    [[ -z ${__KK_SINK_OPEN-} ]] || ! kk.decl._sunk "$name" || return $__kk_sr
     kk.decl._require_current_class || return 1
     local class_name="$RESULT"
     # P11 review R2: validate BEFORE the eval below (`destructor '$(cmd)'` used
@@ -213,6 +219,14 @@ build() {
     local class_name="$1"
     [[ -n "$class_name" ]] || { echo "build: class name required" >&2; return 1; }
     kk.decl._validate_ident "$class_name" "class name" || return 1
+
+    # A class in the sink (uses U20/U21): this build ends it — the body
+    # functions the re-run defined are dropped and the static API restored.
+    if [[ -n ${__KK_SINK-} ]] && kk.decl._sink_mode "$class_name"; then
+        local __kk_bs=$__kk_sr
+        kk.decl._sink_close "$class_name"
+        return "$__kk_bs"
+    fi
 
     # P11/M2 (DR8): the poison flag FIRST — nothing extracted, nothing built.
     local refused_var="${class_name}_decl_refused"

@@ -1,11 +1,12 @@
 #!/bin/bash
 # DuplicateClassGuard - kklass refuses to build over a class name that a
-# DIFFERENT source file already registered (an accidental second definition, or
-# a user class colliding with a library one), while still allowing a re-source
-# of the SAME file (the diamond-include case: tstringlist.sh + tlist.sh both
-# pull in tlist.sh). Guard: kk._build_class_runtime; ownership: _KKLASS_CLASS_SOURCE;
-# path spellings unified via cd+pwd canonicalization so one file reached two ways
-# does not raise a false collision.
+# DIFFERENT declaration site already registered (an accidental second definition,
+# or a user class colliding with a library one): "Duplicate identifier", rc 1, one
+# error naming both sites. A re-source of the SAME file (the same site — the
+# diamond-include case of a file without a unit header) is ignored with one
+# WARNING (uses U20/U21): the class is not rebuilt. Sites: _KKLASS_CLASS_SITE;
+# file parts compared with -ef, so one file reached two ways (a .. spelling) is
+# the same site. Full matrix: test 139.
 
 KTESTS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../ktests" && pwd)"
 source "$KTESTS_LIB_DIR/ktest.sh"
@@ -64,13 +65,13 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-kt_test_start "re-source of the SAME file is allowed (diamond include), silent"
+kt_test_start "re-source of the SAME file (same declaration site, no unit header): ignored with ONE WARNING (U20)"
 : >"$ERRF"
 source "$TMPD/orig.sh" 2>"$ERRF"; rc=$?
 err="$(<"$ERRF")"
 TDupGuard.new g2; g2.Who >/dev/null; who=$RESULT; g2.delete
-if [[ $rc -eq 0 && -z "$err" && "$who" == "ORIGINAL" ]]; then
-    kt_test_pass "re-source of the same file is allowed, silent"
+if [[ $rc -eq 0 && "$err" == *WARNING* && "$err" == *"'TDupGuard'"* && "$err" != *$'\n'* && "$who" == "ORIGINAL" ]]; then
+    kt_test_pass "re-source of the same file ignored, one WARNING"
 else
     kt_test_fail "rc=$rc err='$err' who=$who"
 fi
@@ -80,9 +81,9 @@ kt_test_start "redefinition from a DIFFERENT file is refused with a locating mes
 : >"$ERRF"
 source "$TMPD/imposter.sh" 2>"$ERRF"      # current shell: TDupGuardTail must persist
 err="$(<"$ERRF")"
-if [[ "$err" == *"already registered"* && "$err" == *"TDupGuard"* \
-      && "$err" == *"orig.sh"* && "$err" == *"imposter.sh"* ]]; then
-    kt_test_pass "collision refused and both files named"
+if [[ "$err" == *"Duplicate identifier"* && "$err" == *"TDupGuard"* \
+      && "$err" == *"orig.sh:1"* && "$err" == *"imposter.sh:1"* && "$err" != *$'\n'* ]]; then
+    kt_test_pass "collision refused with ONE error naming both sites"
 else
     kt_test_fail "message did not locate the collision: '$err'"
 fi
@@ -109,12 +110,12 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-kt_test_start "canonicalization: same file via a .. path is NOT a false collision"
+kt_test_start "-ef identity (U18'): the same file via a .. path is the same site (WARNING), NOT a false collision"
 : >"$ERRF"
 source "$TMPD/sub/../orig.sh" 2>"$ERRF"; rc=$?
 err="$(<"$ERRF")"
-if [[ $rc -eq 0 && -z "$err" ]]; then
-    kt_test_pass "'..' spelling of the owner path is accepted"
+if [[ $rc -eq 0 && "$err" == *WARNING* && "$err" != *Duplicate* ]]; then
+    kt_test_pass "'..' spelling of the owner path is the same site"
 else
     kt_test_fail "false collision on a .. path: rc=$rc err='$err'"
 fi

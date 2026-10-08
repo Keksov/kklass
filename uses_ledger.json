@@ -3,7 +3,7 @@
   "project": "kbool `uses` — Pascal-like unit inclusion and duplicate identifiers. Design: kklass/USES_PLAN.md (decisions U1-U37, critic §7.1-7.2, supervisor review §7.3 P1-P10, header shapes §7.4, phases §8).",
   "created": "2026-10-06",
   "updated": "2026-10-07",
-  "status": "U1 pushed 2026-10-07; U2a started (owner: Да — push U1 and start U2)",
+  "status": "U2a DONE+COMMITTED 2026-10-08; U2b next",
   "workflow": "per phase: Opus worker implements (red-first) -> Opus critic reviews the worker's result against the plan and the live tree (no edits) -> supervisor review + remarks -> full master sweep on bash 5.2.37 and 5.3.9 -> commit; push only on the owner's word",
   "phases": {
     "U1a": {
@@ -216,8 +216,106 @@
       "commit": "",
       "U2a": {
         "name": "class declaration sites (frame chain + -ef), Duplicate identifier + poison, header-less re-source sink (C6 state machine incl. Pascal static restore + scratch cleanup) with one WARNING, prompt-only interactive allowance (C14), unit->classes registration + --forget class hook (P4)",
-        "status": "in_progress",
-        "commit": ""
+        "status": "done",
+        "date": "2026-10-07",
+        "commit": "PENDING",
+        "files": [
+          "kklass/kklass.sh: 'Class declaration sites' section replaces _KKLASS_CANON_CACHE / kk._caller_source_file / kk._check_class_owner: kk._class_tables (ownership __KKLASS_TABLES), kk._class_site, kk._class_site_same, kk._class_site_text, kk._class_verdict, kk._class_register, kk._unit_forget_class; kk._class_static_api (static accessors + dispatchers from the stored tables, split out of kk._build_class_runtime, byte-identical functions); kk._build_class_runtime judges/uses the site before any state and registers at the END (was: at check time, so a refused raw build stayed 'registered'); defineClass ends the sink (one call); export list",
+          "kklass/kklass_decl.sh: declareClass verdict (dup -> poison + sink d, rc 1; same site -> sink s + WARNING, rc 0; else _KKLASS_DECL_SITE); sink helpers kk.decl._sink_enter/_sink_end/_sunk/_sink_mode; one sink line in privateSection protectedSection publicSection virtual override abstract classVar field property constructor kk.decl._declare_method endClass implement implementConstructor endImplementation; export list",
+          "kklass/kklass_pascal.sh: class (sink: nothing reset), static/override/abstract (sink: pass the verb on, no flag), kk.pascal._declare_method, destructor, build (sink: kk.pascal._sink_build + end, rc 0/1); kk.pascal._sink_build",
+          "kklass/kklass_serializable.sh: defineSerializableClass skips addSerializable when its defineClass was the same site again (__KK_SINK_LAST)",
+          "kklass/tests/139_ClassDeclarationSites.sh (new, 13 tests)",
+          "kklass/tests/119_DuplicateClassGuard.sh (#2 one WARNING, #3 wording + one line, #6 .. spelling = WARNING; header)",
+          "kklass/tests/121_GuardKeepsMetadata.sh (#2 wording + rc 1)",
+          "kklass/tests/135_DeclarationHygiene.sh (B9/B10/B14 keep + the Duplicate identifier message; B10 the rest of the block silent; B14 no TPpab.Name left, the test's own unset -f removed)",
+          "kkore/kuse.sh (review R5 only: 5 unset statements single-quoted)"
+        ],
+        "red_before": {
+          "how": "new/changed tests run against HEAD's kklass + kkore + kbool.sh (scratch copy worker_u2a/base) on 5.2.37 and 5.3.9",
+          "139_ClassDeclarationSites": "13/13 FAIL on both bashes (S13 at HEAD: no PWN but the set -a child aborted with 'operand expected' from _KKLASS_CANON_CACHE[$PWD|...])",
+          "119_DuplicateClassGuard": "3 FAIL on both (#2 silent, #3 wording, #6 silent)",
+          "121_GuardKeepsMetadata": "1 FAIL on both (wording)",
+          "135_DeclarationHygiene": "3 FAIL on both (B9/B10/B14: no Duplicate identifier message; B10 per-verb errors)"
+        },
+        "gate": {
+          "kklass_5.2.37_threaded": "660/660, 0 [FAIL] (647 + 13)",
+          "kklass_5.3.9_threaded": "660/660, 0 [FAIL]",
+          "kklass_5.2.37_single": "660/660, 0 [FAIL]",
+          "kkore_5.2.37_threaded": "629/629, 0 [FAIL]",
+          "kkore_5.3.9_threaded": "629/629, 0 [FAIL]",
+          "kcl_26_suites_5.2.37": "6676/6676, 0 [FAIL] 0 [WARN]: dateutils 444, math 177, tarray 98, tawk 592, tcustomapplication 377, tdictionary 148, tdirectory 320, tfile 250, tfind 226, tgrep 185, thashset 149, thead 182, thttpserver 497, tinifile 191, tlist 134, tobjectlist 52, tpath 243, tpipe 190, tqueuestack 98, tregex 246, tsed 293, tstopwatch 61, tstringhelper 922, tstringlist 192, ttail 200, tutil 209",
+          "kcl_26_suites_5.3.9": "6676/6676, 0 [FAIL] 0 [WARN], same per-suite totals; 6676 = the U1b sweep sum 8387 - kkore 629 - kklass 647 - ktests 435, so kcl totals are unchanged",
+          "kklass_examples": "48 examples on HEAD copy vs new, both bashes, outputs root-normalised and diffed: 5.3.9 no delta except mktemp names; 5.2.37 the same plus 28_inheritance_compiled 'Timer elapsed' 2 -> 1 (date +%s around `sleep 1`, timing)",
+          "master_sweep": "not run (reviewer)"
+        },
+        "measured": {
+          "bench": "worker_u2a/bench.sh, 5 alternating fresh processes per tree, medians base -> new (us per class / per .new): 5.2.37 defineClass(2 props + 2 methods) 68214 -> 67258, declarative(2 fields + 2 methods) 80450 -> 76514, defineClass(2 props only) 37893 -> 37256, .new 151.0 -> 150.6; 5.3.9 67120 -> 67340, 73887 -> 76014, 36178 -> 35774, 115.3 -> 113.6. Declarations are fork-dominated (implement's $(kk.decl._rewrite_inherited), _install_new_wrapper's $(declare -f), ~35 ms per class even without methods): the site change is inside the noise; .new is unchanged (its code is untouched)",
+          "site_check_micro": "the declareClass check alone, called from a sourced file through a function (worker_u2a/micro.sh, best of 3 x 2000): old kk._check_class_owner (cached canonical path) 106-109 us -> kk._class_verdict 121-123 us on 5.2.37; 88-91 -> 101-103 us on 5.3.9 (+12-15 us per declaration, no fork)",
+          "frames": "REPLACED (review R2): frames outside a script (no bottom main frame) differ between the bashes: a function defined in bash -c reports BASH_SOURCE 'environment' on 5.2 and $0 on 5.3 (e.g. 'snippet'); one defined in a script read from stdin (bash < f, bash -s, a pipe) reports 'main' on 5.2 and $0 on 5.3 ('/usr/bin/bash', a real file = the bash binary); $- is hBc / hBs there, a real prompt has i. A script's bottom frame is main with BASH_LINENO 0. Exported functions in a child report 'environment'. kklass treats environment, main and $0 (outside a script, when $0 is not a real file other than $BASH; decided once per value of $0, so `bash -c 'source \"$0\"' FILE`, the ktests runner shape, keeps FILE) as the pseudo file '' and skips such leading positions like kklass's own frames, so both bashes give the same site (probe worker_u2a/r2/fr.sh)",
+          "static_api_restore": "declare -f of TU20.GetCount / TU20.Count / TU20.__static_GetCount after a sunk Pascal re-source is identical to before it, both bashes (worker_u2a/p1/m.sh)",
+          "snap_table_injection": "pre-existing: in a set -a child, declareClass subscripted kklass_decl.sh's __kk_decl_snap_taken (an assoc that does not reach the child) by the class name -> arithmetic -> a variable named like the class (TSx='a[$(touch PWN)]') ran its command substitution; found by 139 S13 after the site tables were guarded; kk._class_tables now (re)declares __kk_decl_snap_taken with the site tables"
+        },
+        "deviations": [
+          "site = call positions FILE:LINE from the innermost one outside the kklass framework files (and 'environment' frames) outward, up to and including the position inside the first `source` frame's file, or the script's own position above its bottom `main` frame; the call position of the source itself (the caller's line) is NOT part of the site — otherwise sourcing the same file from two lines of a script would be a duplicate",
+          "a loop that declares the same class is one site: the repeats are the U20 same-site case (rc 0, not rebuilt, one WARNING per repeat) — 'fine' read as rc 0 and never Duplicate identifier",
+          "REPLACED (review R1/R2): interactive allowance (C14) = `$-` has i AND the new chain has no position in a file. bash -c, bash < file, bash -s and a pipe are NOT interactive: their positions are the pseudo file '(no file)', judged by line like any file (same line -> same site, other line -> Duplicate identifier). A file-defined wrapper called at the prompt has a file position -> checked; two prompt calls of it differ by the prompt line -> Duplicate identifier (literal C14, accepted)",
+          "a class is 'taken' only once BUILT (registered at the end of kk._build_class_runtime); a declared-but-refused class (135 B4) or one still being declared can be redeclared from anywhere, as before. The verdict is made at declareClass; endImplementation's build reuses the declaration's site (_KKLASS_DECL_SITE); a raw kk._build_class_runtime is judged at the call (same site -> WARNING + rc 0 without rebuilding)",
+          "Duplicate identifier in mode d: declareClass prints ONE error and returns 1, sets ${X}_decl_refused='(duplicate declaration)' and swallows the rest of the block SILENTLY with rc 1 per swallowed verb (end/endClass, implement, build, endImplementation incl.) — the plan's 'one error'; the poison stays on the built original (a later build/endImplementation X outside the sink is refused, the loophole); the next legit declareClass X clears it as before",
+          "the swallowed Pascal build (both modes) drops X.NAME for every member of the BUILT class, its constructor and every method-ish name a swallowed verb recorded (proc/func/destructor/constructor/procedure/classProcedure/classFunction; never new/constructor/__*), then regenerates the static API: an imposter's extra methods leave nothing behind either",
+          "defineSerializableClass is ignored as a whole on the same site (addSerializable skipped): otherwise its defineMethod calls rewrote the class and printed one 'subclass built earlier' warning per subclass per serializer method",
+          "messages: 'kklass: Duplicate identifier: class 'X' is already declared at SITE; refusing to redeclare it at SITE' (stderr, always) and 'kklass: WARNING: class 'X' declared again at its own declaration site SITE (its file was sourced again); ignored, the class is not rebuilt' (kk.warn: silenced by VERBOSE_KKLASS=quiet); SITE = 'file:line <- file:line ...' innermost first, files lexically normalised, an empty file shown as '(no file)'",
+          "_KKLASS_CLASS_SOURCE kept (innermost file of the site, or '(no file)'): 121 F9 and defineMethod's subclass walk read it; the fork-based canonical path (_KKLASS_CANON_CACHE, kk._caller_source_file, kk._check_class_owner) is gone — identity is -ef (U18')",
+          "kk._unit_forget_class CLASS: rc 2 for a non-identifier argument (it reaches unset NAME[KEY]), rc 0 otherwise; it also ends a sink of the class"
+        ],
+        "found_in_U2a": [
+          "FIXED here (in the declareClass path): __kk_decl_snap_taken (kklass_decl.sh) was subscripted by the class name in a set -a child that never had the table -> arithmetic evaluation of a class-named variable (PWN); now (re)declared by kk._class_tables",
+          "for U5 docs: only kklass/PLAN.md (F2, historical) names the old file-based guard (kk._check_class_owner); no book chapter describes class sites, the Duplicate identifier message or the sink yet (they are documented in the kklass.sh / kklass_decl.sh comments)",
+          "pre-existing, not changed: KKLASS_EXPORT_FUNCTIONS=1 exports the public verbs but not the kk.decl._* internals, so declareClass in such a child fails with 'command not found' (set -a children work); the new helpers were added to the export lists",
+          "pre-existing, for U3/U4: every class declaration forks 1-3 times on MSYS ($(kk.decl._rewrite_inherited) per implement, $(declare -f X.new) in kk.decl._install_new_wrapper) — ~35-75 ms per class, dwarfing the site check"
+        ],
+        "review_round_1": {
+          "date": "2026-10-07",
+          "remarks": "R1-R9 from the critic (scratchpad critic_u2a/) and the supervisor; deviation 3 and the frames claim rejected; R8 owner decision (kk.class --forget)",
+          "red_before_round_fix": {
+            "139": "10/11 FAIL on both bashes (S14 R1, S15 R2, S16+S17 R3, S18 R4, S19 R5, S20 R6, S21 R7, S22 R8, S23 R9); S24 (.kkp through autoload) green at round 0, a pin. One more check inside S15 (bash -c 'source \"$0\"' FILE keeps FILE as a file) was added after the first R2 fix broke 135 under the ktests runner, whose wrapper passes the test file as $0",
+            "how": "the 11 new 139 tests (S14-S24) run against the round-0 code on 5.2.37 and 5.3.9"
+          },
+          "fixes": {
+            "R1": "kk._class_site: __kk_site_tty = no file position AND `$- == *i*`; positions without a file are the pseudo file '' (shown '(no file)') and are judged by line",
+            "R2": "pseudo files: environment, main, and $0 outside a script unless $0 is a real file other than $BASH (cached in __KK_SITE_Z0 / __KK_SITE_Z0P); leading pseudo positions are skipped like kklass frames, so both bashes give the same site; no fake '$PWD/$0' file in messages",
+            "R3": "each sink entry records the `source` frame that opened it (_KKLASS_SINK_AT[X] = 'BOT|FILE', BOT counted from the bottom of the stack, '-1|' outside any sourced file); a verb is swallowed only when its own first `source` frame is that one (kk.decl._sink_here); a verb from another file/frame runs normally, and if the opening frame has returned the stale sink is first closed by kk.decl._sink_close (the former kk.pascal._sink_build, moved to kklass_decl.sh: the re-run's / imposter's body functions unset, the static API regenerated, then the entry dropped); declareClass sweeps: closes its own class's sink and every stale one (kk.decl._sink_sweep); kk._unit_forget_class closes too",
+            "R4": "kk.decl._snap_drop and kk.decl._close_refused check ownership (kk._class_tables when not ours) and kk._is_ident before subscripting __kk_decl_snap_taken; 139 S18 runs endClass, end, build, endImplementation, implement, both snapshot helpers, kk._unit_forget_class and kk.class --forget in a set -a child with an inherited open class and a hostile class-named variable: no PWN",
+            "R5": "every double-quoted subscripted unset (`unset \"T[$k]\"`) in kklass.sh (3, incl. the pre-existing __KLIB_FRAME_* one), kklass_decl.sh (1) and kkore/kuse.sh (5 statements, 13 elements) is now single-quoted (`unset 'T[$k]'`): the double-quoted form expands $(..) in the key a second time, even on an assoc (critic p8); kk._class_register refuses a non-identifier (rc 2); 139 S19 greps kklass*.sh + kuse.sh (zero hits) and runs the kk._class_register / kk._unit_drop / kk.unit --forget PWN repros",
+            "R6": "the site keeps the RAW positions next to the absolute ones (RAW, $'\\x1d', ABS); per position: the same raw spelling is the same file unless both absolute forms exist and are not -ef; different spellings are compared with -ef. A relative script started before a `cd` loop is one site; two different files spelled ./u.sh from two folders stay two sites (139 S20)",
+            "R7": "kk._class_verdict calls kk._unit_taint 1 on a Duplicate identifier when kbool is loaded: kk.uses of that unit -> rc 2 'not completely loaded' (139 S21)",
+            "R8": "kk.class --forget CLASS (kklass.sh, exported): rc 0 forgotten (site / owner / decl-site dropped, a sink closed), 1 not a registered (built) class, 2 malformed (no or extra args, another option, a non-identifier: silent, kk.debug); the class and its instances are not deleted (documented at the function) (139 S22)",
+            "R9": "WARNING text: \"kklass: WARNING: class 'X' declared again from the same place (SITE); ignored, the class is not rebuilt\"; tests S23 (VERBOSE_KKLASS=quiet hides the WARNING, the Duplicate is still printed; two `source <(..)` are the same site /dev/fd/63:1; two declarations on one line are the same site) and S24 (a .kkp unit through autoloadClasses --no-compile twice: one WARNING, the static total kept)"
+          },
+          "documented_behaviour": [
+            "two declarations of one class on ONE line, and two different `source <(...)` (both /dev/fd/63:1), are the same site: WARNING, the second ignored (U21 is file + line; bash gives no column)",
+            "U20 covers declarations only: file-scope defineMethod / addSerializable calls of a re-sourced header-less file still run (defineSerializableClass as one call is skipped as a whole)",
+            "a sink opened outside any sourced file (bash -c / script top level, opener '-1|') never goes stale; it ends at build / endImplementation / the next declareClass of the class"
+          ],
+          "subscript_audit": {
+            "_KKLASS_CLASS_SITE, _KKLASS_CLASS_SOURCE, _KKLASS_DECL_SITE (kklass.sh)": "kk._class_verdict, kk._class_register, kk._unit_forget_class, kk.class: ownership check (`${__KKLASS_TABLES[@]@a} == A`, else kk._class_tables / return) first; keys are kk._is_ident-validated class names (the verdict's callers validate; register / forget / kk.class check themselves); kk._build_class_runtime reads _KKLASS_DECL_SITE[$class_name] only inside `[[ ${__KKLASS_TABLES[@]@a} == A && ... ]]`; declareClass writes _KKLASS_DECL_SITE after kk._class_verdict",
+            "_KKLASS_SINK_AT (kklass_decl.sh)": "kk.decl._sink_enter (after the verdict); _sink_end / _sink_close / _sink_sweep / _sunk / _sink_mode call kk.decl._sink_mine first; _sink_here is reached only from _sunk / _sink_mode after it",
+            "__kk_decl_snap_taken (kklass_decl.sh)": "kk.decl._snap_drop, kk.decl._close_refused: ownership + kk._is_ident first (R4); declareClass's write comes after kk._class_verdict",
+            "__KK_VIS_WARNED (kklass.sh kk._warn_visibility)": "`declare -gA __KK_VIS_WARNED` immediately before the subscript (a child gets a fresh assoc)",
+            "__KLIB_FRAME_STACK / _INSTANCE / _CLASS (kklass.sh)": "indexed arrays subscripted by a numeric local frame id (no class or path text)",
+            "per-class tables (${CLASS}_decl_*, ${CLASS}_method_*, ...)": "local namerefs subscripted by member names; they exist only in the shell that declared the class; a child with exported functions and no tables cannot use a class anyway (unchanged, out of scope)",
+            "kkore/kuse.sh": "unchanged apart from R5; audited in U1a review_round_2 and U1b R2 (every entry point checks __KK_LOADED before a non-literal subscript)"
+          },
+          "gate": {
+            "kklass_5.2.37_threaded": "671/671, 0 [FAIL] (660 + 11)",
+            "kklass_5.3.9_threaded": "671/671, 0 [FAIL]",
+            "kklass_5.2.37_single": "671/671, 0 [FAIL]",
+            "kkore (kuse.sh R5)": "629/629 on 5.2.37 and 5.3.9 threaded",
+            "kcl_26_suites": "6676/6676 on 5.2.37 and on 5.3.9, 0 [FAIL] 0 [WARN], per-suite totals as in round 0",
+            "examples": "48 on both bashes vs HEAD outputs: no delta except mktemp names and 5.2 ex 28 'Timer elapsed' (timing)"
+          },
+          "status": "done, awaiting review"
+        },
+        "supervisor_review": "supervisor 2026-10-08: critic_u2a C1-C10 → remarks R1-R9 (owner: public kk.class --forget X); own probe scratchpad/r5/v_u2a.sh both bashes: bash -c one-line pair = same place (documented), piped script two lines = Duplicate identifier, kk.class --forget + re-source rebuilds, endClass/end in a set -a child no PWN, no double-quoted unset of a variable subscript left; full sweep 29/29 0 [FAIL] 0 [WARN] both bashes, totals identical except kklass 647->671, sum 8387->8411"
       },
       "U2b": {
         "name": "lazy namespace registry checked in declareClass/.new (U22), DSL verb names refused (U35), .ckk registration + unit by NAME + kk.uses kklass (C13, P9), uses synonym in the Pascal DSL (U32), .kkp unit/uses translation (U36, example 45)",

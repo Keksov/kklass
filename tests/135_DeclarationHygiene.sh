@@ -248,29 +248,29 @@ run endImplementation TPdc2; [[ $RC -eq 1 && "$ERR" == *new* ]] || bad+=" endImp
 ! built TPdc2 && ! built TPdc3 || bad+=" built;"
 if [[ -z "$bad" ]]; then kt_test_pass "closed, refused"; else kt_test_fail "$bad"; fi
 
-kt_test_start "B9 a refused defineClass REdefinition keeps the old class: runtime, decl tables, flag reads"
+kt_test_start "B9 a refused defineClass REdefinition (another site: Duplicate identifier, uses U21) keeps the old class: runtime, decl tables, flag reads"
 defineClass TPr "" property a method m 'echo m1'
 TPr.new pr1
 run defineClass TPr "" property a method delete 'echo x' method extra 'echo e'; d=$RC
-if [[ $d -eq 1 && "${TPr_decl_methods[*]}" == m && "${TPr_decl_properties[*]-}${TPr_decl_fields[*]-}" == *a* && "${TPr_decl_method_kind[m]-}" == procedure && "${TPr_class_abstract-}" == 0 && -z "$KK_DECL_CURRENT_CLASS" ]] \
+if [[ $d -eq 1 && "$ERR" == *"Duplicate identifier: class 'TPr'"* && "$ERR" != *$'\n'* && "${TPr_decl_methods[*]}" == m && "${TPr_decl_properties[*]-}${TPr_decl_fields[*]-}" == *a* && "${TPr_decl_method_kind[m]-}" == procedure && "${TPr_class_abstract-}" == 0 && -z "$KK_DECL_CURRENT_CLASS" ]] \
    && TPr.new pr2 && [[ "$(pr2.m)" == m1 && "$(pr1.m)" == m1 ]]; then
     kt_test_pass "old class intact"
 else
-    kt_test_fail "rc=$d decl_methods=(${TPr_decl_methods[*]-}) kind='${TPr_decl_method_kind[m]-}' abstract='${TPr_class_abstract-}' open='$KK_DECL_CURRENT_CLASS'"
+    kt_test_fail "rc=$d err='$ERR' decl_methods=(${TPr_decl_methods[*]-}) kind='${TPr_decl_method_kind[m]-}' abstract='${TPr_class_abstract-}' open='$KK_DECL_CURRENT_CLASS'"
     KK_DECL_CURRENT_CLASS=""
 fi
 
-kt_test_start "B10 a refused REdefinition of an ABSTRACT class keeps it abstract (isAbstract rc 0, .new refused, tables intact)"
+kt_test_start "B10 a refused REdefinition of an ABSTRACT class (Duplicate identifier, the block swallowed) keeps it abstract (isAbstract rc 0, .new refused, tables intact)"
 declareClass TPab ""; abstract; procedure P; procedure Q; endClass
 implement TPab.Q 'echo q'; endImplementation TPab
-declareClass TPab ""; abstract; procedure P; procedure Q; procedure parent 2>/dev/null; endClass 2>/dev/null
-endImplementation TPab 2>/dev/null
+run declareClass TPab ""; dr=$RC; derr="$ERR"
+run eval 'abstract; procedure P; procedure Q; procedure parent; endClass; endImplementation TPab'; berr="$ERR"
 ia=0; kk.isAbstract TPab || ia=$?
 nr=0; TPab.new pab 2>/dev/null || nr=$?
-if [[ $ia -eq 0 && $nr -eq 1 && "${TPab_decl_methods[*]}" == "P Q" && "${TPab_abstract_methods[*]}" == P && "${TPab_decl_method_abstract[P]-}" == 1 && "${TPab_method_abstract[P]-}" == 1 ]]; then
+if [[ $dr -eq 1 && "$derr" == *"Duplicate identifier: class 'TPab'"* && -z "$berr" && $ia -eq 0 && $nr -eq 1 && "${TPab_decl_methods[*]}" == "P Q" && "${TPab_abstract_methods[*]}" == P && "${TPab_decl_method_abstract[P]-}" == 1 && "${TPab_method_abstract[P]-}" == 1 ]]; then
     kt_test_pass "still abstract"
 else
-    kt_test_fail "isAbstract=$ia new=$nr decl_methods=(${TPab_decl_methods[*]-}) abstract_methods=(${TPab_abstract_methods[*]-}) flag='${TPab_class_abstract-}'"
+    kt_test_fail "declare=$dr err='$derr' rest='$berr' isAbstract=$ia new=$nr decl_methods=(${TPab_decl_methods[*]-}) abstract_methods=(${TPab_abstract_methods[*]-}) flag='${TPab_class_abstract-}'"
 fi
 
 kt_test_start "B11 an endClass override refusal (override of a non-virtual) closes the class and is named by endImplementation"
@@ -417,23 +417,22 @@ else
 fi
 unset -f TPpa.ok
 
-kt_test_start "B14 Pascal: a refused REdefinition of an abstract class keeps it abstract"
+kt_test_start "B14 Pascal: a refused REdefinition of an abstract class (Duplicate identifier) keeps it abstract"
 class TPpab
     abstract proc Area
     proc Name
 end
 TPpab.Name() { echo n; }
 build TPpab
-class TPpab
+run class TPpab; cr=$RC; cerr="$ERR"
     abstract proc Area
     proc Name
     var call 2>/dev/null
 end 2>/dev/null
 TPpab.Name() { echo n2; }
 build TPpab 2>/dev/null; b=$?
-unset -f TPpab.Name
 ia=0; kk.isAbstract TPpab || ia=$?
-if [[ $b -eq 1 && $ia -eq 0 && "${TPpab_decl_methods[*]}" == "Area Name" && -z "${TPpab_decl_fields[*]-}" ]]; then kt_test_pass "abstract, tables intact"; else kt_test_fail "build=$b isAbstract=$ia methods=(${TPpab_decl_methods[*]-}) fields=(${TPpab_decl_fields[*]-})"; fi
+if [[ $cr -eq 1 && "$cerr" == *"Duplicate identifier: class 'TPpab'"* && $b -eq 1 && $ia -eq 0 && "${TPpab_decl_methods[*]}" == "Area Name" && -z "${TPpab_decl_fields[*]-}" ]] && ! declare -F TPpab.Name >/dev/null; then kt_test_pass "abstract, tables intact"; else kt_test_fail "class=$cr err='$cerr' build=$b isAbstract=$ia methods=(${TPpab_decl_methods[*]-}) fields=(${TPpab_decl_fields[*]-})"; fi
 
 # ===========================================================================
 # §C  M3 / DR9 — the identifier helper

@@ -6,74 +6,263 @@ source "${KKLASS_DIR}/../kkore/klib.sh"
 source "${KKLASS_DIR}/../kkore/kerr.sh"
 source "${KKLASS_DIR}/../kkore/kvar.sh"
 
-# Registry of class name -> the source file that defined (finalized) it. Used
-# to refuse an accidental SECOND definition of the same class name from a
-# DIFFERENT file (a real bug: e.g. TStopwatch defined in two files, or a user
-# class colliding with a library one). A re-registration from the SAME file is
-# allowed — the diamond-include case (e.g. tstringlist.sh + tlist.sh both
-# pulling in tlist.sh) is legitimate and must keep working. Declared
-# idempotently so a re-source of this framework never wipes it.
-[[ -v _KKLASS_CLASS_SOURCE ]] || declare -gA _KKLASS_CLASS_SOURCE
-# "$PWD|raw BASH_SOURCE string" -> canonical path. The canonicalization below
-# forks once ($(cd ..)); with the owner check now also running at declareClass
-# time (P1/F2) this cache keeps it to ONE fork per distinct source file per
-# working directory instead of one per class.
-[[ -v _KKLASS_CANON_CACHE ]] || declare -gA _KKLASS_CANON_CACHE
-
-# Resolve the innermost call-stack entry that is NOT a kklass framework file —
-# i.e. the unit/user script that invoked the class-building verb — CANONICALIZED
-# so the same file reached through different path spellings compares equal.
-# Result in __kk_caller_src; falls back to "(unknown)".
+# ---------------------------------------------------------------------------
+# Class declaration sites — "Duplicate identifier" (uses phase U2a; design:
+# kklass/USES_PLAN.md U18', U20, U21, U23, C6, C14, P4).
 #
-# Canonicalization matters: tstringlist.sh sources tlist.sh as
-# "$DIR/../tlist/tlist.sh" while a test may source "kcl/tlist/tlist.sh" — the
-# SAME file, different strings. Comparing raw strings would raise a false
-# "collision" and break legitimate diamond includes. The cd+pwd idiom (the one
-# every unit header already uses) resolves .., relative paths, and MSYS vs
-# Windows drive forms to one canonical path. The single subshell runs only at
-# class-build time — load time, never a runtime path (unit headers fork the
-# same way). A false NEGATIVE here merely degrades to no-protection; a false
-# POSITIVE would break working code, so we err toward matching.
-kk._caller_source_file() {
-    local __i __src __base __d __b
-    __kk_caller_src="(unknown)"
-    for (( __i = 0; __i < ${#BASH_SOURCE[@]}; __i++ )); do
-        __src="${BASH_SOURCE[__i]}"
-        __base="${__src##*/}"
-        case "$__base" in
-            kklass.sh|kklass_decl.sh|kklass_pascal.sh|kklass_kkp.sh|kklass_serializable.sh|kklass_autoload.sh|kklass_compiler.sh) continue ;;
-        esac
-        if [[ -n "${_KKLASS_CANON_CACHE[$PWD|$__src]+x}" ]]; then
-            __kk_caller_src="${_KKLASS_CANON_CACHE[$PWD|$__src]}"
-            return 0
+# The SITE of a class declaration (declareClass, and so every builder: the
+# Pascal `class`, defineClass, defineSerializableClass, a raw
+# kk._build_class_runtime) is the chain of FILE:LINE call positions from the
+# innermost one outside the kklass framework files outward, up to and including
+# the position inside the first sourced file (its `source` frame) — or inside
+# the script itself at the bottom. A re-source of a file and a loop give the
+# same chain; two calls through a wrapper (`mk A x; mk A y`) do not. Positions
+# with no file behind them — a prompt, `bash -c`, a script read from stdin
+# (`bash < f`, `bash -s`, a pipe), and functions defined there (bash 5.2 names
+# their file `environment` / `main`, 5.3 names it `$0`) — are the one pseudo
+# file "(no file)": judged by their line like any file. Leading positions inside
+# such functions are skipped like kklass's own frames, so both bashes give the
+# same site.
+#
+# A class that is BUILT has a site (_KKLASS_CLASS_SITE). Declaring it again:
+#   * from another site          -> "kklass: Duplicate identifier: ..." naming
+#     both sites, rc 1; the class is poisoned (${X}_decl_refused), the unit
+#     being loaded is marked incomplete (kk._unit_taint, U34) and the rest of
+#     that declaration block is swallowed silently (the sink, kklass_decl.sh):
+#     an imposter unit can neither rebuild the original nor leave its Pascal
+#     bodies behind;
+#   * from the same site (a file without a unit header sourced again, a loop,
+#     two declarations on one line) -> one `kklass: WARNING:` (kk.warn) and the
+#     class is NOT rebuilt: instances, defineMethod changes and static values
+#     survive; the block is swallowed, a Pascal `build` restores the static
+#     methods the re-run redefined and drops its body functions; defineClass is
+#     ignored as a whole. (File-scope defineMethod / addSerializable calls of
+#     such a file still run: U20 covers declarations only.)
+#   * at an interactive prompt (`$-` has i) from a chain with no file position
+#     -> allowed: the class is rebuilt (C14). A file sourced at a prompt is
+#     still checked.
+# The FILE parts of two chains: the same spelling is the same file unless both
+# absolute forms exist and are not `-ef` (a relative script started before a
+# `cd` keeps its spelling); different spellings are compared with `[[ -ef ]]`,
+# so C:/x, C:\x, /c/x, /C/X and a `..` spelling of one file are one site
+# (U18'). A relative BASH_SOURCE is made absolute with $PWD when captured;
+# paths are normalised lexically for the messages only.
+#
+# Tables (keys: class names, validated identifiers):
+#   _KKLASS_CLASS_SITE[X]    the site X was built from: RAW positions, $'\x1d',
+#                            the same positions with absolute files
+#   _KKLASS_CLASS_SOURCE[X]  the innermost file of that site — also the set of
+#                            built classes (defineMethod walks it)
+#   _KKLASS_DECL_SITE[X]     the site of X's declaration still being built
+#                            (declareClass -> endImplementation)
+#   _KKLASS_SINK_AT[X]       "BOT|FILE": the `source` frame that opened X's sink
+#   __KKLASS_TABLES          ([on]=1) OWNERSHIP: the tables are this shell's.
+# A child bash never inherits assoc arrays (functions exported with set -a /
+# KKLASS_EXPORT_FUNCTIONS=1 do arrive): every entry point checks
+# `${__KKLASS_TABLES[@]@a} == A` before it subscripts a table and starts an empty
+# registry otherwise (U28) — a non-assoc table would evaluate the key as
+# arithmetic (uses R14). The sink state (__KK_SINK, __KK_SINK_OPEN,
+# __KK_SINK_FNS) and kklass_decl.sh's snapshot table are reset with them.
+#
+# Units (P4): when kbool.sh is loaded (`${__KK_LOADED[@]@a} == A`), a class
+# built while a unit loads is filed with kk._unit_add_class under
+# kk._unit_current; `kk.unit --forget NAME` calls kk._unit_forget_class for each,
+# so the next source of the unit rebuilds them. Without kbool the site rules
+# hold and the unit hooks are skipped. `kk.class --forget X` does the same for
+# one class (a header-less file).
+kk._class_tables() {
+    unset _KKLASS_CLASS_SITE _KKLASS_CLASS_SOURCE _KKLASS_DECL_SITE _KKLASS_SINK_AT \
+          __KKLASS_TABLES __kk_decl_snap_taken
+    declare -gA _KKLASS_CLASS_SITE=() _KKLASS_CLASS_SOURCE=() _KKLASS_DECL_SITE=() _KKLASS_SINK_AT=()
+    declare -gA __kk_decl_snap_taken=()   # kklass_decl.sh: redefinition snapshots, keyed by class
+    declare -gA __KKLASS_TABLES=([on]=1)
+    declare -g __KK_SINK="" __KK_SINK_OPEN="" __KK_SINK_FNS="" __KK_SINK_LAST=""
+}
+[[ ${__KKLASS_TABLES[@]@a} == A ]] || kk._class_tables
+
+# kk._class_site — the site of the class verb being run (see above), into the
+# CALLER's __kk_site (RAW positions FILE:LINE joined by $'\x1f', innermost
+# first, then $'\x1d' and the same positions with absolute FILEs; a pseudo file
+# is ''), __kk_site_tty (1 = an interactive shell and no position in a file)
+# and __kk_site_open ("BOT|FILE" of the first `source` frame — BOT counted from
+# the bottom of the stack — or "-1|"). Fork-free.
+kk._class_site() {
+    local __i __n=${#BASH_SOURCE[@]} __f __a __started=0 __nofile=1 __script=0 __raw="" __abs="" __l __z=""
+    [[ ${FUNCNAME[__n-1]-} == main ]] && __script=1
+    # Outside a script (no bottom `main` frame) 5.3 names the file of a function
+    # defined at a prompt / in bash -c / on stdin after $0 — a pseudo file,
+    # unless $0 is a real file other than bash itself (`bash -c 'source "$0"'
+    # f.sh`, the ktests runner). Decided once per value of $0.
+    if (( ! __script )) && [[ -n $0 ]]; then
+        if [[ ${__KK_SITE_Z0-} != "$0" ]]; then
+            __KK_SITE_Z0=$0 __KK_SITE_Z0P=1
+            if [[ -f $0 ]] && ! [[ -n ${BASH-} && $0 -ef $BASH ]]; then __KK_SITE_Z0P=0; fi
         fi
-        __d="${__src%/*}"; __b="${__src##*/}"
-        [[ "$__d" == "$__src" ]] && __d="."     # no slash -> current dir
-        __kk_caller_src="$( cd "$__d" 2>/dev/null && printf '%s/%s' "$PWD" "$__b" )" \
-            || __kk_caller_src="$__src"
-        _KKLASS_CANON_CACHE["$PWD|$__src"]="$__kk_caller_src"
-        return 0
+        [[ $__KK_SITE_Z0P == 1 ]] && __z=$0
+    fi
+    __kk_site_open="-1|"
+    for (( __i = 0; __i < __n; __i++ )); do
+        # the bottom `main` frame of a script has no call position of its own
+        (( __script && __i == __n - 1 )) && break
+        __f=${BASH_SOURCE[__i+1]-}
+        # a pseudo file: a function defined at a prompt, in bash -c or in a
+        # script read from stdin (5.2: environment / main; 5.3: $0), or one
+        # inherited from the environment
+        if [[ $__f == environment || $__f == main || ( -n $__z && $__f == "$__z" ) ]]; then
+            (( __started )) || continue
+            __f=""
+        elif (( ! __started )); then
+            case ${__f##*/} in
+                kklass.sh|kklass_decl.sh|kklass_pascal.sh|kklass_kkp.sh|kklass_serializable.sh|kklass_autoload.sh|kklass_compiler.sh) continue ;;
+            esac
+        fi
+        __started=1
+        case $__f in
+            '') __a="" ;;
+            /*|[A-Za-z]:[/\\]*) __a=$__f; __nofile=0 ;;
+            *) __a=$PWD/$__f; __nofile=0 ;;
+        esac
+        __l=${BASH_LINENO[__i]-0}
+        __raw+="${__raw:+$'\x1f'}$__f:$__l"
+        __abs+="${__abs:+$'\x1f'}$__a:$__l"
+        if [[ ${FUNCNAME[__i+1]-} == source ]]; then
+            __kk_site_open="$(( __n - 2 - __i ))|${BASH_SOURCE[__i+1]}"
+            break
+        fi
+    done
+    __kk_site=$__raw$'\x1d'$__abs
+    __kk_site_tty=0
+    if (( __nofile )) && [[ $- == *i* ]]; then __kk_site_tty=1; fi
+    return 0
+}
+
+# kk._class_site_same SITE_A SITE_B — rc 0 when both are the same site: the
+# same lines and, per position, the same file (see "The FILE parts" above).
+kk._class_site_same() {
+    [[ $1 == "$2" ]] && return 0
+    local -a __ra __rb __aa __ab
+    local __k __fa __fb
+    IFS=$'\x1f' read -r -a __ra <<<"${1%%$'\x1d'*}"
+    IFS=$'\x1f' read -r -a __rb <<<"${2%%$'\x1d'*}"
+    IFS=$'\x1f' read -r -a __aa <<<"${1#*$'\x1d'}"
+    IFS=$'\x1f' read -r -a __ab <<<"${2#*$'\x1d'}"
+    (( ${#__ra[@]} == ${#__rb[@]} && ${#__aa[@]} == ${#__ra[@]} && ${#__ab[@]} == ${#__rb[@]} )) || return 1
+    for (( __k = 0; __k < ${#__ra[@]}; __k++ )); do
+        [[ ${__ra[__k]##*:} == "${__rb[__k]##*:}" ]] || return 1
+        __fa=${__aa[__k]%:*} __fb=${__ab[__k]%:*}
+        [[ $__fa == "$__fb" ]] && continue
+        if [[ ${__ra[__k]%:*} == "${__rb[__k]%:*}" ]]; then
+            # one spelling: the same file unless both absolute forms are files and differ
+            if [[ -e $__fa && -e $__fb ]] && ! [[ $__fa -ef $__fb ]]; then return 1; fi
+            continue
+        fi
+        [[ -n $__fa && -n $__fb && $__fa -ef $__fb ]] || return 1
     done
     return 0
 }
 
-# Duplicate-name protection shared by declareClass (check only, BEFORE any
-# declarative state is reset — F2) and kk._build_class_runtime ("register").
-# Refuses when NAME is already owned by a DIFFERENT canonical file; a rebuild
-# from the same file (diamond include, deliberate re-source) passes. Leaves the
-# resolved caller in __kk_caller_src (declare it local in the caller).
-kk._check_class_owner() {
-    local __kk_cls="$1" __kk_mode="${2:-check}"
-    kk._caller_source_file
-    if [[ -n "${_KKLASS_CLASS_SOURCE[$__kk_cls]+x}" \
-          && "${_KKLASS_CLASS_SOURCE[$__kk_cls]}" != "$__kk_caller_src" ]]; then
-        echo "kklass: class '${__kk_cls}' is already registered (from ${_KKLASS_CLASS_SOURCE[$__kk_cls]}); refusing to redefine it from ${__kk_caller_src}" >&2
-        return 1
+# kk._class_site_text SITE -> __kk_site_txt: "FILE:LINE <- FILE:LINE ..." from
+# the absolute positions, each FILE normalised lexically (`\` -> `/`, `.`, `..`
+# and `//` folded), a pseudo file as "(no file)" — for messages only.
+kk._class_site_text() {
+    local -a __a __s __o
+    local __p __f __pre __g __t="" IFS=/
+    IFS=$'\x1f' read -r -a __a <<<"${1#*$'\x1d'}"
+    for __p in "${__a[@]}"; do
+        __f=${__p%:*} __f=${__f//\\//} __pre=""
+        case $__f in
+            '') __f="(no file)" ;;
+            *)
+                [[ $__f == [A-Za-z]:/* ]] && { __pre=${__f:0:2}; __f=${__f:2}; }
+                __o=()
+                IFS=/ read -r -a __s <<<"$__f"
+                for __g in "${__s[@]}"; do
+                    case $__g in
+                        ''|.) ;;
+                        ..) (( ${#__o[@]} )) && unset '__o[${#__o[@]}-1]' ;;
+                        *) __o+=("$__g") ;;
+                    esac
+                done
+                __f="$__pre/${__o[*]}"
+                ;;
+        esac
+        __t+="${__t:+ <- }$__f:${__p##*:}"
+    done
+    __kk_site_txt=$__t
+}
+
+# kk._class_verdict CLASS — may CLASS be built from the current site?
+#   rc 0 yes (not built yet, or a prompt redefinition), __kk_site = the site;
+#   rc 1 "Duplicate identifier" (printed; the loading unit tainted, U34);
+#   rc 2 the same site again (WARNING printed).
+# Needs the caller's locals __kk_site __kk_site_tty __kk_site_open.
+kk._class_verdict() {
+    local __kk_c=$1 __kk_site_txt __kk_old
+    [[ ${__KKLASS_TABLES[@]@a} == A ]] || kk._class_tables
+    kk._class_site
+    [[ -n ${_KKLASS_CLASS_SITE[$__kk_c]+x} ]] || return 0
+    (( __kk_site_tty )) && return 0
+    kk._class_site_text "${_KKLASS_CLASS_SITE[$__kk_c]}"; __kk_old=$__kk_site_txt
+    if kk._class_site_same "${_KKLASS_CLASS_SITE[$__kk_c]}" "$__kk_site"; then
+        kk.warn "kklass: WARNING: class '${__kk_c}' declared again from the same place (${__kk_old}); ignored, the class is not rebuilt"
+        return 2
     fi
-    if [[ "$__kk_mode" == "register" ]]; then
-        _KKLASS_CLASS_SOURCE["$__kk_cls"]="$__kk_caller_src"
+    kk._class_site_text "$__kk_site"
+    echo "kklass: Duplicate identifier: class '${__kk_c}' is already declared at ${__kk_old}; refusing to redeclare it at ${__kk_site_txt}" >&2
+    # a structural error inside a unit's load: that unit is not complete (U34)
+    if [[ ${__KK_LOADED[@]@a} == A ]]; then kk._unit_taint 1; fi
+    return 1
+}
+
+# kk._class_register CLASS SITE — CLASS is built: remember its site, file it
+# under the unit being loaded (P4). rc 2 for a CLASS that is not an identifier.
+kk._class_register() {
+    [[ -n ${1-} ]] && kk._is_ident "$1" || return 2
+    [[ ${__KKLASS_TABLES[@]@a} == A ]] || kk._class_tables
+    local __kk_f=${2#*$'\x1d'} __kk_r
+    __kk_f=${__kk_f%%$'\x1f'*}
+    __kk_f=${__kk_f%:*}
+    _KKLASS_CLASS_SITE[$1]=$2
+    _KKLASS_CLASS_SOURCE[$1]=${__kk_f:-(no file)}
+    unset '_KKLASS_DECL_SITE[$1]'
+    if [[ ${__KK_LOADED[@]@a} == A ]]; then
+        __kk_r=${RESULT-}
+        if kk._unit_current; then kk._unit_add_class "$RESULT" "$1"; fi
+        RESULT=$__kk_r
     fi
     return 0
+}
+
+# kk._unit_forget_class CLASS — the `kk.unit --forget` hook (kkore/kuse.sh,
+# P4): drop CLASS's site records so the next source of its unit rebuilds it
+# (and close a sink of it). rc 0; rc 2 for a name that is not an identifier.
+kk._unit_forget_class() {
+    [[ -n ${1-} ]] && kk._is_ident "$1" || return 2
+    [[ ${__KKLASS_TABLES[@]@a} == A ]] || return 0
+    kk.decl._sink_close "$1"
+    unset '_KKLASS_CLASS_SITE[$1]' '_KKLASS_CLASS_SOURCE[$1]' '_KKLASS_DECL_SITE[$1]'
+    return 0
+}
+
+# kk.class --forget CLASS — forget where CLASS was declared, so the next source
+# of its file (a file without a unit header) rebuilds it instead of ignoring the
+# declaration with a WARNING (U20). The class itself and its instances are NOT
+# deleted: until the rebuild they keep working, and after it existing instances
+# dispatch to the new method bodies. A unit's classes are forgotten with
+# `kk.unit --forget UNIT`. rc 0 forgotten, 1 CLASS is not a registered (built)
+# class, 2 a malformed call (silent, kk.debug — kcl §1).
+kk.class() {
+    if [[ ${1-} != --forget || $# -ne 2 ]]; then
+        kk.debug "kk.class: usage: kk.class --forget CLASS"
+        return 2
+    fi
+    if ! kk._is_ident "$2"; then
+        kk.debug "kk.class --forget: not a class name: '$2'"
+        return 2
+    fi
+    [[ ${__KKLASS_TABLES[@]@a} == A ]] || kk._class_tables
+    [[ -n ${_KKLASS_CLASS_SITE[$2]+x} ]] || return 1
+    kk._unit_forget_class "$2"
 }
 
 # Scratch global used by kk._find_method to return the resolving class
@@ -448,7 +637,7 @@ kk._invoke() {   # INST ACTIVE_CLASS BODY ARGS...
     kk._run_frame_body "$__kk_inst" "$__kk_active_class" "$__kk_body" "$@"
     local __kk_status=$?
 
-    unset "__KLIB_FRAME_STACK[$__kk_frame_id]" "__KLIB_FRAME_INSTANCE[$__kk_frame_id]" "__KLIB_FRAME_CLASS[$__kk_frame_id]"
+    unset '__KLIB_FRAME_STACK[$__kk_frame_id]' '__KLIB_FRAME_INSTANCE[$__kk_frame_id]' '__KLIB_FRAME_CLASS[$__kk_frame_id]'
     if (( __kk_return_set )); then
         RESULT="$__kk_return_value"
     else
@@ -614,6 +803,107 @@ kk._delete() {   # INST
     unset -f "${__kk_fns[@]}"
 }
 
+# kk._class_static_api CLASS — (re)generate CLASS's class-level functions from
+# its stored tables (${CLASS}_class_static_properties, _static_property_owner,
+# _class_static_methods): the static property accessors CLASS.PROP and the
+# static method dispatchers CLASS.METHOD. The bodies (CLASS.__static_METHOD) and
+# the static values are not touched. Called by kk._build_class_runtime, and by
+# the swallowed Pascal `build` of a unit sourced again (uses U20, C6): the
+# re-run redefined CLASS.METHOD as a plain body function, which would otherwise
+# replace the dispatcher (`TU20.GetCount` printed `count=` instead of `count=2`).
+kk._class_static_api() {
+    local class_name="$1" sp sm static_owner static_namerefs=""
+    local -n __kk_sa_props="${class_name}_class_static_properties"
+    local -n __kk_sa_owner="${class_name}_class_static_property_owner"
+    local -n __kk_sa_meths="${class_name}_class_static_methods"
+
+    # Static property accessors: Class.property = value / Class.property
+    for sp in "${__kk_sa_props[@]}"; do
+        static_owner="${__kk_sa_owner[$sp]:-$class_name}"
+        eval "${class_name}.${sp}() {
+                if [[ \"\$1\" == \"=\" ]]; then
+                    ${static_owner}_static_${sp}=\"\$2\"
+                else
+                    echo \"\${${static_owner}_static_${sp}}\"
+                fi
+            }"
+        static_namerefs+="local -n $sp=${static_owner}_static_${sp}; "
+    done
+
+    # Static methods: Class.method args
+    #
+    # The body ALWAYS lives in its own function Class.__static_NAME (F5): a
+    # `return N` inside it then comes back to the wrapper, which finishes
+    # its bookkeeping and returns N. Before, the body was inlined into the
+    # wrapper, so `return` aborted the wrapper mid-way: the 5.2 path leaked
+    # its scratch file and lost stdout, the 5.3 funsub path swallowed the
+    # status, and a failing last command reported printf's 0 on both.
+    # Static-property namerefs are declared in the wrapper and reach the
+    # body through bash's dynamic scoping.
+    #
+    # Two dispatcher shapes (pinned by test 114):
+    #   * no static properties -> THIN: stdout flows straight through, no
+    #     capture, no fork on any bash version (the string.* utility path).
+    #   * static properties    -> CAPTURING: stdout is captured into REPLY
+    #     and re-printed. REPLY is the return channel for a STATEFUL static
+    #     method (a singleton's getInstance, test 026): `$(Class.m)` would
+    #     run it in a subshell and lose the state mutation, so callers do
+    #     `Class.m >/dev/null; use "$REPLY"`. bash 5.3+ captures with a
+    #     funsub (no fork); 5.2 uses a scratch file (as before).
+    local __kk_has_funsub=0
+    if (( BASH_VERSINFO[0] > 5 || (BASH_VERSINFO[0] == 5 && BASH_VERSINFO[1] >= 3) )); then
+        __kk_has_funsub=1
+    fi
+
+    for sm in "${__kk_sa_meths[@]}"; do
+        if (( ${#__kk_sa_props[@]} == 0 )); then
+            eval "${class_name}.${sm}() {
+                    local __kk_return_set=0
+                    local __kk_return_value=\"\"
+                    local __kk_return_silent=1
+                    ${class_name}.__static_${sm} \"\$@\"
+                    local __kk_status=\$?
+                    if (( __kk_return_set )); then
+                        printf \"%s\" \"\$__kk_return_value\"
+                    fi
+                    return \$__kk_status
+                }"
+        elif (( __kk_has_funsub )); then
+            # The assignment's status is the funsub's status = the body's.
+            eval "${class_name}.${sm}() {
+                    ${static_namerefs}
+                    local __kk_return_set=0
+                    local __kk_return_value=\"\"
+                    local __kk_return_silent=1
+                    REPLY=\${ ${class_name}.__static_${sm} \"\$@\"; }
+                    local __kk_status=\$?
+                    if (( __kk_return_set )); then
+                        REPLY+=\"\$__kk_return_value\"
+                    fi
+                    printf \"%s\" \"\$REPLY\"
+                    return \$__kk_status
+                }"
+        else
+            eval "${class_name}.${sm}() {
+                    ${static_namerefs}
+                    local __kk_return_set=0
+                    local __kk_return_value=\"\"
+                    local __kk_return_silent=1
+                    local __kk_static_out=\"\${TMPDIR:-/tmp}/.kk_static_\${BASHPID}_\${RANDOM}\${RANDOM}\"
+                    ${class_name}.__static_${sm} \"\$@\" >\"\$__kk_static_out\"
+                    local __kk_status=\$?
+                    REPLY=\"\$(<\"\$__kk_static_out\")\"
+                    rm -f \"\$__kk_static_out\"
+                    if (( __kk_return_set )); then
+                        REPLY+=\"\$__kk_return_value\"
+                    fi
+                    printf \"%s\" \"\$REPLY\"
+                    return \$__kk_status
+                }"
+        fi
+    done
+}
+
 kk._build_class_runtime() {
     local class_name="$1"
     local parent_class="$2"
@@ -632,14 +922,24 @@ kk._build_class_runtime() {
     kk.decl._validate_ident "$class_name" "class name" || return 1
     kk.decl._validate_ident "$parent_class" "parent class name" || return 1
 
-    # Duplicate-name protection. Refuse to build over a class that a DIFFERENT
-    # file already registered — an accidental second definition (same class in
-    # two files) or a user class colliding with a library one. This check runs
-    # BEFORE any runtime state is created/replaced below, so the already-built
-    # original class is left fully intact. A rebuild from the SAME file (a
-    # diamond include, or a deliberate re-source) is allowed to proceed.
-    local __kk_caller_src
-    kk._check_class_owner "$class_name" register || return 1
+    # Declaration sites ("Duplicate identifier", uses U2a — see the top of this
+    # file), checked BEFORE any runtime state is created/replaced below, so an
+    # already-built original is left fully intact. endImplementation builds a
+    # class declareClass already judged: its site is the declaration's. A raw
+    # call is judged here: another site -> rc 1, the same site again -> one
+    # WARNING and rc 0 without rebuilding. The site is registered at the end,
+    # once the class is built.
+    local __kk_site __kk_site_tty __kk_site_open
+    if [[ ${FUNCNAME[1]-} == endImplementation && ${__KKLASS_TABLES[@]@a} == A \
+          && -n ${_KKLASS_DECL_SITE[$class_name]+x} ]]; then
+        __kk_site=${_KKLASS_DECL_SITE[$class_name]}
+    else
+        kk._class_verdict "$class_name"
+        case $? in
+            1) return 1 ;;
+            2) return 0 ;;
+        esac
+    fi
 
     # Collect properties and methods (including inherited)
     local -a props_arr=()
@@ -1008,103 +1308,21 @@ __INST__.delete() { kk._delete __INST__ \"\$@\"; }"
             fi
         done
         
-        # Create static property accessors: Class.property = value / Class.property
-        for sp in "${static_props_arr[@]}"; do
-            local static_owner="${static_prop_owner[$sp]:-$class_name}"
-            eval "${class_name}.${sp}() {
-                if [[ \"\$1\" == \"=\" ]]; then
-                    ${static_owner}_static_${sp}=\"\$2\"
-                else
-                    echo \"\${${static_owner}_static_${sp}}\"
-                fi
-            }"
-        done
-        
-        # Create static methods: Class.method args
-        #
-        # The body ALWAYS lives in its own function Class.__static_NAME (F5): a
-        # `return N` inside it then comes back to the wrapper, which finishes
-        # its bookkeeping and returns N. Before, the body was inlined into the
-        # wrapper, so `return` aborted the wrapper mid-way: the 5.2 path leaked
-        # its scratch file and lost stdout, the 5.3 funsub path swallowed the
-        # status, and a failing last command reported printf's 0 on both.
-        # Static-property namerefs are declared in the wrapper and reach the
-        # body through bash's dynamic scoping.
-        #
-        # Two dispatcher shapes (pinned by test 114):
-        #   * no static properties -> THIN: stdout flows straight through, no
-        #     capture, no fork on any bash version (the string.* utility path).
-        #   * static properties    -> CAPTURING: stdout is captured into REPLY
-        #     and re-printed. REPLY is the return channel for a STATEFUL static
-        #     method (a singleton's getInstance, test 026): `$(Class.m)` would
-        #     run it in a subshell and lose the state mutation, so callers do
-        #     `Class.m >/dev/null; use "$REPLY"`. bash 5.3+ captures with a
-        #     funsub (no fork); 5.2 uses a scratch file (as before).
-        local __kk_has_funsub=0
-        if (( BASH_VERSINFO[0] > 5 || (BASH_VERSINFO[0] == 5 && BASH_VERSINFO[1] >= 3) )); then
-            __kk_has_funsub=1
-        fi
-
+        # The static method bodies, each in its own function
+        # Class.__static_NAME (see kk._class_static_api for why).
         for sm in "${static_meths_arr[@]}"; do
             local sm_body="${static_meth_bodies[$sm]}"
-            local static_namerefs=""
-            for sp in "${static_props_arr[@]}"; do
-                local static_owner="${static_prop_owner[$sp]:-$class_name}"
-                static_namerefs+="local -n $sp=${static_owner}_static_${sp}; "
-            done
-
             eval "${class_name}.__static_${sm}() {
                 ${sm_body}
             }"
-
-            if (( ${#static_props_arr[@]} == 0 )); then
-                eval "${class_name}.${sm}() {
-                    local __kk_return_set=0
-                    local __kk_return_value=\"\"
-                    local __kk_return_silent=1
-                    ${class_name}.__static_${sm} \"\$@\"
-                    local __kk_status=\$?
-                    if (( __kk_return_set )); then
-                        printf \"%s\" \"\$__kk_return_value\"
-                    fi
-                    return \$__kk_status
-                }"
-            elif (( __kk_has_funsub )); then
-                # The assignment's status is the funsub's status = the body's.
-                eval "${class_name}.${sm}() {
-                    ${static_namerefs}
-                    local __kk_return_set=0
-                    local __kk_return_value=\"\"
-                    local __kk_return_silent=1
-                    REPLY=\${ ${class_name}.__static_${sm} \"\$@\"; }
-                    local __kk_status=\$?
-                    if (( __kk_return_set )); then
-                        REPLY+=\"\$__kk_return_value\"
-                    fi
-                    printf \"%s\" \"\$REPLY\"
-                    return \$__kk_status
-                }"
-            else
-                eval "${class_name}.${sm}() {
-                    ${static_namerefs}
-                    local __kk_return_set=0
-                    local __kk_return_value=\"\"
-                    local __kk_return_silent=1
-                    local __kk_static_out=\"\${TMPDIR:-/tmp}/.kk_static_\${BASHPID}_\${RANDOM}\${RANDOM}\"
-                    ${class_name}.__static_${sm} \"\$@\" >\"\$__kk_static_out\"
-                    local __kk_status=\$?
-                    REPLY=\"\$(<\"\$__kk_static_out\")\"
-                    rm -f \"\$__kk_static_out\"
-                    if (( __kk_return_set )); then
-                        REPLY+=\"\$__kk_return_value\"
-                    fi
-                    printf \"%s\" \"\$REPLY\"
-                    return \$__kk_status
-                }"
-            fi
         done
+
+        # The class-level API — static property accessors and static method
+        # dispatchers — generated from the tables stored above (the same
+        # helper restores it when a Pascal unit is sourced again, uses U20).
+        kk._class_static_api "$class_name"
     fi
-    
+
     # Constructor function: materialize the instance by substituting the
     # (validated) instance name into the class template with a pure-bash
     # replacement and eval'ing it (no fork). Methods added later with
@@ -1147,6 +1365,9 @@ __INST__.delete() { kk._delete __INST__ \"\$@\"; }"
     # or semicolons would otherwise corrupt this generated function).
     eval "${class_name}.constructor() { kk._invoke_constructor ${class_name} \"\$@\"; }"
 
+    # Built: register the declaration site (and the unit, P4).
+    kk._class_register "$class_name" "$__kk_site"
+
     # Debug note on the debug channel (stderr), never on stdout (P11).
     kk.debug "$class_name class created"
 }
@@ -1167,7 +1388,14 @@ defineClass() {
 
     shift 2
 
-    declareClass "$class_name" "$parent_class" || return 1
+    # defineClass is ONE call: a refused declaration (Duplicate identifier) or
+    # the same site again (WARNING, uses U20) ends the sink declareClass opened
+    # and ignores the call as a whole.
+    declareClass "$class_name" "$parent_class" || { kk.decl._sink_end "$class_name"; return 1; }
+    if [[ ${__KK_SINK_OPEN-} == "$class_name" ]]; then
+        kk.decl._sink_end "$class_name"
+        return 0
+    fi
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -1418,4 +1646,5 @@ source "${KKLASS_DIR}/kklass_decl.sh"
 
 if [[ "${KKLASS_EXPORT_FUNCTIONS:-0}" == "1" ]]; then
     export -f kk._processMethodBody kk.call_silent kk._class_derives_from kk._is_ident kk.isAbstract kk.derivesFrom kk._warn_visibility kk._build_class_runtime _defineMethodType defineClass defineMethod defineProcedure defineFunction kk.register_static_methods
+    export -f kk._class_tables kk._class_site kk._class_site_same kk._class_site_text kk._class_verdict kk._class_register kk._unit_forget_class kk.class kk._class_static_api
 fi

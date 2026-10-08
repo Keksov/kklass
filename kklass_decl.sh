@@ -347,11 +347,15 @@ kk.decl._snap_copy() {   # FROM_PREFIX TO_PREFIX
 
 kk.decl._snap_drop() {   # CLASS
     local __kk_n
+    # ownership first (review R4): in a child without the table a class-named
+    # key would be evaluated as arithmetic
+    [[ ${__KKLASS_TABLES[@]@a} == A ]] || kk._class_tables
+    kk._is_ident "${1-}" || return 0
     [[ -n "${__kk_decl_snap_taken[$1]+x}" ]] || return 0
     for __kk_n in "${__KK_DECL_SNAP_ARRAYS[@]}" "${__KK_DECL_SNAP_ASSOCS[@]}" "${__KK_DECL_SNAP_SCALARS[@]}"; do
         unset "__kk_decl_snap_${1}_${__kk_n}"
     done
-    unset "__kk_decl_snap_taken[$1]"
+    unset '__kk_decl_snap_taken[$1]'
 }
 declare -gA __kk_decl_snap_taken=()
 
@@ -359,6 +363,8 @@ declare -gA __kk_decl_snap_taken=()
 # refused REdefinition, keep finalized=0, clear the open-class state.
 kk.decl._close_refused() {   # CLASS
     local class_name="$1"
+    [[ ${__KKLASS_TABLES[@]@a} == A ]] || kk._class_tables   # ownership first (review R4)
+    kk._is_ident "$class_name" || return 1
     if [[ -n "${__kk_decl_snap_taken[$class_name]+x}" ]]; then
         kk.decl._snap_copy "__kk_decl_snap_${class_name}_" "${class_name}_"
         kk.decl._snap_drop "$class_name"
@@ -376,6 +382,174 @@ kk.decl._abandon_class() {   # CLASS MEMBER
     kk.decl._poison "$2"
     kk.decl._close_refused "$1"
     return 1
+}
+
+# ---------------------------------------------------------------------------
+# The sink (uses U20/U21, C6). When declareClass X meets X already built from
+# the same site (a file without a unit header sourced again: mode s) or from
+# another site (Duplicate identifier: mode d), the rest of X's declaration
+# block is swallowed silently instead of failing verb by verb:
+#   * while X is "open" (__KK_SINK_OPEN=X, up to endClass / Pascal end): every
+#     member verb, modifier and section verb of both DSLs;
+#   * implement X.*, implementConstructor X;
+#   * endImplementation X and Pascal build X END the sink, as does the next
+#     declareClass of X; defineClass (one call) ends it at once.
+# A swallowed verb returns 0 in mode s and 1 in mode d. The method-ish verbs
+# record X.NAME in __KK_SINK_FNS: a Pascal re-run defines X.NAME body
+# functions before `build`, and the swallowed build drops them and regenerates
+# X's static API from its tables (kk.decl._sink_close).
+# The sink belongs to the `source` frame that opened it (_KKLASS_SINK_AT[X] =
+# "BOT|FILE", review R3): only verbs called from that frame are swallowed. A
+# verb from any other file or frame runs normally; if the opening frame has
+# returned (the file stopped before its build, or an imposter has no build),
+# the stale sink is first CLOSED like a swallowed build (the re-run's body
+# functions dropped, the static API restored). declareClass closes stale
+# sinks of every class too.
+# State: __KK_SINK = " X:s  Y:d " (every class in a sink), __KK_SINK_OPEN,
+# __KK_SINK_FNS = " X.a  X.b ", _KKLASS_SINK_AT; reset with the site tables
+# (kk._class_tables) — the scalars reach a set -a child, the ownership table
+# does not, so a sink is only honoured in the shell that owns __KKLASS_TABLES.
+kk.decl._sink_enter() {   # CLASS MODE (s|d) OPENER
+    __KK_SINK+=" $1:$2 "
+    _KKLASS_SINK_AT[$1]=${3:--1|}
+    __KK_SINK_OPEN=$1
+    KK_DECL_CURRENT_CLASS=""
+    KK_DECL_CURRENT_VISIBILITY="public"
+    kk.decl._reset_next_modifiers
+}
+
+# kk.decl._sink_mine — the sink state is this shell's (else it is cleared, rc 1).
+kk.decl._sink_mine() {
+    [[ ${__KKLASS_TABLES[@]@a} == A ]] && return 0
+    __KK_SINK="" __KK_SINK_OPEN="" __KK_SINK_FNS=""
+    return 1
+}
+
+kk.decl._sink_end() {   # CLASS — drop CLASS from the sink (no-op when it is not in it)
+    [[ -n ${__KK_SINK-}${__KK_SINK_FNS-} ]] || return 0
+    kk.decl._sink_mine || return 0
+    kk._is_ident "${1-}" || return 0
+    __KK_SINK=${__KK_SINK//" $1:s "/}
+    __KK_SINK=${__KK_SINK//" $1:d "/}
+    unset '_KKLASS_SINK_AT[$1]'
+    [[ ${__KK_SINK_OPEN-} != "$1" ]] || __KK_SINK_OPEN=""
+    if [[ ${__KK_SINK_FNS-} == *" $1."* ]]; then
+        local __kk_w __kk_o="" IFS=' '
+        for __kk_w in $__KK_SINK_FNS; do
+            [[ $__kk_w == "$1".* ]] || __kk_o+=" $__kk_w "
+        done
+        __KK_SINK_FNS=$__kk_o
+    fi
+    return 0
+}
+
+# kk.decl._sink_close CLASS — end CLASS's sink the way a swallowed `build`
+# does: a re-run (or an imposter) has defined CLASS.NAME body functions for its
+# members and redefined the static method dispatchers with plain bodies. Drop
+# them — the members of the built class, its constructor and every name a
+# swallowed verb recorded — then regenerate the class's static API from its
+# tables (kk._class_static_api). The class itself, its instances and static
+# values are not touched. A no-op for a class that is not in the sink.
+kk.decl._sink_close() {   # CLASS
+    [[ -n ${__KK_SINK-} ]] || return 0
+    kk.decl._sink_mine || return 0
+    kk._is_ident "${1-}" || return 0
+    [[ $__KK_SINK == *" $1:"[sd]" "* ]] || return 0
+    local cls="$1" m w ctor_var="${1}_decl_constructor_name"
+    local -a fns=()
+    if declare -p "${cls}_decl_methods" &>/dev/null; then
+        local -n __kk_sc_ms="${cls}_decl_methods"
+        for m in "${__kk_sc_ms[@]}"; do fns+=("$cls.$m"); done
+    fi
+    [[ -z ${!ctor_var-} ]] || fns+=("$cls.${!ctor_var}")
+    local IFS=' '
+    for w in ${__KK_SINK_FNS-}; do
+        [[ $w != "$cls".* ]] || fns+=("$w")
+    done
+    for w in "${fns[@]}"; do
+        case ${w#"$cls".} in
+            new|constructor|__*) continue ;;
+        esac
+        unset -f "$w"
+    done
+    if declare -p "${cls}_class_static_methods" &>/dev/null; then
+        kk._class_static_api "$cls"
+    fi
+    kk.decl._sink_end "$cls"
+}
+
+# kk.decl._sink_alive OPENER — rc 0 while the `source` frame OPENER ("BOT|FILE")
+# is still on the stack (always for "-1|": a sink opened outside any sourced
+# file lives with the shell's own frame).
+kk.decl._sink_alive() {
+    local __kk_b=${1%%|*} __kk_i
+    [[ $__kk_b == -1 ]] && return 0
+    [[ $__kk_b == [0-9]* && $__kk_b != *[!0-9]* ]] || return 1
+    __kk_i=$(( ${#BASH_SOURCE[@]} - 1 - __kk_b ))
+    (( __kk_i >= 0 )) && [[ ${FUNCNAME[__kk_i]-} == source && ${BASH_SOURCE[__kk_i]-} == "${1#*|}" ]]
+}
+
+# kk.decl._sink_here CLASS — rc 0 when the current call comes from the frame
+# that opened CLASS's sink (swallow it); otherwise rc 1 (run the verb), after
+# closing the sink when its frame has returned.
+kk.decl._sink_here() {
+    local __kk_at=${_KKLASS_SINK_AT[$1]--1|} __kk_i __kk_n=${#BASH_SOURCE[@]} __kk_cur="-1|"
+    for (( __kk_i = 1; __kk_i < __kk_n; __kk_i++ )); do
+        if [[ ${FUNCNAME[__kk_i]-} == source ]]; then
+            __kk_cur="$(( __kk_n - 1 - __kk_i ))|${BASH_SOURCE[__kk_i]}"
+            break
+        fi
+    done
+    [[ $__kk_cur == "$__kk_at" ]] && return 0
+    kk.decl._sink_alive "$__kk_at" || kk.decl._sink_close "$1"
+    return 1
+}
+
+# kk.decl._sink_sweep CLASS — declareClass: close CLASS's own sink and every
+# sink whose opening frame has returned.
+kk.decl._sink_sweep() {
+    kk.decl._sink_mine || return 0
+    local __kk_e __kk_c IFS=' '
+    for __kk_e in $__KK_SINK; do
+        __kk_c=${__kk_e%:*}
+        if [[ $__kk_c == "$1" ]] || ! kk.decl._sink_alive "${_KKLASS_SINK_AT[$__kk_c]--1|}"; then
+            kk.decl._sink_close "$__kk_c"
+        fi
+    done
+    return 0
+}
+
+# kk.decl._sunk [MEMBER] — called by a verb while __KK_SINK_OPEN is set: rc 0 =
+# swallow the verb (its rc in __kk_sr, MEMBER — a method-ish name — recorded);
+# rc 1 = run it (another frame's verb, or a sink state that is not this shell's).
+kk.decl._sunk() {
+    kk.decl._sink_mine || return 1
+    kk.decl._sink_here "$__KK_SINK_OPEN" || return 1
+    __kk_sr=0
+    [[ ${__KK_SINK-} != *" $__KK_SINK_OPEN:d "* ]] || __kk_sr=1
+    if [[ -n ${1-} ]] && kk._is_ident "$1"; then
+        case $1 in
+            new|constructor|__*) ;;
+            *) __KK_SINK_FNS+=" $__KK_SINK_OPEN.$1 " ;;
+        esac
+    fi
+    return 0
+}
+
+# kk.decl._sink_mode CLASS — rc 0 when CLASS is in the sink and the call comes
+# from the frame that opened it (its verbs' rc in __kk_sr: 0 same site, 1
+# refused); rc 1 otherwise.
+kk.decl._sink_mode() {
+    kk.decl._sink_mine || return 1
+    local __kk_m
+    case ${__KK_SINK-} in
+        *" $1:s "*) __kk_m=0 ;;
+        *" $1:d "*) __kk_m=1 ;;
+        *) return 1 ;;
+    esac
+    kk.decl._sink_here "$1" || return 1
+    __kk_sr=$__kk_m
+    return 0
 }
 
 kk.decl._reset_next_modifiers() {
@@ -717,6 +891,7 @@ kk.decl._install_new_wrapper() {
 # classFunction, the Pascal proc/func/destructor) ends here: a refusal poisons
 # the open class (P11/M2, DR8).
 kk.decl._declare_method() {
+    [[ -z ${__KK_SINK_OPEN-} ]] || ! kk.decl._sunk "${2-}" || return $__kk_sr
     kk.decl._declare_method_core "$@" || kk.decl._poison "${2:-}"
 }
 
@@ -819,11 +994,33 @@ declareClass() {
     kk.decl._validate_ident "$class_name" "class name" || return 1
     kk.decl._validate_ident "$parent_class" "parent class name" || return 1
 
-    # F2: refuse a cross-file redefinition HERE, before any of the declarative
-    # tables below are reset — otherwise a refused build still wiped the
-    # original's abstract flag and member visibility.
-    local __kk_caller_src
-    kk._check_class_owner "$class_name" || return 1
+    # Declaration sites (uses U2a, kklass.sh "Class declaration sites"),
+    # judged HERE, before any of the declarative tables below are reset (F2:
+    # otherwise a refused build still wiped the original's abstract flag and
+    # member visibility). Any declareClass closes a sink's open member
+    # section; the next declareClass of a class ends its sink, and a sink whose
+    # opening `source` frame has returned is closed (C6, review R3).
+    __KK_SINK_LAST=""
+    [[ -z ${__KK_SINK_OPEN-} ]] || __KK_SINK_OPEN=""
+    [[ -z ${__KK_SINK-} ]] || kk.decl._sink_sweep "$class_name"
+    local __kk_site __kk_site_tty __kk_site_open
+    kk._class_verdict "$class_name"
+    case $? in
+        1)  # Duplicate identifier (printed): poison the class so nothing in
+            # the rest of the block can rebuild the original (DR8), and swallow
+            # that block silently.
+            printf -v "${class_name}_decl_refused" '%s' "(duplicate declaration)"
+            kk.decl._sink_enter "$class_name" d "$__kk_site_open"
+            return 1
+            ;;
+        2)  # the same site again (WARNING printed): not rebuilt, the block is
+            # swallowed (U20)
+            kk.decl._sink_enter "$class_name" s "$__kk_site_open"
+            __KK_SINK_LAST=$class_name
+            return 0
+            ;;
+    esac
+    _KKLASS_DECL_SITE[$class_name]=$__kk_site
 
     # P11/M2 (DR8): a REdefinition of a class the declarative layer already
     # built keeps a copy of the tables reset below; a refused (poisoned)
@@ -874,26 +1071,29 @@ declareClass() {
 }
 
 privateSection() {
+    [[ -z ${__KK_SINK_OPEN-} ]] || ! kk.decl._sunk || return $__kk_sr
     kk.decl._require_current_class || return 1
     KK_DECL_CURRENT_VISIBILITY="private"
 }
 
 protectedSection() {
+    [[ -z ${__KK_SINK_OPEN-} ]] || ! kk.decl._sunk || return $__kk_sr
     kk.decl._require_current_class || return 1
     KK_DECL_CURRENT_VISIBILITY="protected"
 }
 
 publicSection() {
+    [[ -z ${__KK_SINK_OPEN-} ]] || ! kk.decl._sunk || return $__kk_sr
     kk.decl._require_current_class || return 1
     KK_DECL_CURRENT_VISIBILITY="public"
 }
 
 # The public member verbs below poison the open class on a refusal (P11/M2,
 # DR8); the work is done by the kk.decl._<verb> bodies.
-classVar() { kk.decl._classVar "$@" || kk.decl._poison "${1:-}"; }
-field() { kk.decl._field "$@" || kk.decl._poison "${1:-}"; }
-property() { kk.decl._property "$@" || kk.decl._poison "${1:-}"; }
-constructor() { kk.decl._constructor "$@" || kk.decl._poison "${1:-Create}"; }
+classVar() { [[ -z ${__KK_SINK_OPEN-} ]] || ! kk.decl._sunk || return $__kk_sr; kk.decl._classVar "$@" || kk.decl._poison "${1:-}"; }
+field() { [[ -z ${__KK_SINK_OPEN-} ]] || ! kk.decl._sunk || return $__kk_sr; kk.decl._field "$@" || kk.decl._poison "${1:-}"; }
+property() { [[ -z ${__KK_SINK_OPEN-} ]] || ! kk.decl._sunk || return $__kk_sr; kk.decl._property "$@" || kk.decl._poison "${1:-}"; }
+constructor() { [[ -z ${__KK_SINK_OPEN-} ]] || ! kk.decl._sunk "${1:-Create}" || return $__kk_sr; kk.decl._constructor "$@" || kk.decl._poison "${1:-Create}"; }
 
 kk.decl._classVar() {
     local property_name="$1"
@@ -916,16 +1116,19 @@ kk.decl._classVar() {
 }
 
 virtual() {
+    [[ -z ${__KK_SINK_OPEN-} ]] || ! kk.decl._sunk || return $__kk_sr
     kk.decl._require_current_class || return 1
     kk.decl._push_next_modifier "virtual"
 }
 
 override() {
+    [[ -z ${__KK_SINK_OPEN-} ]] || ! kk.decl._sunk || return $__kk_sr
     kk.decl._require_current_class || return 1
     kk.decl._push_next_modifier "override"
 }
 
 abstract() {
+    [[ -z ${__KK_SINK_OPEN-} ]] || ! kk.decl._sunk || return $__kk_sr
     kk.decl._require_current_class || return 1
     kk.decl._push_next_modifier "abstract"
 }
@@ -1060,6 +1263,10 @@ kk.decl._constructor() {
 }
 
 endClass() {
+    if [[ -n ${__KK_SINK_OPEN-} ]] && kk.decl._sunk; then   # the sink's open section ends here
+        __KK_SINK_OPEN=""
+        return $__kk_sr
+    fi
     kk.decl._require_current_class || return 1
     local class_name="$RESULT"
     local override_var="${class_name}_decl_method_override"
@@ -1104,6 +1311,7 @@ finalizeClass() {
 implement() {
     local qualified_name="$1"
     local method_body="$2"
+    [[ -z ${__KK_SINK-} ]] || ! kk.decl._sink_mode "${qualified_name%%.*}" || return $__kk_sr
 
     [[ "$qualified_name" == *.* ]] || {
         kk.decl._error "implement: Use ClassName.MethodName"
@@ -1134,6 +1342,7 @@ implement() {
 implementConstructor() {
     local class_name="$1"
     local constructor_body="$2"
+    [[ -z ${__KK_SINK-} ]] || ! kk.decl._sink_mode "$class_name" || return $__kk_sr
 
     [[ -n "$class_name" ]] || {
         kk.decl._error "implementConstructor: CLASS_NAME is required"
@@ -1148,6 +1357,10 @@ implementConstructor() {
 
 endImplementation() {
     local class_name="$1"
+    if [[ -n ${__KK_SINK-} ]] && kk.decl._sink_mode "$class_name"; then   # ends the sink (C6)
+        kk.decl._sink_end "$class_name"
+        return $__kk_sr
+    fi
     [[ -n "$class_name" ]] || {
         kk.decl._error "endImplementation: CLASS_NAME is required"
         return 1
@@ -1409,4 +1622,5 @@ if [[ "${KKLASS_EXPORT_FUNCTIONS:-0}" == "1" ]]; then
     export -f declareClass privateSection protectedSection publicSection virtual override abstract
     export -f field property classVar procedure declareProcedure func declareFunction classProcedure classFunction constructor
     export -f endClass finalizeClass implement implementConstructor endImplementation finalizeImplementation
+    export -f kk.decl._sink_enter kk.decl._sink_mine kk.decl._sink_end kk.decl._sink_close kk.decl._sink_alive kk.decl._sink_here kk.decl._sink_sweep kk.decl._sunk kk.decl._sink_mode
 fi
