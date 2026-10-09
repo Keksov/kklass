@@ -2,8 +2,8 @@
   "schema_version": 1,
   "project": "kbool `uses` — Pascal-like unit inclusion and duplicate identifiers. Design: kklass/USES_PLAN.md (decisions U1-U37, critic §7.1-7.2, supervisor review §7.3 P1-P10, header shapes §7.4, phases §8).",
   "created": "2026-10-06",
-  "updated": "2026-10-08",
-  "status": "U2 (U2a+U2b) DONE+COMMITTED 2026-10-09; STOP before U3 (owner)",
+  "updated": "2026-10-09",
+  "status": "U2 pushed 2026-10-09; U3 started (owner: Да)",
   "workflow": "per phase: Opus worker implements (red-first) -> Opus critic reviews the worker's result against the plan and the live tree (no edits) -> supervisor review + remarks -> full master sweep on bash 5.2.37 and 5.3.9 -> commit; push only on the owner's word",
   "phases": {
     "U1a": {
@@ -407,7 +407,7 @@
     },
     "U3": {
       "name": "kkore + kklass modules migrate to headers",
-      "status": "planned",
+      "status": "in_progress",
       "commit": ""
     },
     "U4": {
