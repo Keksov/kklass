@@ -2,8 +2,8 @@
   "schema_version": 1,
   "project": "kbool `uses` — Pascal-like unit inclusion and duplicate identifiers. Design: kklass/USES_PLAN.md (decisions U1-U37, critic §7.1-7.2, supervisor review §7.3 P1-P10, header shapes §7.4, phases §8).",
   "created": "2026-10-06",
-  "updated": "2026-10-09",
-  "status": "U3 DONE+COMMITTED 2026-10-12; next U4 (owner)",
+  "updated": "2026-10-12",
+  "status": "U3 pushed 2026-10-12; U4 G1 started (owner: Да)",
   "workflow": "per phase: Opus worker implements (red-first) -> Opus critic reviews the worker's result against the plan and the live tree (no edits) -> supervisor review + remarks -> full master sweep on bash 5.2.37 and 5.3.9 -> commit; push only on the owner's word",
   "phases": {
     "U1a": {
@@ -508,9 +508,67 @@
       }
     },
     "U4": {
-      "name": "29 kcl units migrate (groups, sweep after each)",
-      "status": "planned",
-      "commit": ""
+      "name": "29 kcl unit files (26 units) migrate to unit headers, in dependency groups; full sweep after EACH group (P10); critic on G1 (pattern) and on the whole U4 at the end",
+      "status": "in_progress",
+      "commit": "",
+      "groups": {
+        "G1": {
+          "units": [
+            "tstopwatch",
+            "tpath",
+            "tarray",
+            "tregex",
+            "tqueuestack",
+            "thashset",
+            "tdictionary"
+          ],
+          "status": "in_progress",
+          "commit": ""
+        },
+        "G2": {
+          "units": [
+            "dateutils",
+            "math",
+            "tinifile",
+            "tstringhelper"
+          ],
+          "status": "planned",
+          "commit": ""
+        },
+        "G3": {
+          "units": [
+            "tfile",
+            "tdirectory",
+            "tlist",
+            "tobjectlist",
+            "tstringlist"
+          ],
+          "status": "planned",
+          "commit": ""
+        },
+        "G4": {
+          "units": [
+            "tpipe",
+            "tutil",
+            "tgrep",
+            "thead",
+            "ttail",
+            "tfind",
+            "tsed",
+            "tawk"
+          ],
+          "status": "planned",
+          "commit": ""
+        },
+        "G5": {
+          "units": [
+            "tcustomapplication",
+            "thttpserver (thttpmessage, thttprouter, thttpserver, thttpapplication)"
+          ],
+          "status": "planned",
+          "commit": ""
+        }
+      }
     },
     "U5": {
       "name": "docs",
