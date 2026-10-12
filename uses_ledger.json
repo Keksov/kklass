@@ -3,7 +3,7 @@
   "project": "kbool `uses` — Pascal-like unit inclusion and duplicate identifiers. Design: kklass/USES_PLAN.md (decisions U1-U37, critic §7.1-7.2, supervisor review §7.3 P1-P10, header shapes §7.4, phases §8).",
   "created": "2026-10-06",
   "updated": "2026-10-12",
-  "status": "U3 pushed 2026-10-12; U4 G1 started (owner: Да)",
+  "status": "U4 G1 DONE+COMMITTED 2026-10-12; G2 next",
   "workflow": "per phase: Opus worker implements (red-first) -> Opus critic reviews the worker's result against the plan and the live tree (no edits) -> supervisor review + remarks -> full master sweep on bash 5.2.37 and 5.3.9 -> commit; push only on the owner's word",
   "phases": {
     "U1a": {
@@ -511,6 +511,30 @@
       "name": "29 kcl unit files (26 units) migrate to unit headers, in dependency groups; full sweep after EACH group (P10); critic on G1 (pattern) and on the whole U4 at the end",
       "status": "in_progress",
       "commit": "",
+      "pattern": {
+        "set_by": "G1 (2026-10-12); later groups copy it exactly",
+        "1_header": "line 1 `#!/bin/bash`; lines 2-3 EXACTLY the §7.4 relative header: `[[ ${__KK_UNITS[@]@a} == A* ]] || source \"${BASH_SOURCE%U.sh}../../kbool.sh\" || return` and `kk.unit U || return $__kk_unit_rc` (U = the file stem); then the unit's own comment block, unchanged. A shebang-less file gets the shebang first (kcl/tests 001 checks line 1)",
+        "2_guard": "the hand-written guard block is DELETED with its comment lines (`# Re-source guard ...` + `if [[ -n \"${_U_SOURCED:-}\" ]]; then return; fi` + `declare -g _U_SOURCED=1`); nothing replaces it — the header is the guard",
+        "3_dependencies": "the pair `U_DIR=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd)\"` + `source \"$U_DIR/../../kklass/kklass_pascal.sh\"` (and its `# Source the kklass ...` comment) is replaced IN PLACE — same position, e.g. after the locale self-heal, so the load order of the unit's own statements is unchanged — by the note (4 comment lines, verbatim: `# A unit (kklass/USES_PLAN.md §7.4, phase U4): the two header lines at the` / `# top load kbool.sh when needed and make a repeated \\`source\\` a no-op, also` / `# under \\`set -eu\\` (they replaced the D7 re-source guard). Dependencies come` / `# through kk.uses.`) and `kk.uses kklass_pascal || return` (or `kk.uses kklass` / `kk.uses kklass_decl` — whatever module the old path named). Other kcl units by NAME on further `kk.uses NAME || return` lines (one name per line, in the old source order): `source \"$U_DIR/../tpath/tpath.sh\"` -> `kk.uses tpath || return`. No kkore module is ever named (kbool.sh loads them all, U1). An OPTIONAL dependency the unit handles itself: `kk.uses --optional X || fallback` (U42)",
+        "4_namespaces": "census: every function defined at file scope (column 0) as `X.name()` whose X is neither a class of the unit (`class X`, `defineClass X`, `declareClass X`) nor the unit name -> X is a helper namespace: `kk.namespace X [Y ...] || return` on the line right after the kk.uses line(s), preceded by the 2 comment lines `# X.* are this unit's shared helpers, not a class: a declared` / `# function namespace (U40), so no class or instance may take that name.` (several: `# X.* and Y.* are ...`). The unit's own name needs no line (kk.unit declares it); a class that bears the unit's name (tpath, dateutils) is the U40 owner exemption",
+        "5_runtime_dir": "U_DIR is dropped when it only served the source line (all of G1). When code needs the folder at RUN time (C19: math's MATH_DIR), keep a fork-free runtime copy taken from KK_UNIT_DIR BEFORE the first kk.uses — `U_DIR=$KK_UNIT_DIR` (kklass normalises it lexically with kk._unit_lexnorm when it is shown or compared; do the same if the value leaks into messages) — and flag the row `rundir`",
+        "6_other_code": "no other change in the unit: no reflow, no fixes; `set -eu` sourceability holds (the header is set -u/-e safe, a re-source returns 0)",
+        "7_tests": "REPLACED in G1 review round 1 (R3-R5): (a) add the unit's row to kcl/tests/kcl_units.sh KCL_UNITS (UNIT|NAMESPACES|FLAGS|DIR; FLAGS rundir / readonly; DIR only when the file is not kcl/UNIT/UNIT.sh); (b) add its runtime stub kcl/tests/NNN_<UNIT>.sh — a copy of 101_tstopwatch.sh, the unit is the file name's stem after NNN_ (G1 101-107; G2 2NN, G3 3NN, G4 4NN, G5 5NN); 001 fails while a row has no stub or a stub no row. 001 checks every row statically (header lines 2-3, no old guard `*_U_SOURCED` / `U_DIR` / `u_DIR` / hard path / fork / source statement, `kk.uses NAME... || return` form, `kk.namespace X... || return` form and place, static census, lint); the stub runs kclt_unit_tests: once (one set -eu process in a private counting tree), name (runtime census through compgen -A function before/after, owners, old variables through compgen -v), taken, nsbad (rows with namespaces). Two full unit loads per unit, one file per unit (the threaded runner loads units in parallel). (c) grep the whole tree for the old guard and dir names first: tests that set their OWN U_DIR need no change; a footprint test asserting the old globals is updated",
+        "8_mixed_state": "a migrated unit plain-sourced by path from a header-less unit (tfile/tdirectory -> tpath, tlist -> tarray, thttpserver -> tstopwatch, bench.sh files -> tstopwatch) registers through its own header on that source; a later kk.uses of it is a silent no-op. KK_UNIT_DIR stays at that unit's folder after such a plain source (harmless: header-less units compute their own dir)",
+        "9_gate_per_group": "the group's suites threaded on 5.2.37 and 5.3.9 from a neutral cwd and from their tests folder; kcl/tests both bashes; kklass + kkore both bashes; the suites of units that depend on the group's units on both bashes; the other kcl suites on 5.2.37; startup of one migrated unit vs HEAD",
+        "10_readonly": "G1 review R2: a unit that assigns readonly globals at file scope wraps the whole block (the assignments AND the readonly statement) in `if [[ -z ${X+x} || ${X@a} != *r* ]]; then ... fi` keyed on one of its own readonly names (tpath: __TPATH_BS), re-indented. `${X@a}` of an unset name is 'unbound variable' under set -u on both bashes (measured), hence `${X+x}` first. Reason: `kk.unit --forget U` + a re-source (U24' dev hatch) otherwise prints 'readonly variable' and under `set -e` EXITS the caller. Row flag `readonly` (kcl/tests once: --forget + re-source + kk.uses under set -eu, clean). Known G2/G3 cases: dateutils `__KDT_*`, math `__MATH_*` / `__MATH_AWK_PROG` (also probe math's --forget with a live awk coproc), tfile `TFILE_USE_CP`",
+        "amendments_G1_review": {
+          "a_shared_namespace": "a namespace several files of one package define (thttpserver's ths in thttpmessage, thttprouter, thttpserver) is declared with `kk.namespace X || return` in EVERY file that defines X.* (first owner wins; a repeat is rc 0) and listed in each of those rows",
+          "b_thttpserver_package": "the thttpserver folder holds 4 units (stems thttpmessage, thttprouter, thttpserver, thttpapplication), one row each with DIR=thttpserver and one stub each; thttpserver.sh `kk.uses thttpmessage thttprouter tstopwatch || return` (one line with several names is fine when they replace consecutive sources); thttpapplication `kk.uses thttpserver tcustomapplication || return`",
+          "c_guard_names": "old guard names are not always `_U_SOURCED` (thttpserver uses `_THS_<U>_SOURCED`): rule 2 deletes whatever the unit's guard is; 001 matches `*_<U>_SOURCED*` in code lines and the runtime `name` check every variable matching `*_<U>_SOURCED` (compgen -v)",
+          "d_dir_names": "old dir variables may be lowercase (`tstringhelper_DIR`): 001 rejects `<U>_DIR=` and `<unit>_DIR=` assignments, the runtime check both names (unless rundir, which keeps `<U>_DIR`)",
+          "e_kuse": "tcustomapplication's `source .../kkore/kuse.sh` is DELETED, not replaced (kbool.sh loads kuse; found_in_U3)",
+          "f_comments": "rule 6 allows updating comments that NAME the removed globals (tawk.sh:30, tsed.sh:30, tfind.sh:31 'the unit leaves exactly _TAWK_SOURCED, TAWK_DIR...'): they must describe the unit as it is",
+          "g_readonly": "rule 10",
+          "h_math_dir": "math keeps MATH_DIR as its runtime copy taken from KK_UNIT_DIR before its first kk.uses (it is read at run time, incl. the temp-dir fallback at math.sh:702) — rule 5, row flag rundir",
+          "i_dependencies": "rule 3 replaces WHATEVER the old path sources named: tobjectlist and the wrappers name no kklass module, only kcl units (tlist, tutil) -> `kk.uses tlist || return` etc.; a kklass module only when the old line sourced one"
+        }
+      },
       "groups": {
         "G1": {
           "units": [
@@ -522,8 +546,78 @@
             "thashset",
             "tdictionary"
           ],
-          "status": "in_progress",
-          "commit": ""
+          "status": "done",
+          "date": "2026-10-12",
+          "commit": "kcl dbb7538, kkore e26f975",
+          "files": [
+            "kcl/tstopwatch/tstopwatch.sh, tpath/tpath.sh, tarray/tarray.sh, tregex/tregex.sh, tqueuestack/tqueuestack.sh, thashset/thashset.sh, tdictionary/tdictionary.sh: §7.4 relative header after the shebang; `_X_SOURCED` guard block deleted; `X_DIR=$(cd ...)` + `source $X_DIR/../../kklass/kklass_pascal.sh` replaced in place by the unit note + `kk.uses kklass_pascal || return`; tqueuestack `kk.namespace TQueueStack || return`, thashset `kk.namespace TSet || return`, tdictionary `kk.namespace TDict || return` (census: no other foreign prefix in G1)",
+            "kcl/tests/ (new kcl-level suite, found by the master sweep's directory walk): tests.sh, kcl_units.sh (the KCL_UNITS table + shared helpers, not a test file), 001_UnitFiles.sh (15), 002_LoadOnce.sh (14), 003_ByName.sh (21)",
+            "kklass/uses_ledger.json (this entry, phases.U4.pattern), kklass/USES_PLAN.md (U4-G1 DONE line)"
+          ],
+          "red_before": {
+            "how": "kcl/tests run against the HEAD units (scratchpad headtree: kbool.sh, kkore, kklass, the 7 HEAD unit folders, ktests, the new kcl/tests), 5.2.37 and 5.3.9 identical",
+            "001_UnitFiles": "10/15 FAIL (7 headers, 3 censuses: TQueueStack/TSet/TDict undeclared; green: 4 censuses without a foreign prefix, the lint)",
+            "002_LoadOnce": "14/14 FAIL (kk.uses NAME: not a unit)",
+            "003_ByName": "20/21 FAIL (green: tpath taken — its class bears the unit name, so .new/defineClass tpath were already refused)",
+            "suite": "44/50 FAIL; the first (pre-reshape) version 58/64"
+          },
+          "gate": {
+            "kcl_tests_5.2.37_threaded": "50/50, 0 [FAIL] (from the kbool root); 5.2.37 --mode single 50/50",
+            "kcl_tests_5.3.9_threaded": "50/50, 0 [FAIL] (from kcl/tests)",
+            "G1_suites_5.2.37": "tstopwatch 61, tarray 98, tqueuestack 98, tregex 246, thashset 149, tpath 243, tdictionary 148 = 1043, 0 [FAIL] 0 [WARN], from a neutral cwd and from each tests folder — unchanged",
+            "G1_suites_5.3.9": "the same totals, 0 [FAIL] 0 [WARN], both cwds",
+            "kkore": "669/669 on 5.2.37 and 5.3.9 threaded",
+            "kklass": "709/709 on 5.2.37 and 5.3.9 threaded",
+            "other_19_kcl_5.2.37": "dateutils 444, math 177, tawk 592, tcustomapplication 377, tdirectory 320, tfile 250, tfind 226, tgrep 185, thead 182, thttpserver 497, tinifile 191, tlist 134, tobjectlist 52, tpipe 190, tsed 293, tstringhelper 922, tstringlist 192, ttail 200, tutil 209 = 5633, 0 [FAIL] 0 [WARN] — unchanged (mixed state: tfile/tdirectory -> tpath, tlist -> tarray, thttpserver -> tstopwatch, tpipe 003 -> thashset by path)",
+            "master_sweep": "not run (reviewer); expected sum 8495 + 50 (kcl/tests) = 8545, 30 suites"
+          },
+          "measured": {
+            "startup": "best of 5 fresh bash, neutral cwd, empty config, HEAD copy vs new, two rounds each (ms): 5.2.37 `source kcl/tregex/tregex.sh` 762/1030/656 -> 756/822/728; `source kbool.sh` + tdictionary (HEAD: by path; new: kk.uses tdictionary) 2848/3057/2756 -> 2965/2714/2669. 5.3.9 tregex 845/672 -> 607/1195; tdictionary 2768/2649 -> 2783/2677. Within this machine's noise (±15-40 % between rounds): the one `$(cd ...)` fork saved (~15-20 ms) and the first name lookup's index (4-6 ms, U1a P5) are small against the class builds, which fork per class/method (found_in_U2a) — tregex ~0.7 s, tdictionary ~2.7 s per process at HEAD and now. Probe scratchpad startup.sh",
+            "kcl_tests_cost": "a unit load is the expensive part: kcl/tests = 4 real loads per unit (002 a/b, 003 neutral/decoy); wall 33-44 s threaded, 89 s single for 7 units; the first draft (7 loads per unit) took 60-90 s threaded. 26 units at G5 projects ~2-3 min threaded",
+            "kk_unit_dir_after_plain_source": "after a plain `source kcl/tpath/tpath.sh` KK_UNIT_DIR stays the unit's folder (by design, C19); no G1 unit reads it after its load"
+          },
+          "deviations": [
+            "where the reusable test lives: a NEW kcl-level suite kcl/tests (not a helper called from each unit suite). Reason: being a unit is a property of the file, identical for all 26 units; one table row per unit is checked once per sweep instead of once per unit suite (each check costs real unit loads of seconds), the 26 unit suites keep their totals, and the master sweep's directory walk finds kcl/tests/tests.sh with no change (29 -> 30 suites). The kcl/* name index globs kcl/tests/*.sh as candidates too — none has a header, so none is a unit (U13')",
+            "header placement is stricter than §7.4's '512 characters' rule: lines 2-3, right after `#!/bin/bash` (the §7.4 'shebang, then the two header lines, then the unit's comment block'); 001 pins it",
+            "kk.namespace comes right after the kk.uses line and is `|| return`: a refused namespace (already a built class or live instance) fails the unit load with rc 2 (U40: the load fails). Through a plain source that failure is the unit's own return and, per the U34 limit, cannot be told from a complete load; through kk.uses the unit is forgotten",
+            "the old dependency line is replaced IN PLACE (after tstopwatch/tpath/tregex's locale self-heal, as before) — the header loads kbool (kkore) first, kklass still comes after the self-heal",
+            "found_in_U3 cwd test: besides running every G1 suite from a neutral cwd and from its tests folder, 003 loads each unit by name from a DECOY cwd holding a headered stand-in <unit>.sh (U43: not used); the first draft's third variant (the unit's tests folder as cwd) was green and dropped for cost — the suites themselves cover that cwd",
+            "001's static rules (no `source` statement, no `$(cd`, no `../kkore`) apply to the whole file outside comment lines; a later unit that legitimately sources a non-unit data file at run time would need a row flag"
+          ],
+          "found_in_U4": [
+            "tpath (pre-existing shape, new path): `kk.unit --forget tpath; source tpath.sh` re-runs the readonly platform constants -> 3 lines `tpath.sh: line 37/39/47: __TPATH_...: readonly variable` (rc 0, class rebuilt, tpath.combine works). The old guard's reason was exactly these readonly constants; a plain re-source is now skipped by the header, only the --forget dev hatch (U24') reaches them. Repro: bash -c 'source kcl/tpath/tpath.sh; kk.unit --forget tpath; source kcl/tpath/tpath.sh'. Not fixed (out of the pattern's 'no other change')",
+            "for U5 docs: kcl/README.md §1 still states 're-source guards read ${_X_SOURCED:-}' (D7) — true only for the units not yet migrated",
+            "pre-existing: tpath.sh forks `$(uname -s)` at load (case on the platform); $OSTYPE would be fork-free",
+            "pre-existing (found_in_U2a): class builds fork per class/method — tregex ~0.7 s and tdictionary ~2.7 s per fresh process on this machine dwarf any loader cost"
+          ],
+          "review_round_1": {
+            "date": "2026-10-12",
+            "remarks": "R1-R6 from the critic (scratchpad critic_u4g1/) and the supervisor",
+            "progress": [
+              "R1 red: kkore 012 new test 'refused/malformed kk.namespace in a plain-sourced unit taints it' 1/1 FAIL (plain=2 uses=0 again=0 loads=0 usage=2,0); fix kuse.sh kk.namespace: kk._unit_taint 2 on every rc-2 error with kbool loaded (no name, non-identifier, taken); 012 6/6",
+              "R2 code: tpath's platform-constant block wrapped in `if [[ -z ${__TPATH_BS+x} || ${__TPATH_BS@a} != *r* ]]; then ... fi` (re-indented; `${x@a}` of an unset name is 'unbound' under set -u on both bashes — measured — hence the ${x+x} first); test pending (kcl/tests restructure)",
+              "C8: tregex double blank line removed",
+              "R3/R4/R5 kcl/tests restructured: 002/003 deleted; 001_UnitFiles (17: per row header/old-mechanism + namespace form/position/census incl. `function X.y`, rows<->stubs, lint, U43 decoy for ONE row through `bash -s`); per-unit runtime stubs 101_tstopwatch..107_tdictionary calling kclt_unit_tests (kcl_units.sh): once (ONE set -eu process in the private counting tree: bare source, ./U.sh, ../kcl/D/U.sh, kk.uses after cd, source again; + readonly rows: --forget + re-source + kk.uses), name (real tree: deps first, compgen -A function before/after = runtime census vs __KK_UNIT_CLASSES / unit / __KK_NAMESPACES owner, owners of unit+row namespaces, compgen -v old guards *_U_SOURCED, U_DIR and u_DIR), taken (same shell), nsbad (rows with namespaces). 41 tests",
+              "red: critic mut_setup.sh mutations M1-M5 in critic_u4g1/mtree with the new tests: 001 5/17 FAIL (M3 line3, M2 guard, M1 TSet undeclared, M5 ns-form + position, M4 decoy via bash -s), 103_tarray 1/3 (M2 old:_TARRAY_SOURCED), 106_thashset 3/4 (M1 census/owners, taken, nsbad); scratchpad redr (current tree with kkore HEAD kuse.sh and tpath without the rule-10 guard): 102_tpath once 1 FAIL (readonly variable, set -e exit), 105/106/107 nsbad 3 FAIL (rc=200), kkore 012 1 FAIL",
+              "green 5.2.37 threaded: kcl/tests 41/41 in 43 s; 5.3.9 41/41 in 46 s; sequential per file (5.2): 001 6.3 s, tstopwatch 7.0, tpath 18.6 (3 loads: readonly row), tarray 6.4, tregex 5.0, tqueuestack 12.4, thashset 9.7, tdictionary 13.1 = 78 s (the first G1 version ~160 s)",
+              "R6 + rule 10 + rule 7/9 rewritten in phases.U4.pattern (amendments_G1_review a-i)",
+              "gate 5.2.37 (neutral cwd): tstopwatch 61, tarray 98, tqueuestack 98, tregex 246, thashset 149, tpath 243, tdictionary 148, 0 [FAIL] 0 [WARN]. NOTE: one tregex run took 1530 s (green) — a machine stall (same window as the worker's watchdog stop); re-run alone 22 s; nothing spinning when sampled",
+              "gate 5.3.9: the 7 G1 suites same totals 0 [FAIL] 0 [WARN]; kkore 670/670 (669 + 012's R1 test) and kklass 709/709 on both bashes; dependent suites 5.2.37: tlist 134, tstringlist 192, tfile 250, tdirectory 320, 0 [FAIL]; the same on 5.3.9, 0 [FAIL] 0 [WARN]",
+              "files this round: kkore/kuse.sh (kk.namespace taints), kkore/tests/012_DeclaredNamespaces.sh (+1), kcl/tpath/tpath.sh (rule 10), kcl/tregex/tregex.sh (blank line), kcl/tests: kcl_units.sh rewritten (rows + kclt_unit_tests), 001_UnitFiles.sh rewritten, 002_LoadOnce.sh + 003_ByName.sh deleted, 101_tstopwatch..107_tdictionary.sh new; ledger pattern",
+              "cost projection (R4): two full unit loads per unit (once + name) plus a cheap nsbad process; at 26 units with the critic's fresh-load times (all 26 once ~2 min per bash) the suite is ~5-6 min sequential per bash; threaded the speedup measured here is only ~1.7x (78 s sequential -> 43-46 s threaded for G1: forks are sys-bound), so ~3-4 min threaded, bounded below by the heaviest file (dateutils ~45 s). Option not taken (changes the reviewed design): merge once into name with a sentinel function instead of the private counting tree -> one load per unit, ~halving it",
+              "status: done, awaiting review"
+            ]
+          },
+          "progress": [
+            "2026-10-12 tests written first: kcl/tests (new kcl-level suite: kcl_units.sh table + 001_UnitFiles, 002_LoadOnce, 003_ByName, 004_TakenNames)",
+            "2026-10-12 red vs HEAD (units unchanged), 5.2.37 and 5.3.9 identical: 001 10/15, 002 21/21, 003 21/21, 004 6/7 FAIL; suite 58/64 FAIL",
+            "2026-10-12 suite reshaped for cost (a unit load builds its classes: tdictionary 3.6 s at HEAD and now): 002 scenario c folded into a (set -eu), 004 folded into 003 (one child per unit and cwd); red re-run in a HEAD copy of the tree (scratchpad headtree): 001 10/15, 002 14/14, 003 20/21 FAIL = 44/50, both bashes",
+            "2026-10-12 7 G1 units migrated (header, kk.uses kklass_pascal, kk.namespace TQueueStack/TSet/TDict, guard + X_DIR + fork gone); kcl/tests 50/50 on 5.2.37 (from kbool root) and 5.3.9 (from kcl/tests)",
+            "2026-10-12 7 G1 suites threaded, 0 [FAIL] 0 [WARN], totals unchanged (tstopwatch 61, tarray 98, tqueuestack 98, tregex 246, thashset 149, tpath 243, tdictionary 148) on 5.2.37 and 5.3.9, each from a neutral cwd AND from its own tests folder",
+            "2026-10-12 kkore 669/669 and kklass 709/709 threaded on 5.2.37 and 5.3.9, 0 [FAIL]",
+            "2026-10-12 other kcl suites on 5.2.37 — ALL 19 DONE (+ tsed 293, tcustomapplication 377, thttpserver 497, tawk 592): math 177, tlist 134, tobjectlist 52, tstringlist 192, tfile 250, tdirectory 320, dateutils 444, tinifile 191, tstringhelper 922, tgrep 185, thead 182, ttail 200, tpipe 190, tutil 209, tfind 226 — 0 [FAIL] 0 [WARN], unchanged"
+          ],
+          "supervisor_review": "supervisor 2026-10-12: critic_u4g1 C1-C8 → remarks R1-R6 (kk.namespace refusal taints the loading unit; PATTERN rule 10 guarded readonly blocks; decoy via bash -s for one row; kcl/tests restructured into 001 + one runtime stub per unit; pattern amendments a-i); full sweep 30 suites 0 [FAIL] 0 [WARN] both bashes, new suite kcl/tests 41, kkore 669->670, everything else unchanged, sum 8495->8537. Next: G2 starts by folding the once-check into the name-check (one load per unit) before the heavy units."
         },
         "G2": {
           "units": [
