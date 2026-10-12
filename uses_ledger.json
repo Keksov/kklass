@@ -409,7 +409,7 @@
       "name": "kkore + kklass modules migrate to headers; ke.setTrap; .ckk registers its source unit; the ktests runner isolates the config (U41)",
       "status": "done",
       "date": "2026-10-09",
-      "commit": "PENDING",
+      "commit": "kklass 1ba0ea5, kkore 7aea57d, ktests c9787f2, kbool kbool.sh",
       "files": [
         "kbool.sh: system units registered through their own headers (kk._unit_register then marks them complete + system); every system unit's name declared as a namespace (kuse klib kerr kvar kcfg); the caller's KK_UNIT_DIR (set or unset) restored after the boot; comments",
         "kkore/klib.sh, kerr.sh, kvar.sh, kcfg.sh: the §7.4 relative header (`${BASH_SOURCE%NAME.sh}../kbool.sh`) instead of the __KLIB_*_SOURCED guards; kerr.sh and kcfg.sh no longer source klib.sh (kbool.sh loads it first); kerr.sh's `set_trap` argument code removed (C10/P8)",
