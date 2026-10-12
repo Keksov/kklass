@@ -3,7 +3,7 @@
   "project": "kbool `uses` — Pascal-like unit inclusion and duplicate identifiers. Design: kklass/USES_PLAN.md (decisions U1-U37, critic §7.1-7.2, supervisor review §7.3 P1-P10, header shapes §7.4, phases §8).",
   "created": "2026-10-06",
   "updated": "2026-10-09",
-  "status": "U2 pushed 2026-10-09; U3 started (owner: Да)",
+  "status": "U3 DONE+COMMITTED 2026-10-12; next U4 (owner)",
   "workflow": "per phase: Opus worker implements (red-first) -> Opus critic reviews the worker's result against the plan and the live tree (no edits) -> supervisor review + remarks -> full master sweep on bash 5.2.37 and 5.3.9 -> commit; push only on the owner's word",
   "phases": {
     "U1a": {
@@ -406,9 +406,106 @@
       }
     },
     "U3": {
-      "name": "kkore + kklass modules migrate to headers",
-      "status": "in_progress",
-      "commit": ""
+      "name": "kkore + kklass modules migrate to headers; ke.setTrap; .ckk registers its source unit; the ktests runner isolates the config (U41)",
+      "status": "done",
+      "date": "2026-10-09",
+      "commit": "PENDING",
+      "files": [
+        "kbool.sh: system units registered through their own headers (kk._unit_register then marks them complete + system); every system unit's name declared as a namespace (kuse klib kerr kvar kcfg); the caller's KK_UNIT_DIR (set or unset) restored after the boot; comments",
+        "kkore/klib.sh, kerr.sh, kvar.sh, kcfg.sh: the §7.4 relative header (`${BASH_SOURCE%NAME.sh}../kbool.sh`) instead of the __KLIB_*_SOURCED guards; kerr.sh and kcfg.sh no longer source klib.sh (kbool.sh loads it first); kerr.sh's `set_trap` argument code removed (C10/P8)",
+        "kkore/kuse.sh: kk.unit declares the unit's namespace only once klib is loaded (kk._is_ident; klib's own header runs before its body); new kk._unit_loaded NAME FILE (a unit loaded by other means: a .ckk cache); stale U3 comments",
+        "kklass/kklass.sh: header; no ../kkore sources (system units); KKLASS_DIR = KK_UNIT_DIR lexically normalised (no fork); `kk.uses kklass_decl || return` at the end; kk._class_register CLASS SITE [UNIT]; caches: kk._ckk_begin decides the source unit (ownership first), kk._ckk_class marks refusals, kk._ckk_built files classes under the unit, kk._ckk_end registers it",
+        "kklass/kklass_decl.sh, kklass_pascal.sh, kklass_serializable.sh, kklass_autoload.sh: header; guards / KKLASS_PASCAL_DIR / the 'must be loaded first' refusal replaced by `kk.uses kklass || return` (decl: none, cycle); KKLASS_LIB_DIR = KK_UNIT_DIR normalised (C19, computed before kk.uses)",
+        "kklass/kklass_compiler.sh: TOOL comment, `source kklass.sh || exit 1`; the cache prologue loads kklass with `kk.uses kklass || return` when kbool is loaded",
+        "kklass/kklass_kkp.sh: TOOL comment only",
+        "ktests/ktest_runner.sh: kt_runner_execute_single_test — per-file isolation folder (mkdir/rm), HOME + __KK_CFG_ETC into it, KBOOL_CONFIG KBOOL_HOME USERPROFILE ProgramData PROGRAMDATA unset in the child (U41)",
+        "kkore/tests/013_SystemUnitHeaders.sh (new, 20), kkore/tests/unit_lint.sh (new, reusable lint helper, not a test file), unit_fixture.sh (uf_run starts in the fixture's cwd/), 001 (ke.setTrap), 010 (old guard variables ignored)",
+        "kklass/tests/141_UnitHeaders.sh (new, 14), 128 (ke.setTrap, serializable alone), 140 (N11 prologue + kklass registered; N13/N16 silent after the cache registered the unit; N14 a bare shell; N15 `uses` without a registry in a child)",
+        "ktests/tests/040_ConfigIsolation.sh (new, 5)"
+      ],
+      "decisions_per_file": {
+        "units (header + kk.uses)": "kkore: klib kerr kvar kcfg (kuse cannot: kbool.sh sources it plainly and registers it). kklass: kklass, kklass_decl, kklass_pascal, kklass_serializable, kklass_autoload",
+        "tools (no header)": "kklass_compiler.sh (executed; sources kklass.sh by its own folder, KKLASS_COMPILER_DIR kept for the cache prologue's last fallback); kklass_kkp.sh (executed; sourceable for kkp.* with its own guard; needs neither kbool nor kklass)",
+        "system-unit dependencies": "kerr/kcfg used klib; kklass used klib kerr kvar: no kk.uses for them — kbool.sh always loads every system unit, klib first (U1, FPC System). A `kk.uses klib` would cost the first name lookup (index build, 4-6 ms) on every kklass load",
+        "kklass_decl": "a unit loaded by kklass.sh's last line; it does NOT `kk.uses kklass` (a cycle while kklass loads: rc 2). Sourced alone it defines the DSL without the core, as before"
+      },
+      "red_before": {
+        "how": "the new / changed tests copied into a scratch copy of HEAD (kbool 79ba1c8: kbool.sh, kkore, kklass, ktests, kcl; worker_u3/base) and run there",
+        "kkore 013_SystemUnitHeaders": "15/20 FAIL on 5.2.37 and on 5.3.9 (green at HEAD: KK_UNIT_DIR kept, kk.unit --forget klib refused, the two lint tests, ... all pins)",
+        "kklass 141_UnitHeaders": "12/14 FAIL on 5.2.37 and on 5.3.9 (green: K3 lint, K9 positional args) — incl. K5/K5b P7 (kk.uses kklass: 'unit kklass not found' at HEAD)",
+        "ktests 040_ConfigIsolation": "4/5 FAIL on 5.2.37 and on 5.3.9 (green: the standalone run sees the developer config — a pin)",
+        "kkore 010 (changed)": "1 FAIL (old guard variables ignored)",
+        "kkore 001 (changed)": "0 FAIL (ke.setTrap existed)",
+        "kklass 128 (changed)": "1 FAIL (serializable alone refused at HEAD)",
+        "kklass 140 (changed)": "3 FAIL (N11 prologue line, N13 and N16 the silent re-load after a cache); N14/N15 rewritten for the 'no kbool' situation, green at HEAD"
+      },
+      "gate": {
+        "kkore_5.2.37_threaded": "654/654, 0 [FAIL] (634 + 013's 20; run from kkore/ and from kkore/tests/)",
+        "kkore_5.3.9_threaded": "654/654, 0 [FAIL]",
+        "kkore_5.2.37_single": "654/654, 0 [FAIL]",
+        "kklass_5.2.37_threaded": "704/704, 0 [FAIL] (689 + 141's 14 + 128's 1; from kklass/ and kklass/tests/)",
+        "kklass_5.3.9_threaded": "704/704, 0 [FAIL]",
+        "kklass_5.2.37_single": "704/704, 0 [FAIL]",
+        "ktests_5.2.37_threaded": "440/440, 0 [FAIL] (435 + 040's 5)",
+        "ktests_5.3.9_threaded": "440/440, 0 [FAIL]",
+        "kcl_26_suites_5.2.37": "6676/6676, 0 [FAIL] 0 [WARN]: dateutils 444, math 177, tarray 98, tawk 592, tcustomapplication 377, tdictionary 148, tdirectory 320, tfile 250, tfind 226, tgrep 185, thashset 149, thead 182, thttpserver 497, tinifile 191, tlist 134, tobjectlist 52, tpath 243, tpipe 190, tqueuestack 98, tregex 246, tsed 293, tstopwatch 61, tstringhelper 922, tstringlist 192, ttail 200, tutil 209 — totals unchanged",
+        "kcl_26_suites_5.3.9": "6676/6676, 0 [FAIL] 0 [WARN], the same per-suite totals",
+        "kklass_examples": "48 on both bashes, HEAD copy vs new, root-normalised: no delta except mktemp names (ex 41, 42, 43, 45)",
+        "probes": "worker_u3/r14.sh: kk._unit_loaded, kk._ckk_begin/_class/_end, kk._class_register with a hostile UNIT, kk.unit --forget, kk.namespace called first in an export -f child and a set -a child: 0 PWN, both bashes",
+        "master_sweep": "not run (reviewer)"
+      },
+      "measured": {
+        "startup": "best of 5 fresh `bash -c`, empty config, HEAD copy -> new (ms): 5.2.37 bare bash 39-40 -> 37-44; `source kbool.sh; kk.uses <path>/kklass.sh` 135-136 -> 55-57; `source kbool.sh; kk.uses kklass` n/a at HEAD -> 59; `source kklass/kklass.sh` 124-129 -> 53-56; `source kklass/kklass_pascal.sh` 165-170 -> 56-61. 5.3.9: bare 38-41 -> 37-38; kk.uses by path 129 -> 51; kk.uses kklass -> 53-58; kklass.sh 123-127 -> 49; kklass_pascal.sh 163-171 -> 50-51. The forks are gone: kklass.sh's and kklass_pascal.sh's `$(cd $(dirname ...) && pwd)`, kerr.sh's (each ~15-20 ms on this machine); kbool.sh (kuse + kcfg + the config probes) costs less than they did. Probe worker_u3/startup.sh",
+        "noop_resource": "a no-op re-source of a loaded system unit by its registered spelling: 176-178 us (5.2) / 171 us (5.3); the kk.unit wrapper split (found_in_U1a, optional item 8) simulated with a tiny fast-path wrapper: 152 / 133 us (-24 / -38 us). NOT done: U3 adds only a handful of no-op re-sources per process (kcl units re-sourcing klib/kerr) and the split shifts every frame index of kk.unit by one",
+        "math_suite_time": "the kcl math suite took 6 min in one run and 3m20 in the next (new); the HEAD copy 4m54 — machine noise; a first chunk run hit the 590 s tool timeout in math (killed; its results_dir and two kt_iso dirs were left in /tmp and removed by hand)",
+        "cwd_lookup": "since the system units carry headers, `kk.uses klib` at a prompt resolves $PWD/klib.sh first (U14): kkore 010/011/013 failed when the suite ran with cwd kkore/ (`bash tests/tests.sh` from the repo) — the fixture's klib was registered, the cwd's real klib found: 'already loaded from FX/...; here it resolves to kkore/klib.sh'. Not a loader bug: uf_run now starts the child in the fixture's cwd/ folder (hermetic)",
+        "case_insensitive_names": "a test writing `K12.err` (case_run) and `k12.err` (the script) hit the SAME file on NTFS — first 141 draft; renamed"
+      },
+      "deviations": [
+        "U41 isolation also unsets KBOOL_HOME (not in the owner's list): a developer's exported KBOOL_HOME pointing at another kbool makes kbool.sh print the U38 WARNING and changes where a user-header unit bootstraps from — the same class of leak; a test needing it sets it itself",
+        "U41: __KK_CFG_ETC = <iso>/etc/kbool, a folder that is never created (an absent /etc hook = no system config); HOME = <iso> itself, created empty per file (one mkdir, one rm -rf per test file); if mkdir fails the child still gets the (missing, hence empty) path",
+        "kk.unit declares a unit's namespace only when klib is DONE (it needs kk._is_ident); during the boot that skips klib's own header only — kbool.sh then declares kuse klib kerr kvar kcfg itself (first owner wins, so kerr/kvar/kcfg are unchanged)",
+        "the system units do not kk.uses each other / kklass does not kk.uses klib kerr kvar: they are always loaded by kbool.sh (U1); this keeps the first name lookup (glob of kcl/*, 4-6 ms) off every kklass load",
+        ".ckk source-unit registration (found_in_U2b, option 'register'): the cache IS the unit in compiled form (Pascal .ppu). Registered at kk._ckk_end, only when kbool is loaded, UNIT is an identifier, not registered from ANOTHER file, and no class of the cache was refused (Duplicate identifier / verb / namespace: a later load of the unit reports it itself); a same-place skip (WARNING) does not block it. Its classes are filed under the unit (kk.unit --forget UNIT drops them). LIMIT (documented at kk._ckk_begin): a cache holds the unit's CLASSES only — the unit's own `kk.uses` and helper functions are not replayed",
+        "kk._unit_loaded registers a non-system, complete unit (BOT -1), closes kk.project (U37) and declares the namespace WITHOUT the kk._ns_free check (the cache's own classes may bear the unit's name; U40 owner exemption)",
+        "kklass_serializable.sh now loads kklass itself (kk.uses) instead of refusing with 'kklass.sh must be loaded before kklass_serializable.sh' (128 updated, a new 'alone under set -u' case)",
+        "test 140 N14/N15: 'without kbool' can no longer be produced by sourcing kklass (it loads kbool): N14 uses a bare shell, N15 a child with `declare -f uses` and no registry",
+        "the optional kk.unit wrapper split (item 8) was measured, not done (see measured.noop_resource)"
+      ],
+      "ktests_change_U41": {
+        "where": "ktests/ktest_runner.sh kt_runner_execute_single_test (the per-file `bash -c` wrapper shared by sequential, threaded and single modes)",
+        "what": "local __kt_iso=${TMPDIR:-/tmp}/kt_iso.<BASHPID>.<RANDOM><RANDOM>; mkdir before the attempts; the child gets HOME=__kt_iso and __KK_CFG_ETC=__kt_iso/etc/kbool as prefix assignments (exported to the test and its children) and its first line unsets KBOOL_CONFIG KBOOL_HOME USERPROFILE ProgramData PROGRAMDATA; rm -rf after the attempts (retries share the folder)",
+        "test": "ktests/tests/040_ConfigIsolation.sh: a fake developer environment (debug = debug, a bogus unitpath, defines DEVBOX in KBOOL_CONFIG, ~/.kbool, $USERPROFILE/.kbool, $ProgramData/kbool, the /etc hook; KBOOL_HOME elsewhere) changes nothing for probe files under the sequential and the threaded runner (kbool.sh next to ktests: kk.config debug/unitpath rc 1, DEVBOX not defined, VERBOSE_KKLASS unset); an explicit KBOOL_CONFIG in a test applies; each file has its own empty HOME under TMPDIR, removed after the run; a standalone `bash probe.sh` sees the developer environment",
+        "cost": "one mkdir + one rm -rf per test file (two process creations)"
+      },
+      "found_in_U3": [
+        "for U4 (C21): tcustomapplication.sh still sources kuse.sh by path after kklass_pascal.sh — since U3 kbool is always loaded there, so the line only redefines kuse's functions (harmless, tables kept); U4 drops it",
+        "for U4: kcl units that still source kklass_pascal.sh / klib.sh / kerr.sh by path work unchanged (each such source bootstraps kbool once, then is a header no-op ~175 us)",
+        "for U4/U5: a NAME lookup at a prompt or a script top level searches $PWD first (U14) — a fixture-tree test that runs `kk.uses NAME` with the cwd inside the real tree finds the real unit (kkore uf_run made hermetic here); U4 tests should start fixture shells in a neutral folder",
+        "for U5 docs: a .ckk cache registers its source unit but replays none of the unit's own `kk.uses` / helper functions (classes only; documented in kklass.sh)",
+        "pre-existing, not changed: a killed runner (tool timeout) leaves its threaded results_dir in TMPDIR — and now the per-file kt_iso folder of each file still running",
+        "pre-existing, not changed: kklass_decl.sh sourced alone defines the DSL without the kklass core (it cannot kk.uses kklass: a cycle while kklass loads it)",
+        "environment, not mine: /usr/bin/tail (PID 908) and /usr/bin/grep (PID 909) running since Oct 6 in the Git-bash session table — left alone"
+      ],
+      "supervisor_review": "supervisor 2026-10-12: critic_u3 C1-C10 → remarks R1-R9 (owner: U42 failed dependency taints the calling unit + kk.uses --optional; U43 no cwd hijack — system units never re-resolved, no caller-dir step for non-interactive no-file callers, relative caller resolved against its load-time PWD); worker cut off 4x by ECONNRESET, code finished; own probe scratchpad/r5/v_u3.sh both bashes: cache of a unit with helper+variable+dependency → area=12, U42 retry fails again / --optional loads, U43 cwd stand-ins not used (bash -c, pipe), relative script after cd finds its sibling, kklass_decl alone works; full sweep 29/29 0 [FAIL] 0 [WARN] both bashes, totals identical except kklass 689->709, kkore 634->669, ktests 435->441, sum 8434->8495",
+      "review_round_1": {
+        "date": "2026-10-09",
+        "remarks": "R1-R9 from the critic (scratchpad critic_u3/) and the supervisor; owner decisions R2 (U42) and R3 (U43)",
+        "status": "done",
+        "progress": {
+          "R1": "code done: no unit registration by a cache; _KKLASS_CLASS_CKK marks cache-built classes; the source's own declaration from the same place is skipped silently once; kk._unit_loaded removed",
+          "R2": "code done (kuse.sh kk._uses / kk.unit / kk._unit_check rc 3); kkore 014 new; 009 dep test updated; fixture opt -> --optional, new fixture unit needs",
+          "R3": "code done (kk._unit_core, kk._unit_caller_dir, __KK_FILE_PWD, kbool.sh records the stack); kkore 014 new; 009 proj3 updated",
+          "R4": "moot with R1 (no unit/namespace registration by a cache); test 141 K13",
+          "R5": "done; test 141 K15",
+          "R6": "done, revised: kcl tpath 008 requires HOME to be an existing folder (getHomePath -d) and failed with a never-created HOME; final: ktests.sh kt_runner_iso_begin FILES... creates KT_ISO_ROOT=TMPDIR/kt_iso.<pid> plus one empty folder per suite file in ONE mkdir (stale dead-pid folders swept), EXIT trap kt_runner_iso_end removes it; a file runs with HOME=KT_ISO_ROOT/<name> (no process per file); direct runner calls (no root) get a missing path. 20 trivial files sequential: HEAD 298, round 0 358, now 302 ms/file",
+          "R7": "done; test 141 K16",
+          "R8": "done: awk scanner lint; 013 +1 self-test (critic sample.sh: 17 findings); 0 findings in kbool.sh, kkore, kklass units, kcl units",
+          "R9": "done in the final ledger text"
+        },
+        "gate_partial": "final code: kkore 669/669 5.2+5.3 threaded, 5.2 single; kklass 709/709 5.2+5.3 threaded, 5.2 single (140+569); ktests 441/441 both; kcl 26 suites 6676/6676 on 5.2 (unchanged per suite); kcl 5.3 running",
+        "gate_final": "sweep 29/29 0 [FAIL] 0 [WARN] both bashes: kklass 709, kkore 669, ktests 441, kcl 6676 unchanged, sum 8434->8495"
+      }
     },
     "U4": {
       "name": "29 kcl units migrate (groups, sweep after each)",

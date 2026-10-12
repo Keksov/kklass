@@ -1,9 +1,10 @@
 #!/bin/bash
-
-if [[ -n "${_KKLASS_DECL_SOURCED:-}" ]]; then
-    return
-fi
-declare -g _KKLASS_DECL_SOURCED=1
+[[ ${__KK_UNITS[@]@a} == A* ]] || source "${BASH_SOURCE%kklass_decl.sh}../kbool.sh" || return
+kk.unit kklass_decl || return $__kk_unit_rc
+# kklass_decl.sh — the declarative DSL of kklass (declareClass ... endClass,
+# implement ... endImplementation). A unit (uses U3): kklass.sh loads it at its
+# end with `kk.uses kklass_decl`. Loaded first (a direct source, `kk.uses
+# kklass_decl`), it loads kklass at ITS end (R5) — each module once either way.
 
 declare -g KK_DECL_CURRENT_CLASS=""
 declare -g KK_DECL_CURRENT_VISIBILITY="public"
@@ -1668,3 +1669,6 @@ if [[ "${KKLASS_EXPORT_FUNCTIONS:-0}" == "1" ]]; then
     export -f endClass finalizeClass implement implementConstructor endImplementation finalizeImplementation
     export -f kk.decl._sink_enter kk.decl._sink_mine kk.decl._sink_end kk.decl._sink_close kk.decl._sink_alive kk.decl._sink_here kk.decl._sink_sweep kk.decl._sunk kk.decl._sink_mode kk.decl._ns_snap
 fi
+# the kklass core (uses U3 R5): loaded here when this file is the first one loaded
+# (`kk.uses kklass_decl`, a direct source); while kklass loads this file it is registered already
+[[ -n ${__KK_UNITS[kklass]+x} ]] || kk.uses kklass || return

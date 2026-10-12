@@ -1,8 +1,15 @@
 #!/bin/bash
+[[ ${__KK_UNITS[@]@a} == A* ]] || source "${BASH_SOURCE%kklass_autoload.sh}../kbool.sh" || return
+kk.unit kklass_autoload || return $__kk_unit_rc
 # kklass_autoload.sh - Transparent auto-compilation mechanism for classes
-
-# Get the directory where this script is located
-KKLASS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+#
+# A unit (uses U3): kklass comes through kk.uses. KKLASS_LIB_DIR = this folder,
+# lexically normalised (no fork) — the run-time copy autoloadClasses needs after
+# the load (C19: KK_UNIT_DIR is only meaningful while a unit loads).
+kk._kklass_libdir() { local __kk_n; kk._unit_lexnorm "$KK_UNIT_DIR"; KKLASS_LIB_DIR=$__kk_n; }
+kk._kklass_libdir
+unset -f kk._kklass_libdir
+kk.uses kklass || return
 
 autoloadClasses_runtime_source() {
     local source_file="$1"

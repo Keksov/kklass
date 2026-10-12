@@ -1,12 +1,11 @@
 #!/bin/bash
+[[ ${__KK_UNITS[@]@a} == A* ]] || source "${BASH_SOURCE%kklass_serializable.sh}../kbool.sh" || return
+kk.unit kklass_serializable || return $__kk_unit_rc
 # kklass_serializable.sh - Serialization mixin for kklass
 # Adds automatic serialization/deserialization methods to classes
 
-# Requires kklass.sh to be loaded first
-if ! declare -f defineClass &>/dev/null; then
-    echo "Error: kklass.sh must be loaded before kklass_serializable.sh" >&2
-    return 1
-fi
+# A unit (uses U3): it loads kklass itself (it used to refuse to load without it).
+kk.uses kklass || return
 
 # _addSerializable_checkSep SEPARATOR — the separator rule (round 3 / P10,
 # DR4b): exactly ONE character, not alphanumeric or `_` (a class name or a

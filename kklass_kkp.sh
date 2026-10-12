@@ -1,4 +1,9 @@
 #!/bin/bash
+# kklass_kkp.sh — the .kkp (Pascal-like unit) translator. A TOOL, not a unit
+# (uses U3): executed as `bash kklass_kkp.sh IN.kkp OUT.sh` (a unit header's
+# top-level `return` would be an error there); it may also be sourced for its
+# kkp.* functions, keeping its own re-source guard. Pure text work: it needs
+# neither kbool nor kklass.
 
 if [[ -n "${_KKLASS_KKP_SOURCED:-}" ]]; then
     return
@@ -12,6 +17,8 @@ declare -g _KKLASS_KKP_SOURCED=1
 #                    to itself, and no translator path is baked in):
 #                        [[ ${__KK_UNITS[@]@a} == A* ]] || source "${KBOOL_HOME-}/kbool.sh" || return 2
 #                        kk.unit X || return $__kk_unit_rc
+#                    followed by `kk.uses kklass || return` (uses U3 R7: the
+#                    unit loads the kklass it declares its classes with),
 #                    right after the shebang (the header must end within the
 #                    first 512 characters of the translated file). X must be the
 #                    .kkp file's stem (U33) — otherwise a translation error. A
@@ -329,6 +336,9 @@ kkp.compile() {
             printf '#!/bin/bash\n'
             kkp._boot_line; printf '\n'
             printf 'kk.unit %s || return $__kk_unit_rc\n' "$__kkp_unit"
+            # the unit declares classes with the kklass DSL: it loads kklass
+            # itself (uses U3 R7; `kk.uses …/X.sh` with only kbool loaded works)
+            printf 'kk.uses kklass || return\n'
             printf '# Generated from %s by kklass_kkp.sh\n\n' "$input_file"
         } > "$output_file"
         boot_done=1

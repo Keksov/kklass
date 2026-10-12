@@ -1,9 +1,15 @@
 #!/bin/bash
 # kklass_compiler.sh - Compile class definitions to optimized bash code
 # Usage: bash kklass_compiler.sh input.kk output.sh
+#
+# A TOOL, not a unit (uses U3): it is executed (`bash kklass_compiler.sh ...`),
+# where a unit header's top-level `return` would be an error. kklass.sh is
+# sourced by its path next to this file — kklass's own header loads kbool.sh
+# (U27). KKLASS_COMPILER_DIR is this folder at run time (C19): the cache prologue
+# names the compiler's kklass as the last fallback.
 
 KKLASS_COMPILER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$KKLASS_COMPILER_DIR/kklass.sh"
+source "$KKLASS_COMPILER_DIR/kklass.sh" || exit 1
 
 # The classes to dump: every X with a function X.new AND an array
 # ${X}_class_methods — i.e. exactly the classes the runtime BUILT in this
@@ -211,12 +217,12 @@ compile_class_file() {
 # from the source file; load with \`source\`.
 $source_comment
 
-# kklass (uses U2b, C13): already loaded -> nothing to do; kbool loaded -> through
-# the unit loader (kk.uses, by path until kklass carries a unit header — U3);
-# else the kklass of KBOOL_HOME; else the kklass that compiled this file.
+# kklass (uses U3, C13): already loaded -> nothing to do; kbool loaded -> the
+# unit loader by name (kk.uses kklass); else the kklass of KBOOL_HOME; else the
+# kklass that compiled this file (a direct source of kklass.sh loads its kbool).
 if ! declare -F kk._ckk_class >/dev/null; then
     if [[ \${__KK_UNITS[@]@a} == A* ]]; then
-        kk.uses "\$KBOOL_HOME/kklass/kklass.sh" || return
+        kk.uses kklass || return
     elif [[ -n \${KBOOL_HOME-} && -f \$KBOOL_HOME/kklass/kklass.sh ]]; then
         source "\$KBOOL_HOME/kklass/kklass.sh" || return
     else

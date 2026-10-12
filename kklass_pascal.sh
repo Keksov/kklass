@@ -1,4 +1,6 @@
 #!/bin/bash
+[[ ${__KK_UNITS[@]@a} == A* ]] || source "${BASH_SOURCE%kklass_pascal.sh}../kbool.sh" || return
+kk.unit kklass_pascal || return $__kk_unit_rc
 # kklass_pascal.sh - Laconic Pascal-style front-end for kklass.
 #
 # Write the class STRUCTURE first (interface), then the method BODIES as real
@@ -39,14 +41,10 @@
 #   override <proc|func>         guard: errors unless an ancestor has the method
 #   build N                      extract bodies + finalize the class
 #   uses A B ...                 load units once (= kk.uses; kbool.sh must be loaded)
+#
+# A unit (uses U3): the two header lines above; kklass comes through kk.uses.
 
-if [[ -n "${_KKLASS_PASCAL_SOURCED:-}" ]]; then
-    return
-fi
-declare -g _KKLASS_PASCAL_SOURCED=1
-
-KKLASS_PASCAL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${KKLASS_PASCAL_DIR}/kklass.sh"
+kk.uses kklass || return
 
 # Per-declaration modifier flags (consumed by the next var/proc/func).
 declare -g __KK_PASCAL_STATIC=""

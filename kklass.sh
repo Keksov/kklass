@@ -1,10 +1,18 @@
 #!/bin/bash
+[[ ${__KK_UNITS[@]@a} == A* ]] || source "${BASH_SOURCE%kklass.sh}../kbool.sh" || return
+kk.unit kklass || return $__kk_unit_rc
 # kklass.sh - Working class system for bash with dot notation
-
-KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${KKLASS_DIR}/../kkore/klib.sh"
-source "${KKLASS_DIR}/../kkore/kerr.sh"
-source "${KKLASS_DIR}/../kkore/kvar.sh"
+#
+# A unit (uses U3, kklass/USES_PLAN.md §7.4): the two lines above load kbool.sh
+# when it is not loaded yet and register the unit, so a direct
+# `source kklass/kklass.sh` and `kk.uses kklass` load it once. The kkore system
+# units it needs (klib, kerr, kvar) are always loaded by kbool.sh (U1); the
+# declarative DSL (kklass_decl) is loaded at the end through kk.uses.
+# KKLASS_DIR = this folder, lexically normalised (no fork): kk._taken_init
+# names the framework files with it at run time (C19).
+kk._kklass_dir() { local __kk_n; kk._unit_lexnorm "$KK_UNIT_DIR"; KKLASS_DIR=$__kk_n; }
+kk._kklass_dir
+unset -f kk._kklass_dir
 
 # ---------------------------------------------------------------------------
 # Class declaration sites — "Duplicate identifier" (uses phase U2a; design:
@@ -75,9 +83,10 @@ source "${KKLASS_DIR}/../kkore/kvar.sh"
 # hold and the unit hooks are skipped. `kk.class --forget X` does the same for
 # one class (a header-less file).
 kk._class_tables() {
-    unset _KKLASS_CLASS_SITE _KKLASS_CLASS_SOURCE _KKLASS_DECL_SITE _KKLASS_SINK_AT \
+    unset _KKLASS_CLASS_SITE _KKLASS_CLASS_SOURCE _KKLASS_DECL_SITE _KKLASS_SINK_AT _KKLASS_CLASS_CKK \
           __KKLASS_TABLES __kk_decl_snap_taken _KKLASS_TAKEN _KKLASS_NS_OWNER _KKLASS_SINK_NS
     declare -gA _KKLASS_CLASS_SITE=() _KKLASS_CLASS_SOURCE=() _KKLASS_DECL_SITE=() _KKLASS_SINK_AT=()
+    declare -gA _KKLASS_CLASS_CKK=()      # class -> 1: built from a compiled cache (uses U3 R1)
     declare -gA __kk_decl_snap_taken=()   # kklass_decl.sh: redefinition snapshots, keyed by class
     # the taken names (uses U2b, "Taken names" below): verbs, classes, declared
     # namespaces and their owners; snapshots of a refused namespace declaration
@@ -401,6 +410,12 @@ kk._class_verdict() {
     (( __kk_site_tty )) && return 0
     kk._class_site_text "${_KKLASS_CLASS_SITE[$__kk_c]}"; __kk_old=$__kk_site_txt
     if kk._class_site_same "${_KKLASS_CLASS_SITE[$__kk_c]}" "$__kk_site"; then
+        # built from a cache of this very place (U3 R1): the source's own
+        # declaration is skipped silently, once
+        if (( $# == 1 )) && [[ -n ${_KKLASS_CLASS_CKK[$__kk_c]+x} ]]; then
+            unset '_KKLASS_CLASS_CKK[$__kk_c]'
+            return 2
+        fi
         kk.warn "kklass: WARNING: class '${__kk_c}' declared again from the same place (${__kk_old}); ignored, the class is not rebuilt"
         return 2
     fi
@@ -411,8 +426,9 @@ kk._class_verdict() {
     return 1
 }
 
-# kk._class_register CLASS SITE — CLASS is built: remember its site, file it
-# under the unit being loaded (P4). rc 2 for a CLASS that is not an identifier.
+# kk._class_register CLASS SITE [UNIT] — CLASS is built: remember its site, file
+# it under UNIT (a compiled cache's source unit, uses U3) or else the unit being
+# loaded (P4). rc 2 for a CLASS that is not an identifier.
 kk._class_register() {
     [[ -n ${1-} ]] && kk._is_ident "$1" || return 2
     [[ ${__KKLASS_TABLES[@]@a} == A ]] || kk._class_tables
@@ -422,11 +438,15 @@ kk._class_register() {
     _KKLASS_CLASS_SITE[$1]=$2
     _KKLASS_CLASS_SOURCE[$1]=${__kk_f:-(no file)}
     _KKLASS_TAKEN[$1]=class
-    unset '_KKLASS_DECL_SITE[$1]'
+    unset '_KKLASS_DECL_SITE[$1]' '_KKLASS_CLASS_CKK[$1]'
     if [[ ${__KK_LOADED[@]@a} == A ]]; then
-        __kk_r=${RESULT-}
-        if kk._unit_current; then kk._unit_add_class "$RESULT" "$1"; fi
-        RESULT=$__kk_r
+        if [[ -n ${3-} ]]; then
+            kk._unit_add_class "$3" "$1"
+        else
+            __kk_r=${RESULT-}
+            if kk._unit_current; then kk._unit_add_class "$RESULT" "$1"; fi
+            RESULT=$__kk_r
+        fi
     fi
     return 0
 }
@@ -438,7 +458,7 @@ kk._unit_forget_class() {
     [[ -n ${1-} ]] && kk._is_ident "$1" || return 2
     [[ ${__KKLASS_TABLES[@]@a} == A ]] || return 0
     kk.decl._sink_close "$1"
-    unset '_KKLASS_CLASS_SITE[$1]' '_KKLASS_CLASS_SOURCE[$1]' '_KKLASS_DECL_SITE[$1]'
+    unset '_KKLASS_CLASS_SITE[$1]' '_KKLASS_CLASS_SOURCE[$1]' '_KKLASS_DECL_SITE[$1]' '_KKLASS_CLASS_CKK[$1]'
     return 0
 }
 
@@ -484,6 +504,17 @@ kk.class() {
 #   3. the source UNIT by name, when the source is a unit and kbool is loaded:
 #      the file `kk.uses UNIT` finds from the folder above the cache;
 #   4. ABS, the absolute path at compile time.
+# The source UNIT (uses U3 review R1): a cache holds the unit's CLASSES only —
+# not its other file-scope code (its own `kk.uses`, helper functions, variables)
+# — so a cache does NOT register the unit as loaded. Its classes are recorded
+# as built from the unit's file (the resolved site above) and marked "from a
+# cache" (_KKLASS_CLASS_CKK): a later `source` / `kk.uses` of that file runs the
+# unit body normally (helpers, dependencies) and its declaration of such a
+# class is skipped SILENTLY once — the cache already built it from that very
+# place (a second declaration there is the usual U20 WARNING). The classes are
+# filed under UNIT (kk.unit --forget UNIT drops them) unless UNIT is registered
+# from another file; nothing about the unit itself (registration, namespace)
+# is recorded here.
 
 # kk._ckk_begin UNIT REL [ABS] — a compiled cache starts (see above).
 kk._ckk_begin() {
@@ -508,6 +539,14 @@ kk._ckk_begin() {
     [[ -z $__kk_f || $__kk_f == /* || $__kk_f == [A-Za-z]:* ]] || __kk_f=$PWD/$__kk_f
     __KK_CKK_FILE=$__kk_f
     __KK_CKK_SITE=""
+    # the unit to file the classes under: ownership first (R14) — the registry
+    # is subscripted by UNIT only in a shell that owns it, and only by an
+    # identifier; a UNIT registered from another file gets nothing
+    __KK_CKK_UNIT=""
+    if [[ -n ${1-} && -n $__kk_f && ${__KK_LOADED[@]@a} == A ]] && kk._is_ident "$1" \
+       && [[ -z ${__KK_UNITS[$1]+x} || ${__KK_UNITS[$1]} == "$__kk_f" || ${__KK_UNITS[$1]} -ef $__kk_f ]]; then
+        __KK_CKK_UNIT=$1
+    fi
     return 0
 }
 
@@ -524,14 +563,18 @@ kk._ckk_class() {
     return 0
 }
 
-# kk._ckk_built CLASS — the dump of CLASS is loaded: register it (site, unit).
+# kk._ckk_built CLASS — the dump of CLASS is loaded: register it (site; filed
+# under the cache's source unit when it has one, else the unit being loaded)
+# and mark it built from a cache (R1: its source's own declaration is then
+# skipped silently).
 kk._ckk_built() {
-    kk._class_register "$1" "${__KK_CKK_SITE-}"
+    kk._class_register "$1" "${__KK_CKK_SITE-}" "${__KK_CKK_UNIT-}" || return
+    _KKLASS_CLASS_CKK[$1]=1
 }
 
 # kk._ckk_end — the cache is loaded.
 kk._ckk_end() {
-    unset __KK_CKK_FILE __KK_CKK_SITE
+    unset __KK_CKK_FILE __KK_CKK_SITE __KK_CKK_UNIT
     return 0
 }
 
@@ -1918,7 +1961,9 @@ kk.register_static_methods() {
     done
 }
 
-source "${KKLASS_DIR}/kklass_decl.sh"
+# the declarative DSL (a unit of its own, found next to this file) — unless it is
+# the unit that loaded kklass (U3 R5: kklass_decl loaded first loads kklass at its end)
+[[ -n ${__KK_UNITS[kklass_decl]+x} ]] || kk.uses kklass_decl || return
 
 if [[ "${KKLASS_EXPORT_FUNCTIONS:-0}" == "1" ]]; then
     export -f kk._processMethodBody kk.call_silent kk._class_derives_from kk._is_ident kk.isAbstract kk.derivesFrom kk._warn_visibility kk._build_class_runtime _defineMethodType defineClass defineMethod defineProcedure defineFunction kk.register_static_methods

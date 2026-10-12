@@ -341,9 +341,9 @@ autoloadClasses "$TMPD/cc.kk" 2>"$TMPD/T10.e2" >/dev/null; echo "cached=$? warn=
 source "$TMPD/cc.kk" 2>"$TMPD/T10.e3"; echo "direct=$? warn=$(grep -c 'WARNING: class .TCkk' "$TMPD/T10.e3")"
 TCkk.new p; p.who
 EOF
-kt_test_start "N10 C13 (critic u22_ckk): a class loaded from a .ckk cache is registered — another file's declaration is a Duplicate identifier (the class kept); the cache again or its source sourced directly = the same place (one WARNING each, not rebuilt)"
+kt_test_start "N10 C13 (critic u22_ckk): a class loaded from a .ckk cache is registered — another file's declaration is a Duplicate identifier (the class kept); the cache again = the same place (one WARNING, not rebuilt); its source sourced directly skips the cached class SILENTLY (uses U3 R1), not rebuilt"
 case_run T10; e1="$(fl T10.e1)"
-if [[ "$OUT" == $'load=0 reg=yes\nimp=1\nORIGINAL\ncached=0 warn=1\ndirect=0 warn=1\nORIGINAL' && "$e1" == *"Duplicate identifier: class 'TCkk'"*"cc.kk:1"*"impcc.sh:1"* ]]; then
+if [[ "$OUT" == $'load=0 reg=yes\nimp=1\nORIGINAL\ncached=0 warn=1\ndirect=0 warn=0\nORIGINAL' && "$e1" == *"Duplicate identifier: class 'TCkk'"*"cc.kk:1"*"impcc.sh:1"* ]]; then
     kt_test_pass "$e1"
 else
     kt_test_fail "out='${OUT//$'\n'/|}' e1='$e1' err='$ERR'"
@@ -356,14 +356,14 @@ ckf="$TMPD/ckk10/cc.ckk.sh"
 "$BASH" -c 'source "$1"; TCkk.new o; o.who; echo "reg=${_KKLASS_CLASS_SOURCE[TCkk]+yes}"' _ "$ckf"
 # KBOOL_HOME set, kbool not loaded: KBOOL_HOME's kklass
 KBOOL_HOME="$KBOOL_ROOT" "$BASH" -c 'source "$1"; TCkk.new o; o.who' _ "$ckf"
-# kbool loaded, kklass not: through the unit loader (kk.uses), recorded once
+# kbool loaded, kklass not: through the unit loader by name (kk.uses kklass, U3), registered as the unit
 "$BASH" -c 'source "$2/kbool.sh"; source "$1"; TCkk.new o; o.who
-            for k in "${!__KK_UNIT_FILES[@]}"; do [[ $k == */kklass/kklass.sh ]] && echo "via kk.uses"; done' _ "$ckf" "$KBOOL_ROOT"
+            [[ ${__KK_UNITS[kklass]-} -ef $2/kklass/kklass.sh && -n ${__KK_UNIT_DONE[kklass]-} ]] && echo "via kk.uses"' _ "$ckf" "$KBOOL_ROOT"
 EOF
-kt_test_start "N11 C13: the cache's own kklass loading — already loaded: nothing; kbool loaded: kk.uses (recorded by the loader); else KBOOL_HOME's kklass; else the compiler's; the registration line and the unit loader line are in the cache"
+kt_test_start "N11 C13: the cache's own kklass loading — already loaded: nothing; kbool loaded: kk.uses kklass (registered as the unit, U3); else KBOOL_HOME's kklass; else the compiler's; the registration line and the unit loader line are in the cache"
 case_run T10b
 if [[ "$OUT" == $'ORIGINAL\nreg=yes\nORIGINAL\nORIGINAL\nvia kk.uses' && -z "$ERR" ]] \
-   && grep -q '^        kk.uses "\$KBOOL_HOME/kklass/kklass.sh" || return$' "$ckf" \
+   && grep -q '^        kk.uses kklass || return$' "$ckf" \
    && grep -q '^if kk._ckk_class TCkk ' "$ckf" && grep -q '^kk._ckk_built TCkk$' "$ckf" && grep -q '^kk._ckk_begin ' "$ckf"; then
     kt_test_pass "ok"
 else
@@ -423,9 +423,9 @@ grep -c '^# Source unit: pu$' "$TMPD/pu.ckk.keep"
 grep -c "^kk._ckk_begin pu pu.sh ''$" "$TMPD/pu.ckk.keep"
 [[ -f "$KKLASS_CKK_DIR/pu.sh" && ! -e "$KKLASS_CKK_DIR/pu.runtime.sh" ]] && echo "runtime file pu.sh"
 EOF
-kt_test_start "N13 P9 + U36: a .kkp unit's cache names it by unit name and its site by the runtime translation <cache>/pu.sh; a compiled then a runtime load of it (in a bare shell: autoload supplies KBOOL_HOME) is the same place (one WARNING, not rebuilt)"
+kt_test_start "N13 P9 + U36: a .kkp unit's cache names it by unit name and its site by the runtime translation <cache>/pu.sh; a compiled then a runtime load of it (in a bare shell: autoload supplies KBOOL_HOME): the runtime load runs the unit, its class built by the cache is skipped silently (uses U3 R1), not rebuilt"
 case_run T12
-if [[ "$OUT" == $'compiled=0\na=hi\nruntime=0 warn=1 unit=registered\n2\n1\nruntime file pu.sh' ]]; then kt_test_pass "ok"; else kt_test_fail "out='${OUT//$'\n'/|}' err='$ERR'"; fi
+if [[ "$OUT" == $'compiled=0\na=hi\nruntime=0 warn=0 unit=registered\n2\n1\nruntime file pu.sh' ]]; then kt_test_pass "ok"; else kt_test_fail "out='${OUT//$'\n'/|}' err='$ERR'"; fi
 
 # ---------------------------------------------------------------------------
 mkdir -p "$TMPD/kp"
@@ -475,7 +475,7 @@ sed -n 2,3p good.sh
 grep -c '^kk.uses dep dep || return$' good.sh
 "$BASH" "$K" nounit.kkp nounit.sh; grep -A1 -F kbool.sh nounit.sh
 grep -c 'KBOOL_HOME:-' good.sh nounit.sh | tr '\n' ' '; echo
-"$BASH" -c 'source "$1/kklass.sh"; source ./good.sh; echo "no KBOOL_HOME: rc=$?"' _ "$KKLASS_DIR" 2>/dev/null
+"$BASH" -c 'source ./good.sh; echo "no KBOOL_HOME: rc=$?"' 2>/dev/null    # a bare shell (since U3 a sourced kklass.sh loads kbool itself)
 export KBOOL_HOME="$KBOOL_ROOT"
 source "$KKLASS_DIR/kklass.sh"
 source ./good.sh; echo "src=$? dep=$dep_loaded"
@@ -513,7 +513,9 @@ uses nosuchunit 2>/dev/null; echo "missing=$?"
 EOF
 cat > "$TMPD/T14.sh" <<'EOF'
 source "$KKLASS_DIR/kklass_pascal.sh"
-uses myu 2>"$TMPD/T14.e"; echo "nokbool=$?"
+# since U3 a sourced kklass_pascal.sh loads kbool itself: `uses` without kbool
+# is a shell that has the function but no registry
+"$BASH" -c "$(declare -f uses); uses myu" 2>"$TMPD/T14.e"; echo "nokbool=$?"
 source "$KBOOL_ROOT/kbool.sh"
 source "$TMPD/us/caller.sh"
 EOF
@@ -541,9 +543,9 @@ mv "$TMPD/mv/P1" "$TMPD/mv/P2"
             source "$2/myu.sh" 2>"$3"; echo "unit=$? dup=$(grep -c "Duplicate identifier" "$3") warn=$(grep -c WARNING "$3")"
             kk.uses "$2/myu.sh"; echo "uses=$?"; TMu.new o; o.who' _ "$KBOOL_ROOT" "$TMPD/mv/P2" "$TMPD/T15.e"
 EOF
-kt_test_start "N16 P9 (review R2, critic k1): a unit's cache records its source relative to the cache folder: after the project moved, the cache and then its unit sourced directly are the same place (one WARNING, no Duplicate identifier), and kk.uses of it succeeds"
+kt_test_start "N16 P9 (review R2, critic k1): a unit's cache records its source relative to the cache folder: after the project moved, the unit sourced directly runs and skips its cached class silently (uses U3 R1: no WARNING, no Duplicate identifier) and kk.uses of it succeeds"
 case_run T15
-if [[ "$OUT" == $'compile=0\n1\nckk=0\nunit=0 dup=0 warn=1\nuses=0\nmyu' ]]; then kt_test_pass "ok"; else kt_test_fail "out='${OUT//$'\n'/|}' err='$ERR' e='$(fl T15.e)'"; fi
+if [[ "$OUT" == $'compile=0\n1\nckk=0\nunit=0 dup=0 warn=0\nuses=0\nmyu' ]]; then kt_test_pass "ok"; else kt_test_fail "out='${OUT//$'\n'/|}' err='$ERR' e='$(fl T15.e)'"; fi
 
 # ---------------------------------------------------------------------------
 mkdir -p "$TMPD/tree/kkore" "$TMPD/tree/kklass" "$TMPD/mt"

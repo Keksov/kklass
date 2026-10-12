@@ -49,8 +49,10 @@ for f in "$KKORE_DIR/klib.sh" "$KKORE_DIR/kerr.sh" "$KKORE_DIR/kvar.sh" \
     expect_clean "source $(basename "$f") under set -u [G8-01]" "source '$f'"
 done
 
-# kklass_serializable.sh is a mixin: on its own it refuses to load, so it is
-# checked on top of an already loaded framework.
+# kklass_serializable.sh is a mixin: since uses U3 it loads kklass itself
+# (kk.uses); checked on its own and on top of an already loaded framework.
+expect_clean "source kklass_serializable.sh alone under set -u [G8-01, U3]" \
+    "source '$KKLASS_DIR/kklass_serializable.sh'"
 expect_clean "source kklass_serializable.sh under set -u [G8-01]" \
     "source '$KKLASS_DIR/kklass.sh'; source '$KKLASS_DIR/kklass_serializable.sh'"
 
@@ -75,10 +77,10 @@ done
 expect_clean "kklass then a unit's own re-source of klib+kerr under set -u [G8-01]" \
     "source '$KKLASS_DIR/kklass.sh'; source '$KKORE_DIR/klib.sh'; source '$KKORE_DIR/kerr.sh'"
 
-# kerr.sh's guard branch forwards the `set_trap` argument; that path must keep
-# working and must still not trip on the missing argument.
-expect_clean "re-source of kerr.sh with set_trap under set -u [G8-01]" \
-    "source '$KKORE_DIR/kerr.sh'; source '$KKORE_DIR/kerr.sh' set_trap; trap - ERR"
+# kerr.sh's old `set_trap` argument is gone (uses U3, C10/P8: units take no
+# arguments): the ERR trap is an explicit ke.setTrap, also after a re-source.
+expect_clean "re-source of kerr.sh, then ke.setTrap, under set -u [G8-01, C10]" \
+    "source '$KKORE_DIR/kerr.sh'; source '$KKORE_DIR/kerr.sh'; ke.setTrap; trap - ERR"
 
 # ---------------------------------------------------------------------------
 # 3. Declaring a class under set -u (this is what `source <unit>.sh` does).
