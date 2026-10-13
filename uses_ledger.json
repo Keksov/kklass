@@ -3,7 +3,7 @@
   "project": "kbool `uses` — Pascal-like unit inclusion and duplicate identifiers. Design: kklass/USES_PLAN.md (decisions U1-U37, critic §7.1-7.2, supervisor review §7.3 P1-P10, header shapes §7.4, phases §8).",
   "created": "2026-10-06",
   "updated": "2026-10-13",
-  "status": "U4 G2 DONE+COMMITTED 2026-10-13; G3 next",
+  "status": "U4 G3 DONE+COMMITTED 2026-10-13; G4 next",
   "workflow": "per phase: Opus worker implements (red-first) -> Opus critic reviews the worker's result against the plan and the live tree (no edits) -> supervisor review + remarks -> full master sweep on bash 5.2.37 and 5.3.9 -> commit; push only on the owner's word",
   "phases": {
     "U1a": {
@@ -715,8 +715,65 @@
             "tobjectlist",
             "tstringlist"
           ],
-          "status": "in_progress",
-          "commit": ""
+          "status": "done",
+          "commit": "kcl 8dcb308",
+          "date": "2026-10-13",
+          "files": [
+            "kcl/tlist/tlist.sh, tobjectlist/tobjectlist.sh, tstringlist/tstringlist.sh, tdirectory/tdirectory.sh, tfile/tfile.sh: §7.4 relative header on lines 2-3; the `_X_SOURCED` guard blocks deleted with their comments; `X_DIR=$(cd ...)` + `source $X_DIR/../../kklass/kklass_pascal.sh` replaced in place by the unit note + `kk.uses kklass_pascal || return`; the kcl dependency by NAME in place of its path source: tfile/tdirectory `kk.uses tpath || return`, tlist `kk.uses tarray || return`, tstringlist `kk.uses tlist || return`, tobjectlist ONLY `kk.uses tlist || return` (its old line named no kklass module, amendment i); no kk.namespace (census: no foreign prefix)",
+            "tfile: rule 10 — the TFILE_USE_CP block (assignment + readonly) guarded on TFILE_USE_CP, re-indented, with the rule-10 comment",
+            "stale comments: tlist 'Re-source-guarded + fork-free' (of tarray) -> 'A unit (loaded once) + fork-free'; tobjectlist 'Parent class (transitively: kklass front-end, klib/kerr, tarray)' -> '(transitively: the kklass front-end, tarray)'",
+            "kcl/tests/kcl_units.sh: rows tfile (readonly), tdirectory, tlist, tobjectlist, tstringlist; the static read factored into kclt_scan; once: when no file-scope function survives the load (tlist) the sentinel is defined under the first function's NAME and restored by unset -f (KC_restore); NEW check `mixed` for rows whose kk.uses lines name another unit of the table; header comments",
+            "kcl/tests/301_tfile.sh, 302_tdirectory.sh, 303_tlist.sh, 304_tobjectlist.sh, 305_tstringlist.sh (byte copies of 101)",
+            "kklass/uses_ledger.json (this entry), kklass/USES_PLAN.md (U4-G3 DONE line)"
+          ],
+          "red_before": {
+            "how": "kcl/tests -n 1,301-305 with the G3 rows against the unmigrated units; 5.2.37 (kbool root) and 5.3.9 (kcl/tests) identical",
+            "001_UnitFiles": "5/35 FAIL (the 5 G3 headers + guard/dir/fork/path/source; the 5 G3 namespace censuses green)",
+            "301-305": "3/3 FAIL each (kk.uses NAME: not found — no header); `mixed` is derived from the unit's kk.uses lines, so it does not exist before the migration",
+            "suite_selection": "20/50 FAIL",
+            "rule10": "tfile migrated with the TFILE_USE_CP guard replaced by `if true`: 301 once/name/taken FAIL 'tfile.sh: line 35: TFILE_USE_CP: readonly variable' rc 1",
+            "mutations": "M9 (tfile: `kk.unit --forget tpath 2>/dev/null || :` before `kk.uses tpath`) -> 301 mixed 'tpath=reg,rerun:tpath._ret' while once/name/taken stay green (only mixed sees a dependency re-run); M6 (kuse.sh kk.unit never skips) -> 303 once 'n=rerun:TList.Create' (the consumed-name sentinel) and 304 once 'n=rerun:TObjectList._free' — with an EMPTY stderr: only the sentinel shows that re-run. All mutations restored (cmp / git status)"
+          },
+          "gate": {
+            "kcl_tests": "92/92, 0 [FAIL]: 5.2.37 threaded (kbool root) 124 s, 5.3.9 threaded (kcl/tests) 116 s, 5.2.37 --mode single 72 (-n 1-299) + 20 (-n 301-305) = 92; 62 -> 92 (001 25 -> 35, 301-305 4 each: once, name, taken, mixed)",
+            "G3_suites": "tlist 134, tobjectlist 52, tstringlist 192, tfile 250, tdirectory 320 (= 948) — on 5.2.37 and 5.3.9, each from a neutral cwd and from its tests folder, 0 [FAIL] 0 [WARN], totals unchanged",
+            "G1_deps": "tpath 243, tarray 98 on 5.2.37 and 5.3.9 (neutral cwd), 0 [FAIL] 0 [WARN]",
+            "dependents": "tqueuestack 98 (007 sources tlist by path), tdictionary 148 (013 sources tobjectlist by path), tpipe 190 (003 sources tstringlist by path) on 5.2.37 and 5.3.9 (neutral cwd), 0 [FAIL] 0 [WARN]; no other suite / unit / tool loads a G3 unit (thttpserver, tcustomapplication: none; tdictionary/tqueuestack bench.sh source tlist by path — not suites)",
+            "kkore": "670/670 on 5.2.37 threaded",
+            "kklass": "709/709 on 5.2.37 threaded",
+            "master_sweep": "not run (reviewer); expected 8558 + 30 (kcl/tests 62 -> 92) = 8588, 30 suites"
+          },
+          "measured": {
+            "consumed_bodies": "tlist.sh has NO file-scope function that survives its load — every one is a Pascal method body (TList.Create ... BatchDelete) consumed by `build TList`; G1/G2 always had a surviving helper. The once sentinel then takes the first function's NAME (a re-run defines the body again and the build or the same-site sink consumes it: M6 shows 'rerun:TList.Create')",
+            "silent_rerun": "with kk.unit never skipping (M6) the re-run of tlist/tobjectlist printed nothing on stderr (the same-site U20 path) — the sentinel is the only witness",
+            "startup_vs_head": "5.2.37 fresh bash, interleaved 3 rounds against a HEAD copy of kbool.sh/kkore/kklass + the HEAD tlist/tarray/tpath/tfile in the scratchpad: tlist HEAD 3590/3585/3605 vs NEW 3400/3278/3720 ms; tfile HEAD 6529/6289/6337 vs NEW 6365/6392/6556 ms — within noise (class builds dominate)",
+            "suite_times": "threaded wall 5.2.37 / 5.3.9: tfile 207-289 / 173-220 s, tdirectory 158-202 / 189-251 s, tstringlist 116-157 / 80-135 s, tlist 57-73 / 48-56 s, tobjectlist 55 / 34-49 s; kcl/tests threaded 53-56 s (G2) -> 116-124 s (5 more unit loads + 5 mixed loads of 4-8 s)"
+          },
+          "deviations": [
+            "NEW runtime check `mixed` (assignment: 'the units must load ... when the dependency was loaded first by an OLD-style path — once each'): one more full load per row whose kk.uses lines name another unit of the table (all 5 G3 rows); the dependencies are plain-sourced first by the path the old unit formed (kcl/D/../E/N.sh), each gets a sentinel, then the unit is sourced bare under set -eu: unit registered + complete, each dependency registered to its file, not re-run, `kk.uses N` a no-op. This replaces amendment j's 'ONE load per unit' for such rows (2 loads); the rows are derived from the file (no new row field)",
+            "once sentinel fallback for a unit whose file-scope functions are all consumed Pascal bodies (tlist): the first function's NAME carries the sentinel; KC_restore unsets it (no original). The G1/G2 rows are unaffected (they keep a surviving function)",
+            "the unit note (4 lines) precedes `kk.uses kklass_pascal`; the kcl dependency line keeps its OWN old comment block above it (tfile/tdirectory tpath block, tlist tarray block); tstringlist's two lines are adjacent as before; tobjectlist's note sits above its original 'Parent class' comment + `kk.uses tlist`",
+            "kkore and kklass were run on 5.2.37 only (as assigned); kcl/tests --mode single on 5.2.37 split in two calls (-n 1-299 / 301-305) to stay under the tool limit"
+          ],
+          "found_in_U4": [
+            "environment: the 5.2.37 own-folder tobjectlist run reported 1810 s wall (52/52 green) — the session/machine stalled while the tool call was cut by ECONNRESET; neutral-cwd runs of the same suite took 34-55 s",
+            "kklass/tests/.ckk (gitignored, pre-existing since 2026-10-09) is refreshed by every kklass suite run (test_027) — not new, not removed"
+          ],
+          "progress": [
+            "2026-10-13 started (worker): brief, plan §7.4/U40/U42/U43/C19/§8 + G1/G2 DONE lines, pattern rules 1-10 + amendments a-l, G1/G2 entries read. Census (static, file-scope X.name()): tfile -> tfile (class tfile), tdirectory -> tdirectory (class tdirectory), tlist -> TList, tobjectlist -> TObjectList, tstringlist -> TStringList (classes) — no foreign prefix, no kk.namespace (confirms the critic). Readonly: tfile TFILE_USE_CP only (rule 10); the others assign no readonly. Old dirs are used only by the source lines (no rundir). Old deps: tfile/tdirectory kklass_pascal + tpath, tlist kklass_pascal + tarray, tobjectlist tlist only (amendment i), tstringlist kklass_pascal + tlist. Dependents (grep of source paths / kk.uses): tdictionary 013 (tobjectlist), tpipe 003 (tstringlist), tqueuestack 007 (tlist); bench.sh files of tdictionary/tqueuestack (tlist, not suites); no thttpserver/tcustomapplication use. Unit tests that name TFILE_DIR/TDIRECTORY_DIR/TSTRINGLIST_DIR set their own (rule 7c, no change); tfile 038 and tdirectory 036 re-source checks hold with the header. Fresh load at HEAD (5.2.37): tfile 6.6 s, tdirectory 6.0 s, tlist 4.4 s, tobjectlist 7.7 s, tstringlist 7.0 s",
+            "2026-10-13 tests first: kcl/tests rows tfile (readonly), tdirectory, tlist, tobjectlist, tstringlist + stubs 301-305 (byte copies of 101); kcl_units.sh: the static read factored into kclt_scan, NEW check 'mixed' in kclt_unit_tests for rows whose kk.uses lines name another unit of the table (deps plain-sourced FIRST by the old-style path kcl/D/../E/N.sh with a sentinel over each dep's first surviving function, then a bare set -eu source of the unit: registers + complete, deps registered to their file and not re-run, kk.uses dep a no-op). RED vs the unmigrated units (-n 1,301-305), 5.2.37 and 5.3.9 identical: 20/50 FAIL — 001 5/35 (the 5 G3 headers/guards/dirs/forks/paths/sources; the G3 namespace censuses green), 301-305 3/3 each (kk.uses NAME: not found — no header); mixed appears only once the kk.uses lines exist (its sensitivity is shown by mutation after the migration)",
+            "2026-10-13 G3 units migrated (tlist first, then tobjectlist, tstringlist, tdirectory, tfile): header lines 2-3, guard blocks deleted, X_DIR + fork + kklass/kcl paths -> the 4-line note + 'kk.uses kklass_pascal || return' and 'kk.uses tpath|tarray|tlist || return' in place (tobjectlist: 'kk.uses tlist || return' only, amendment i; its comment 'transitively: kklass front-end, klib/kerr, tarray' -> 'the kklass front-end, tarray'); tlist's 'Re-source-guarded + fork-free' (of tarray) -> 'A unit (loaded once) + fork-free'; tfile rule 10: the TFILE_USE_CP block guarded on TFILE_USE_CP (re-indented, comment). First green run 5.2.37 -n 1,301-305: 6 FAIL — (1) tlist once n=nosentinel: EVERY file-scope function of tlist.sh is a Pascal method body consumed by build (none survives the load, new vs G1/G2); (2) mixed rerun:* was a test bug (pattern looked for 'sentinel;' but declare -f prints no ';'). Fixes in kcl_units.sh: no surviving function -> the sentinel is defined under the FIRST file-scope function's NAME (a re-run defines the body again and the build / same-site sink consumes it), restored by unset -f; mixed compares the full declare -f text and uses the same fallback (tlist as a dep). Now 55/55 on 5.2.37. Mutations: M9 (tfile 'kk.unit --forget tpath || :' before 'kk.uses tpath') -> 301 mixed 'tpath=reg,rerun:tpath._ret' (once/name/taken green: only mixed sees it); M6 (kuse.sh kk.unit never skips) -> 303 once 'n=rerun:TList.Create' (the consumed-name sentinel), 304 once 'n=rerun:TObjectList._free'; rule 10 red (tfile guard replaced by 'if true') -> 301 once/name/taken FAIL 'tfile.sh: line 35: TFILE_USE_CP: readonly variable' rc 1; all mutations restored (cmp / git status)",
+            "2026-10-13 kcl/tests GREEN: 5.2.37 threaded 92/92 0 [FAIL] in 124 s (kbool root); 5.3.9 threaded 92/92 0 [FAIL] in 116 s (kcl/tests); 5.2.37 --mode single 72 (-n 1-299, 171 s) + 20 (-n 301-305, 78 s) = 92, 0 [FAIL]. Totals 62 -> 92: 001 25 -> 35 (+2 per G3 row), stubs 301 tfile 4 (once/name/taken/mixed), 302 tdirectory 4, 303 tlist 4, 304 tobjectlist 4, 305 tstringlist 4",
+            "2026-10-13 gate 5.2.37, neutral cwd (scratchpad/g3/neutral), threaded: tlist 134 (73 s), tobjectlist 52 (55 s), tstringlist 192 (116 s), tfile 250 (207 s), tdirectory 320 (158 s) — 0 [FAIL] 0 [WARN], totals unchanged vs the ledger's earlier gates",
+            "2026-10-13 gate 5.2.37, own tests folders, threaded: tlist 134 (57 s), tobjectlist 52, tstringlist 192 (157 s) — 0 [FAIL] 0 [WARN] (tobjectlist's wall time 1810 s is a stall of the session/machine — the call was cut by the network; the result file is complete)",
+            "2026-10-13 gate 5.2.37, own tests folders: tfile 250 (289 s), tdirectory 320 (202 s) — 0 [FAIL] 0 [WARN]; the 5 G3 suites done on 5.2.37 from both cwds, totals unchanged",
+            "2026-10-13 gate 5.3.9, neutral cwd: tlist 134 (56 s), tobjectlist 52 (34 s), tstringlist 192 (135 s), tfile 250 (173 s), tdirectory 320 (189 s) — 0 [FAIL] 0 [WARN]",
+            "2026-10-13 gate 5.3.9, own tests folders: tlist 134, tobjectlist 52, tstringlist 192, tfile 250 (220 s), tdirectory 320 (251 s) — 0 [FAIL] 0 [WARN]; the 5 G3 suites done on both bashes from both cwds, totals unchanged (948)",
+            "2026-10-13 gate G1 deps, neutral cwd: tpath 243 + tarray 98 on 5.2.37 and 5.3.9 — 0 [FAIL] 0 [WARN], unchanged",
+            "2026-10-13 gate dependents (neutral cwd): tqueuestack 98 (007 sources tlist), tdictionary 148 (013 sources tobjectlist), tpipe 190 (003 sources tstringlist) on 5.2.37 and 5.3.9 — 0 [FAIL] 0 [WARN], unchanged; no other suite/unit/tool loads a G3 unit (kklass 128/129 mention tlist in comments only; tdictionary/tqueuestack bench.sh source tlist by path, not suites)",
+            "2026-10-13 gate 5.2.37: kkore 670/670, kklass 709/709 threaded, 0 [FAIL]; startup tlist/tfile vs a HEAD copy within noise; git status: only G3 files (kcl 6 M + 5 stubs, kklass ledger + plan); no leftover test processes; DONE"
+          ],
+          "supervisor_review": "supervisor 2026-10-13: full sweep 30 suites both bashes — 5.2 0 [FAIL]; 5.3 one FAIL in kcl/thttpserver 005_Lifecycle (l4 never listened: nc listener start timing; thttpserver does not load any G3 unit) — re-run 005 three times on 5.3: 17/17 each → timing flake, recorded; totals identical, kcl/tests 62->92, sum 8558->8588"
         },
         "G4": {
           "units": [
@@ -729,7 +786,7 @@
             "tsed",
             "tawk"
           ],
-          "status": "planned",
+          "status": "in_progress",
           "commit": ""
         },
         "G5": {
@@ -740,7 +797,10 @@
           "status": "planned",
           "commit": ""
         }
-      }
+      },
+      "flakes": [
+        "2026-10-13 G3 sweep 5.3: kcl/thttpserver 005_Lifecycle l4 never listened (nc listener start timing; 3/3 green on rerun) — same class as 006 s4 seen in P11"
+      ]
     },
     "U5": {
       "name": "docs",
