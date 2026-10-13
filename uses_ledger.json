@@ -2,8 +2,8 @@
   "schema_version": 1,
   "project": "kbool `uses` — Pascal-like unit inclusion and duplicate identifiers. Design: kklass/USES_PLAN.md (decisions U1-U37, critic §7.1-7.2, supervisor review §7.3 P1-P10, header shapes §7.4, phases §8).",
   "created": "2026-10-06",
-  "updated": "2026-10-12",
-  "status": "U4 G1 DONE+COMMITTED 2026-10-12; G2 next",
+  "updated": "2026-10-13",
+  "status": "U4 G2 DONE+COMMITTED 2026-10-13; G3 next",
   "workflow": "per phase: Opus worker implements (red-first) -> Opus critic reviews the worker's result against the plan and the live tree (no edits) -> supervisor review + remarks -> full master sweep on bash 5.2.37 and 5.3.9 -> commit; push only on the owner's word",
   "phases": {
     "U1a": {
@@ -533,6 +533,11 @@
           "g_readonly": "rule 10",
           "h_math_dir": "math keeps MATH_DIR as its runtime copy taken from KK_UNIT_DIR before its first kk.uses (it is read at run time, incl. the temp-dir fallback at math.sh:702) — rule 5, row flag rundir",
           "i_dependencies": "rule 3 replaces WHATEVER the old path sources named: tobjectlist and the wrappers name no kklass module, only kcl units (tlist, tutil) -> `kk.uses tlist || return` etc.; a kklass module only when the old line sourced one"
+        },
+        "amendments_G2": {
+          "j_one_load": "kcl/tests rule 7 as of G2: each stub loads its unit ONCE (kclt_unit_tests: once + name + taken in one real-tree process, a sentinel function proves load-once, the build registrations completeness; nsbad stays a short second process); `rule 7(b)`'s 'two full unit loads per unit' is replaced",
+          "k_stub_hooks": "a stub may set KCLT_FORGET_PRE / KCLT_FORGET_POST before kclt_unit_tests (readonly rows: shell text eval'd under set -eu before the --forget and after the reload) and add tests of its own after the call (202_math.sh)",
+          "l_mutable_state": "rule 10 extended (math): mutable process state that must survive a U24' reload (a running co-process's pid/fds) is set once per process too — `if [[ -z ${X+x} ]]; then ... fi`"
         }
       },
       "groups": {
@@ -626,8 +631,81 @@
             "tinifile",
             "tstringhelper"
           ],
-          "status": "in_progress",
-          "commit": ""
+          "status": "done",
+          "date": "2026-10-13",
+          "commit": "kcl 239448c",
+          "files": [
+            "kcl/dateutils/dateutils.sh, math/math.sh, tinifile/tinifile.sh, tstringhelper/tstringhelper.sh: §7.4 relative header on lines 2-3; the `_X_SOURCED` guard blocks deleted; `X_DIR=$(cd ...)` (tstringhelper: lowercase `tstringhelper_DIR`) + `source $X_DIR/../../kklass/kklass_pascal.sh` replaced in place by the unit note + `kk.uses kklass_pascal || return`; no kk.namespace (census: no foreign prefix — dateutils.*, math.*, TIniFile.*/TMemIniFile.*, string.* are the units' classes)",
+            "dateutils: rule 10 — the __KDT_* block guarded on __KDT_MS_PER_SECOND (re-indented); the class comment 'readonly (behind the re-source guard)' -> '(assigned once per process)'",
+            "math: rule 5 — `MATH_DIR=$KK_UNIT_DIR` before kk.uses with a C19 note (read at run time by math._fe_start's temp-file fallback), row flag rundir; rule 10 on its three readonly blocks, each guarded on its own first name (__MATH_PI, __MATH_INT64_MAX, __MATH_AWK_PROG); the comment 'constant, behind the re-source guard' -> 'constant, assigned once per process'; the MUTABLE float-engine state block (__MATH_FE_UP/IN/OUT/PID/PROGFILE/TRAPPED/TIMEOUT/STRICT) set once per process (`if [[ -z ${__MATH_FE_UP+x} ]]`) so `kk.unit --forget math` + a re-source keeps a running engine",
+            "kcl/tests/kcl_units.sh: kclt_unit_tests folded to ONE unit load per row (once + name + taken in one real-tree process; the private counting tree, transitive dep copy and T gone); hooks KCLT_FORGET_PRE / KCLT_FORGET_POST; rows dateutils (readonly), math (rundir readonly), tinifile, tstringhelper; header comments",
+            "kcl/tests/201_dateutils.sh, 203_tinifile.sh, 204_tstringhelper.sh (copies of 101), 202_math.sh (101 + the 'math engine' test through the hooks)",
+            "kklass/uses_ledger.json (this entry, phases.U4.pattern.amendments_G2), kklass/USES_PLAN.md (U4-G2 DONE line)"
+          ],
+          "red_before": {
+            "how": "kcl/tests with the G2 rows against the unmigrated units, 5.2.37 per file and 5.3.9 threaded suite, identical",
+            "001_UnitFiles": "4/25 FAIL (the 4 G2 headers + guard/dir/fork/path/source; the G2 namespace censuses green)",
+            "201_dateutils": "3/3 FAIL (kk.uses dateutils: not found — no header)",
+            "202_math": "4/4 FAIL (same; engine: kk.unit --forget of an unregistered unit, set -e exit)",
+            "203_tinifile": "3/3",
+            "204_tstringhelper": "3/3",
+            "suite": "17/62 FAIL; G1 rows green on both bashes",
+            "rule10": "dateutils migrated without the readonly guard: 201 once 'dateutils.sh: line 64: __KDT_MS_PER_SECOND: readonly variable' rc 1 -> all 3 tests of the folded process FAIL",
+            "coproc": "math migrated + rule 10, FE state NOT guarded (probe g2/eprobe.sh): after --forget + re-source __MATH_FE_UP/PID are '', the next math.sin prints 'math.sh: line 685: warning: execute_coproc: coproc [PID:MATH_FE] still exists', a second awk starts and the first stays alive after math.feStop. 202 with the fix disabled: once + name FAIL (the warning on stderr), engine 'active=false pid=new sin=same old=alive'",
+            "fold_mutations": "critic_u4g1/mut_setup.sh M1-M5 against the folded suite: 001 5 FAIL (M1-M5), 103_tarray 1 (M2), 106_thashset 3 (M1) — all caught as before; g2/mut2.sh M6 (kk.unit never skips: kuse.sh:666 `return 1` -> `:`) -> 101 once n=rerun:TStopwatch._retBool; M7 (tarray `return 0` before `build TArray`) -> 103 once no-build:TArray + name census: TArray"
+          },
+          "gate": {
+            "kcl_tests": "62/62, 0 [FAIL]: 5.2.37 threaded (kbool root) 52.7 s, 5.3.9 threaded (kcl/tests) 55.6 s, 5.2.37 --mode single 139 s; 41 -> 62 (001 17 -> 25, 201 3, 202 4, 203 3, 204 3)",
+            "G2_suites_5.2.37": "dateutils 444 (neutral 445 s; own folder 98 + 346 split), math 177 (own 360 s; neutral 65 + 112), tinifile 191 (both), tstringhelper 922 (both) — 0 [FAIL] 0 [WARN], totals unchanged",
+            "G2_suites_5.3.9": "the same totals from both cwds (dateutils/math split with -n to stay under the tool limit), 0 [FAIL] 0 [WARN]",
+            "G1_suites_5.2.37": "neutral cwd: tstopwatch 61, tarray 98, tqueuestack 98, tregex 246, thashset 149, tpath 243, tdictionary 148 = 1043, 0 [FAIL] 0 [WARN] — unchanged",
+            "kkore": "670/670 on 5.2.37 and 5.3.9 threaded",
+            "kklass": "709/709 on 5.2.37 and 5.3.9 threaded",
+            "dependents": "none: no kcl/kklass/kkore unit, suite or tool sources or kk.uses dateutils/math/tinifile/tstringhelper (grep of source paths, kk.uses names and API calls; tcustomapplication uses none of them)",
+            "master_sweep": "not run (reviewer); expected 8537 + 21 (kcl/tests 41 -> 62) = 8558, 30 suites"
+          },
+          "measured": {
+            "fold_cost": "kcl/tests with the 7 G1 rows, 5.2.37, two runs each: sequential sum 38.5 / 44.8 s -> 26.7 s (stubs 35.7 / 41.5 -> 23.7 s; tpath keeps 2 loads for its readonly reload); threaded 22.5 / 27.5 s -> 13.9 / 12.4 s",
+            "g2_cost": "fresh loads (5.2.37, same at HEAD in a scratch copy): math 11.9 s, dateutils 17.4-17.6 s, tinifile ~5.9 s, tstringhelper 12-15 s (noisy machine). Stubs: 201 35 s (2 loads, readonly), 202 27 s (2 loads; the engine check as its own process made it 4 loads = 45 s, hence the hooks), 203 3.4 s, 204 5.9 s; the threaded suite is bounded by 201",
+            "startup_vs_head": "5.2.37, fresh bash: math 11.95 / 12.03 -> 11.97 / 11.91 s; dateutils 17.39 -> 17.58 s; tinifile 6.16 / 5.81 -> 5.86 / 5.85 s; tstringhelper 12.0 / 15.5 -> 14.0 / 14.4 s — within noise (class builds dominate, found_in_U2a)",
+            "pascal_bodies": "a Pascal instance-method body (X.m() at file scope) is consumed by `build` (absent after the load: TDictionary.Create, TStopwatch.GetIsHighResolution, TObjectStack.Pop), helpers and static methods stay (tpath._ret, TQueueStack._init) — the once sentinel is the first file-scope function that survives the load, completeness is the build registrations",
+            "base_namespaces": "`source kbool.sh; kk.uses kklass_pascal`: every function prefix (kc ke kk kl kv) has an owner in __KK_NAMESPACES — the census needs no pre-snapshot",
+            "g2_suite_times": "threaded wall, 5.2.37: dateutils 445 s, math 360 s, tstringhelper 199-218 s, tinifile 39-44 s; 5.3.9 similar (math neutral 58 + 305 s)"
+          },
+          "deviations": [
+            "FOLD (supervisor decision): once + name + taken run in ONE process of the REAL tree. Load-once proof = a sentinel body put over the first file-scope function that survives the first load (re-sources must leave it; a readonly row's --forget reload must restore the original) + completeness = every file-scope `build X` class filed under the unit in __KK_UNIT_CLASSES and the last file-scope function after the last build (if any) defined. The old private tree counted complete body runs by an appended line; the sentinel catches a re-run (M6), the registrations an early return (M7)",
+            "census without a pre-snapshot (the unit bootstraps kbool itself now): every function prefix in the shell must be a class some unit registered or a declared namespace. Same strength for the unit's own prefixes (a dep's prefix was in the old pre-set; it is owned/registered now); stricter in one way: an undeclared prefix of a DEP fails the dependent's row too",
+            "`kk.uses U` by name now runs on the loaded unit (it resolves the name and compares the file, U1a R3: another file is rc 2) instead of being the first load; a first load by name is still covered by 001's U43 decoy row (tstopwatch) and kkore's loader tests",
+            "a failing once step (set -e exit) now also fails name and taken of that row — one process. Reported per test with the same stderr",
+            "kclt_unit_tests hooks KCLT_FORGET_PRE / KCLT_FORGET_POST (eval'd under set -eu around the --forget of readonly rows, passed through kclt_run): 202_math.sh is not a byte copy of 101 — it sets the hooks and adds the 'math engine' test (stub count per row unchanged; 001 checks only rows <-> stubs)",
+            "math: the mutable float-engine state is guarded too (`if [[ -z ${__MATH_FE_UP+x} ]]`) — outside rule 6's 'no other change', as the assignment asked ('fix if broken'): without it the U24' reload orphaned the running awk",
+            "math: rule 10 says 're-indented'; __MATH_AWK_PROG's single-quoted program text is NOT re-indented (that would change the program); only its assignment and readonly lines are",
+            "kcl/tests on 5.3.9 run from kcl/tests (as in G1), on 5.2.37 from the kbool root"
+          ],
+          "found_in_U4": [
+            "math (pre-existing, code unchanged): `math.feStop` (math._fe_drop) under `set -e` EXITS the caller with rc 143 — `wait $__MATH_FE_PID` of the awk it just killed returns 143. Repro: bash -c 'set -e; source kcl/math/math.sh; math.feStart; math.feStop; echo survived' -> no output, rc 143. The 202 engine check calls `math.feStop || true`",
+            "for U5 docs: kcl/math/PLAN.md:121 and math_ledger.json:43 still describe 'behind a _MATH_SOURCED re-source guard'",
+            "pre-existing (found_in_U2a): math (~12 s) and dateutils (~17.5 s) fresh loads are class builds; their suites take 6-7.5 min threaded each — the dateutils/math suites had to be split with -n to stay under the 10-min tool call"
+          ],
+          "progress": [
+            "2026-10-13 started (worker): brief + plan §7.4/U40/U42/U43/C19/§8 + pattern rules 1-10 + amendments a-i read; census of G2 (static, file-scope X.name()): dateutils -> dateutils only (class dateutils), math -> math (class math), tinifile -> TIniFile/TMemIniFile (classes), tstringhelper -> string (class string) — no foreign prefix, no kk.namespace needed (confirms the critic); no kcl/kklass/kkore unit or suite sources or kk.uses a G2 unit (grep), so no dependent suite exists; baseline kcl/tests (G1, before the fold) 5.2.37: threaded 41/41 in 22.5 s, sequential per file 001 2.7 + 4.0 + 9.1 + 3.2 + 2.5 + 6.1 + 4.7 + 6.1 = 38.5 s",
+            "2026-10-13 FOLD (supervisor decision, before the G2 rows): kclt_unit_tests = ONE real-tree process per unit for once+name+taken (nsbad stays a short second process). once: set -eu; bare absolute source bootstraps kbool + registers; completeness = every file-scope 'build X' class filed under the unit (__KK_UNIT_CLASSES) + the last file-scope function defined AFTER the last build (none in G1/G2); a SENTINEL body replaces the first file-scope function that survives the load (Pascal method bodies are consumed by build — measured: TDictionary.Create, TStopwatch.GetIsHighResolution absent after load); ./U.sh, ../kcl/D/U.sh, kk.uses U by name from a neutral cwd (resolves + compares, U1a R3) and the source again must leave the sentinel; readonly rows: --forget + re-source restores the original body (n=2). name: census without a pre-snapshot — every function prefix in the shell is a class some unit registered or a declared namespace (base kbool+kklass_pascal: kc ke kk kl kv all owned, measured) — same strength as the old pre/post diff (a prefix of a dep was in 'pre' before and is owned/registered now); owners/old vars unchanged. The private counting tree, the transitive dep copy and T are gone. Tests per row unchanged (41 total).",
+            "2026-10-13 fold red/green: critic mut_setup.sh M1-M5 against the folded suite: 001 5 FAIL (M3 line3, M2 guard@4/5, M1 TSet undeclared, M5 ns-form+position, M4 decoy), 103_tarray 1 (M2 old:_TARRAY_SOURCED), 106_thashset 3 (M1 census/owners, taken, nsbad) — all 5 caught as before; fold-specific mutations (scratchpad g2/mut2.sh): M6 kk.unit never skips (kuse.sh:666 return 1 -> :) -> 101 once 'n=rerun:TStopwatch._retBool'; M7 tarray 'return 0' before 'build TArray' -> 103 once 'no-build:TArray n=rerun' + name 'census: TArray'. First draft took the last file-scope function when no build ends the file: M5 (kk.namespace appended at the end) then flagged a consumed Pascal body — fixed: the last function AFTER the last build",
+            "2026-10-13 fold cost, 5.2.37, kcl/tests (G1, 41 tests), two runs each: sequential per file sum 38.5 / 44.8 s -> 26.7 s (stubs 35.7 / 41.5 -> 23.7 s; tpath 9.1/10.7 -> 6.9 s keeps its readonly reload); threaded 22.5 / 27.5 s -> 13.9 / 12.4 s",
+            "2026-10-13 G2 rows + stubs added (dateutils readonly, math rundir readonly, tinifile, tstringhelper; 201-204; 202_math.sh adds 'math engine': --forget + re-source with the awk co-process running keeps the same engine, no second coproc, no awk left after feStop). RED vs the unmigrated units, 5.2.37 (files) and 5.3.9 (threaded suite) identical: 001 4/25 (the 4 G2 headers/guards/dirs/forks/paths/sources; the G2 namespace censuses green), 201_dateutils 3/3, 202_math 4/4, 203_tinifile 3/3, 204_tstringhelper 3/3 (kk.uses NAME: not found — no header) = 17/62 FAIL; the G1 rows green on 5.3.9 too (fold)",
+            "2026-10-13 G2 units migrated: tstringhelper, tinifile (header lines 2-3, guard deleted, X_DIR + fork + kklass path -> note + kk.uses kklass_pascal || return; tstringhelper's lowercase tstringhelper_DIR gone); dateutils (same + rule 10: the __KDT_* block guarded on __KDT_MS_PER_SECOND, re-indented; comment 'behind the re-source guard' -> 'assigned once per process'); math (same + MATH_DIR=$KK_UNIT_DIR before kk.uses with a C19 note, row rundir; rule 10 on its three readonly blocks, each on its own first name: __MATH_PI, __MATH_INT64_MAX, __MATH_AWK_PROG — the awk program's quoted text is NOT re-indented, only its assignment and readonly lines; comment updated). Red for rule 10 (dateutils migrated without the guard): 201 once 'line 64: __KDT_MS_PER_SECOND: readonly variable' rc 1 -> all 3 tests of the folded process FAIL",
+            "2026-10-13 math coproc probe (migrated, before the fix; g2/eprobe.sh): math.feStart; math.sin 1; kk.unit --forget math; source math.sh -> __MATH_FE_UP/PID reset to '', the next math.sin prints 'math.sh: line 685: warning: execute_coproc: coproc [PID:MATH_FE] still exists', starts a SECOND awk, and the first awk stays alive after math.feStop (orphan until the shell exits). FIX: the mutable float-engine state block is set once per process (if [[ -z ${__MATH_FE_UP+x} ]]), so a reload keeps the running engine (same pid, active, same answers). Pinned: 202_math.sh 'math engine' through new kclt_unit_tests hooks KCLT_FORGET_PRE/POST (eval'd in the once process around the --forget, no extra load: the first version as a separate process made the stub 4 math loads = 45 s, now 2 loads = 27 s). Red with the fix disabled: once + name FAIL (the coproc warning on stderr) and engine 'active=false pid=new sin=same old=alive'; green with it. Side finding: math.feStop under set -e exits the caller with rc 143 (found_in_U4)",
+            "2026-10-13 kcl/tests GREEN: 5.2.37 threaded 62/62 0 [FAIL] in 52.7 s (from the kbool root); 5.3.9 threaded 62/62 0 [FAIL] in 55.6 s (from kcl/tests); 5.2.37 --mode single 62/62 in 139 s. Totals 41 -> 62: 001 17 -> 25 (+8: 2 per G2 row), stubs 201 3, 202 4 (once/name/taken + math engine), 203 3, 204 3. Fresh-load times (best of 2, 5.2.37, identical at HEAD in a scratch copy): math 11.9 s, dateutils 17.4-17.6 s — class builds (found_in_U2a); dateutils' stub (2 loads, readonly) is the threaded suite's critical path",
+            "2026-10-13 gate 5.2.37: dateutils 444/444 from a neutral cwd (445 s threaded), math 177/177 from kcl/math/tests (360 s), 0 [FAIL] 0 [WARN]",
+            "2026-10-13 gate 5.2.37: tinifile 191/191 from kcl/tinifile/tests and from a neutral cwd; tstringhelper 922/922 from kcl/tstringhelper/tests (218 s); 0 [FAIL] 0 [WARN]",
+            "2026-10-13 gate 5.2.37: tstringhelper 922/922 from a neutral cwd; math 65 + 112 = 177 from a neutral cwd (split -n 1-9 / 10-99); 0 [FAIL] 0 [WARN]",
+            "2026-10-13 gate 5.2.37: dateutils 98 + 346 = 444 from kcl/dateutils/tests (split -n 1-12 / 13-99); 0 [FAIL] 0 [WARN] — the 4 G2 suites on 5.2.37 done from both cwds, totals unchanged",
+            "2026-10-13 gate 5.3.9: tinifile 191/191 (own folder + neutral), tstringhelper 922/922 (own folder 153 s + neutral 174 s); 0 [FAIL] 0 [WARN]",
+            "2026-10-13 gate 5.3.9: math 65 + 112 = 177 from kcl/math/tests and from a neutral cwd; 0 [FAIL] 0 [WARN]",
+            "2026-10-13 gate 5.3.9: dateutils 98 + 346 = 444 from kcl/dateutils/tests and 98 + 88 + 258 = 444 from a neutral cwd; 0 [FAIL] 0 [WARN] — the 4 G2 suites done on both bashes from both cwds, totals unchanged (dateutils 444, math 177, tinifile 191, tstringhelper 922)",
+            "2026-10-13 gate 5.2.37: the 7 G1 suites from a neutral cwd unchanged — tstopwatch 61, tarray 98, tqueuestack 98, tregex 246, thashset 149, tpath 243, tdictionary 148 = 1043, 0 [FAIL] 0 [WARN]"
+          ],
+          "supervisor_review": "supervisor 2026-10-13: own probe scratchpad/r5/v_g2.sh both bashes — math kk.unit --forget + re-source with a live awk engine keeps one engine (same pid, same sin result), no awk left after feStop; full sweep 30 suites 0 [FAIL] 0 [WARN] both bashes, kcl/tests 41->62, everything else unchanged, sum 8537->8558"
         },
         "G3": {
           "units": [
@@ -637,7 +715,7 @@
             "tobjectlist",
             "tstringlist"
           ],
-          "status": "planned",
+          "status": "in_progress",
           "commit": ""
         },
         "G4": {
