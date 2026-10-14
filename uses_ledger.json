@@ -3,7 +3,7 @@
   "project": "kbool `uses` — Pascal-like unit inclusion and duplicate identifiers. Design: kklass/USES_PLAN.md (decisions U1-U37, critic §7.1-7.2, supervisor review §7.3 P1-P10, header shapes §7.4, phases §8).",
   "created": "2026-10-06",
   "updated": "2026-10-14",
-  "status": "U4 G1-G5 DONE+COMMITTED 2026-10-14; U4-wide critic next",
+  "status": "U4 G1-G5 committed; U4 final review round (critic_u4 C1-C7, owner U44) in progress",
   "workflow": "per phase: Opus worker implements (red-first) -> Opus critic reviews the worker's result against the plan and the live tree (no edits) -> supervisor review + remarks -> full master sweep on bash 5.2.37 and 5.3.9 -> commit; push only on the owner's word",
   "phases": {
     "U1a": {
@@ -915,7 +915,14 @@
         "2026-10-13 G3 sweep 5.3: kcl/thttpserver 005_Lifecycle l4 never listened (nc listener start timing; 3/3 green on rerun) — same class as 006 s4 seen in P11",
         "2026-10-14 G4 sweep 5.3: kcl/tutil 003_Contract cygheap child_copy fork failure (commit charge 95%) — not matched by KT_ENV_FORK_FAILURE_RE because the test captured stderr and asserted it empty; re-run green",
         "2026-10-14 G5 sweep 5.2: kcl/thttpserver 005_Lifecycle shutdown time over threshold (1.86 s); 3/3 green on rerun"
-      ]
+      ],
+      "review_round_final": {
+        "date": "2026-10-14",
+        "critic": "scratchpad/critic_u4/ (C1-C7)",
+        "status": "in_progress",
+        "commit": "",
+        "supervisor_verified": "C1 reproduced on the committed tree: env __MATH_FE_UP + __MATH_FE_IN with a shell payload → PWN created via eval; env __MATH_FE_PROGFILE → math.feStop deleted the named file"
+      }
     },
     "U5": {
       "name": "docs",
