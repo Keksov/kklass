@@ -2,8 +2,8 @@
   "schema_version": 1,
   "project": "kbool `uses` — Pascal-like unit inclusion and duplicate identifiers. Design: kklass/USES_PLAN.md (decisions U1-U37, critic §7.1-7.2, supervisor review §7.3 P1-P10, header shapes §7.4, phases §8).",
   "created": "2026-10-06",
-  "updated": "2026-10-13",
-  "status": "U4 G3 DONE+COMMITTED 2026-10-13; G4 next",
+  "updated": "2026-10-14",
+  "status": "U4 G4 DONE+COMMITTED 2026-10-14; G5 next",
   "workflow": "per phase: Opus worker implements (red-first) -> Opus critic reviews the worker's result against the plan and the live tree (no edits) -> supervisor review + remarks -> full master sweep on bash 5.2.37 and 5.3.9 -> commit; push only on the owner's word",
   "phases": {
     "U1a": {
@@ -786,20 +786,75 @@
             "tsed",
             "tawk"
           ],
-          "status": "in_progress",
-          "commit": ""
+          "status": "done",
+          "commit": "kcl c35cb6d",
+          "date": "2026-10-14",
+          "files": [
+            "kcl/tpipe/tpipe.sh, tutil/tutil.sh, tgrep/tgrep.sh, thead/thead.sh, ttail/ttail.sh, tfind/tfind.sh, tsed/tsed.sh, tawk/tawk.sh: §7.4 relative header on lines 2-3; the `_X_SOURCED` guard blocks deleted with their comments; `X_DIR=$(cd ...)` + the path sources replaced in place by the unit note + `kk.uses kklass_pascal || return` (tpipe, tutil), tutil `kk.uses tpipe || return` (under its own, updated comment), the six wrappers ONLY `kk.uses tutil || return` (amendment i); no kk.namespace (rule 4: the lowercase helper prefixes tpipe/tutil/tsed/tawk are the unit names, declared by kk.unit; tgrep/thead/ttail/tfind define no lowercase helpers)",
+            "tutil: amendment l — TUTIL_OUT_PREFIXES / TUTIL_OUT_SUFFIXES declared once per process (`if [[ -z ${X+x} || ${X@a} != *a* ]]; then declare -ga ...; fi`, re-indented) with updated comments: a `kk.unit --forget tutil` + re-source no longer drops the entries the descendants appended",
+            "stale comments (amendment f): tawk/tsed/tfind 'the unit leaves exactly _X_SOURCED, X_DIR and __X_SEQ' -> 'exactly __X_SEQ'; tfind 'if the guard above were ever lifted' -> the U24' reload; the wrappers' / tutil's 'carry re-source guards', 'sources its parent by the parent's own path', 'the ONLY source line' -> units, kk.uses by name, the ONLY dependency",
+            "kcl/thead, ttail, tfind, tsed, tawk tests/006_Contract.sh: the footprint test 'the unit sources ONLY ../tutil/tutil.sh' -> 'the only dependency is kk.uses tutil || return and no source line' (rule 7c; counts unchanged)",
+            "kcl/tests/kcl_units.sh: G4 rows (tutil flag `state`, new: amendment l, same --forget + re-source check as readonly); kcl/tests/401_tpipe.sh, 403-408 (byte copies of 101), 402_tutil.sh (101 + KCLT_FORGET_PRE/POST hooks + the 'tutil registries' test)",
+            "kklass/uses_ledger.json (this entry), kklass/USES_PLAN.md (U4-G4 DONE line)"
+          ],
+          "red_before": {
+            "how": "the new tests against the unmigrated units, 5.2.37 (kcl/tests from the kbool root, 006 from a neutral cwd)",
+            "001_UnitFiles": "8/51 FAIL (the 8 G4 headers + guard/dir/fork/path/source; the 8 namespace censuses green)",
+            "401-408": "25/25 FAIL (kk.uses NAME: not found — no header; incl. 402's 'tutil registries'); `mixed` exists only once the kk.uses lines do",
+            "006_Contract": "thead 1/50, ttail 1/55, tfind 1/57, tsed 1/66, tawk 1/79 (the rewritten footprint test: 'source: source \"$X_DIR/../tutil/tutil.sh\"; kk.uses: ')",
+            "amendment_l": "tutil migrated with both registry guards replaced by `if true`: 402 'tutil registries' out='prefixes=__tu_ __tg_ __th_ __tt_ suffixes=_args _argv _paths __kclt_x=accepted' (reset by the reload; the appended prefix fillable again)",
+            "mutation_M9": "tsed with `kk.unit --forget tutil 2>/dev/null || :` before `kk.uses tutil` -> 407 mixed 'tutil=reg,rerun:tutil._badOut' (once/name/taken green); restored (cmp)"
+          },
+          "gate": {
+            "kcl_tests": "140/140, 0 [FAIL]: 5.2.37 threaded (kbool root) 205 s; 5.3.9 threaded (kcl/tests) 136/140 with 4 ENV fork failures in 201_dateutils/203_tinifile (G2 rows: 'dofork ... 0xC000012D, errno 11', outputs matched) -> re-run -n 201,203 6/6; 5.2.37 --mode single 108 (-n 1-399) + 32 (-n 401-408) = 140; 92 -> 140 (001 35 -> 51, 401 3, 402 5, 403-408 4 each)",
+            "G4_suites": "tpipe 190, tutil 209, tgrep 185, thead 182, ttail 200, tfind 226, tsed 293, tawk 592 (= 2077) on 5.2.37 and 5.3.9, each from a neutral cwd and from its tests folder, 0 [WARN], totals unchanged; one timing FAIL 5.2.37 neutral thead 007_Bench (take 292.5 ms vs ceiling 286.6 ms), re-run 9/9",
+            "tstringlist": "192 on 5.2.37 and 5.3.9 (neutral cwd), 0 [FAIL] 0 [WARN]",
+            "dependents": "none outside G4: no other kcl/kklass/kkore unit, suite, tool or .kkp loads a G4 unit (grep of paths, kk.uses names and class APIs; kkore 007 only quotes a TPipe message string)",
+            "kkore": "670/670 on 5.2.37 threaded",
+            "kklass": "709/709 on 5.2.37 threaded",
+            "master_sweep": "not run (reviewer); expected 8588 + 48 (kcl/tests 92 -> 140) = 8636, 30 suites"
+          },
+          "measured": {
+            "census": "file-scope X.name() prefixes: tpipe {TPipe, tpipe}, tutil {TUtil, tutil}, tgrep {TGrep}, thead {THead}, ttail {TTail}, tfind {TFind}, tsed {TSed, tsed}, tawk {TAwk, tawk} — every lowercase prefix is its unit's name; the runtime census (name) agrees on both bashes",
+            "c19_rundir": "no G4 unit reads its folder at run time: the external tools (grep, head, tail, find, sed, gawk) are found through PATH and no file of the unit folders is read after the load; every <U>_DIR served only the source lines -> dropped, no rundir row",
+            "startup_vs_head": "5.2.37 fresh bash, neutral cwd, `source tawk.sh; TAwk.new`, interleaved 3 rounds vs a HEAD copy (scratchpad g4/head: kbool.sh, kkore, kklass + HEAD tpipe/tutil/tawk): HEAD 5135/4916/5043 ms vs NEW 4604/4557/4598 ms (~0.45 s less: the three `$(cd ...)` forks of the chain and path sources gone)",
+            "suite_times": "threaded wall 5.2.37 / 5.3.9 (neutral): tpipe 30 / 38 s, tutil 73 / 78, tgrep 97 / 129, thead 143 / 116, ttail 118 / 116, tfind 119 / 120, tsed 131 / 125, tawk 166 / 172; kcl/tests threaded 116-124 s (G3) -> 173-205 s"
+          },
+          "deviations": [
+            "no kk.namespace line for tpipe/tutil/tsed/tawk (assignment: 'decide whether an explicit kk.namespace line is then needed/harmless'): kk.unit already declares the unit name with the unit as owner, so the line would be a redundant rc-0 repeat; rule 4 ('The unit's own name needs no line') and 001's rule (declared set == the row's NAMESPACES, the unit name never listed) stay as they are. The `taken` check covers the namespace through the unit name: `TKclZz.new tawk` and `defineClass tawk` refused, tawk._isId (the first tawk.* helper) unchanged — likewise tpipe._ret, tutil._badOut, tsed._denied",
+            "amendment l applied to tutil's out-name registries (mutable process state the descendants extend at THEIR load; the old comment relied on 'the declaration sits below the re-source guard'). Guard form `[[ -z ${X+x} || ${X@a} != *a* ]]` (rule 10's set -u-safe form, keyed on the array attribute) so a stray scalar still gets the array as before. New row flag `state` (same once-check as readonly) rather than overloading `readonly`; 402_tutil.sh pins it through the G2 hooks. tpipe's __TPIPE_STOP/RC/QUIET/INDEX/CR and the wrappers' __T*_SEQ are NOT guarded: a reload resets them to their load-time defaults, which is harmless (no live state depends on them between calls)",
+            "rule 7c: the footprint test of thead/ttail/tfind/tsed/tawk 006_Contract ('the unit sources ONLY ../tutil/tutil.sh') asserted the old dependency mechanism; rewritten to assert the unit shape (no source line; the only kk.uses line `kk.uses tutil || return`) — same test count. tgrep/tpipe/tutil have no such test. The other tests still titled 're-source guard holds' (load twice under set -eu) pass as they are and were left unchanged",
+            "the wrapper note: the 4-line unit note sits above the unit's own (rewritten) 'The base class' comment and `kk.uses tutil` (the tobjectlist form of G3)"
+          ],
+          "found_in_U4": [
+            "environment: kcl/tests on 5.3.9 hit commit-limit fork failures (dofork 0xC000012D, errno 11) in two G2 stubs once; re-run green",
+            "pre-existing timing bench: thead 007_Bench 'take' vs 'head' ceiling tripped once on 5.2.37 (292.5 vs 286.6 ms; fork latency), green on re-run"
+          ],
+          "progress": [
+            "2026-10-13 started (worker): brief, plan §7.4/U40/U42/U43/C19/§8 + G1-G3 DONE lines, pattern rules 1-10 + amendments a-l, G1-G3 entries read. Census (static, file-scope X.name() / function X.name): tpipe -> TPipe (class) + tpipe (= unit), tutil -> TUtil + tutil (= unit), tgrep -> TGrep, thead -> THead, ttail -> TTail, tfind -> TFind (classes only: no lowercase helpers of their own), tsed -> TSed + tsed (= unit), tawk -> TAwk + tawk (= unit) — every lowercase helper namespace EQUALS its unit name, so kk.unit declares it and rule 4 needs no kk.namespace line (rows' NAMESPACES empty; the taken check covers the unit name with its first helper). Readonly: none in G4 (rule 10 n/a). Mutable process state: tutil's TUTIL_OUT_PREFIXES / TUTIL_OUT_SUFFIXES registries (descendants append at THEIR load) must survive a U24' reload of tutil -> amendment l; tpipe's __TPIPE_STOP/RC/QUIET/INDEX/CR and the wrappers' __T*_SEQ reset harmlessly. Runtime dir (C19): none — every <U>_DIR serves only the source lines, no file of the unit folders is read at run time. Old deps: tpipe kklass_pascal; tutil kklass_pascal + tpipe; tgrep/thead/ttail/tfind/tsed/tawk tutil only (amendment i). Old names (_<U>_SOURCED, <U>_DIR) appear nowhere outside the 8 unit files (no footprint test). Dependents outside G4: none (grep of source paths / kk.uses); G4 suites themselves load tstringlist + thashset (tpipe 003), tstopwatch (tpipe 005, tutil 004), thashset (tutil 002/003), tdirectory's symlink_helper (tgrep 005), tfind + tsed (tutil 001)",
+            "2026-10-13 tests first: kcl/tests rows tpipe, tutil (new flag `state`: amendment l, the same --forget + re-source check as readonly), tgrep, thead, ttail, tfind, tsed, tawk; stubs 401-408 (byte copies of 101 except 402_tutil.sh: KCLT_FORGET_PRE appends __kclt_ / _kclt to the registries, POST records them + tutil._badOut __kclt_x; a 'tutil registries' test after the call); the footprint/contract test 'the unit sources ONLY ../tutil/tutil.sh' of thead/ttail/tfind/tsed/tawk 006_Contract rewritten (rule 7c): no source line, the only kk.uses line is `kk.uses tutil || return` (test counts unchanged). RED vs the unmigrated units, 5.2.37: kcl/tests 001 8/51 (the 8 G4 headers/guards/dirs/forks/paths/sources; the 8 censuses green), 401-408 25/25 (kk.uses NAME: not found — no header; mixed appears only once the kk.uses lines exist); thead/ttail/tfind/tsed/tawk 006_Contract 1/50, 1/55, 1/57, 1/66, 1/79 (the rewritten test)",
+            "2026-10-13 G4 units migrated (tpipe, tutil, then the six): header lines 2-3, guard blocks deleted, `<U>_DIR` + fork + path sources -> the 4-line note + `kk.uses kklass_pascal || return` (tpipe, tutil) and `kk.uses tpipe || return` (tutil, under its own updated comment) / `kk.uses tutil || return` (the six; amendment i: no kklass module named); no kk.namespace (rule 4: every lowercase helper prefix is the unit name). tutil amendment l: TUTIL_OUT_PREFIXES / TUTIL_OUT_SUFFIXES declared once per process (`if [[ -z ${X+x} || ${X@a} != *a* ]]`, re-indented) + comments. Stale comments (amendment f): tawk/tsed/tfind 'leaves exactly _X_SOURCED, X_DIR and __X_SEQ' -> 'exactly __X_SEQ'; tfind 'if the guard above were ever lifted' -> the U24' reload; the six wrappers' and tutil's 'carry re-source guards' / 'sources its parent by the parent's own path' / 'the ONLY source line' -> units / kk.uses by name / the ONLY dependency. kcl/tests -n 1,401-408 on 5.2.37: 83/83 (001 51, 401 3, 402 5, 403-408 4 each). Mutations: tutil registries unguarded (`if true`) -> 402 'tutil registries' FAIL (prefixes/suffixes reset, __kclt_x accepted); M9 on tsed (`kk.unit --forget tutil || :` before kk.uses tutil) -> 407 mixed 'tutil=reg,rerun:tutil._badOut' (once/name/taken green); both restored (cmp)",
+            "2026-10-13 kcl/tests full threaded: 5.2.37 (kbool root) 140/140 0 [FAIL] in 205 s; 5.3.9 (kcl/tests) 136/140 in 173 s — the 4 FAILs were 201_dateutils + 203_tinifile (G2 rows) with stderr 'dofork: child -1 ... died unexpectedly, exit code 0xC000012D, errno 11 / fork: retry: Resource temporarily unavailable' (ENV commit-limit fork failures, outputs matched); re-run -n 201,203 on 5.3.9: 6/6. Totals 92 -> 140 (001 35 -> 51, 401 3, 402 5, 403-408 4 each)",
+            "2026-10-14 gate 5.2.37, neutral cwd, threaded: tpipe 190 (30 s), tutil 209 (73 s), tgrep 185 (97 s), thead 182 (143 s), ttail 200 (118 s), tfind 226 (119 s), tsed 293 (131 s), tawk 592 (166 s) — 0 [WARN], totals unchanged; one FAIL thead 007_Bench (head=28.7 ms take=292.5 ms > ceiling 286.6 ms: a timing bench, fork latency) — re-run -n 7: 9/9",
+            "2026-10-14 gate 5.2.37, own tests folders, threaded: tpipe 190, tutil 209, tgrep 185, thead 182, ttail 200, tfind 226, tsed 293, tawk 592 — 0 [FAIL] 0 [WARN]; the 8 G4 suites done on 5.2.37 from both cwds, totals unchanged (2077)",
+            "2026-10-14 gate 5.3.9, neutral cwd, threaded: tpipe 190, tutil 209, tgrep 185, thead 182, ttail 200, tfind 226, tsed 293, tawk 592 — 0 [FAIL] 0 [WARN]",
+            "2026-10-14 gate 5.3.9, own tests folders, threaded: the same 8 totals, 0 [FAIL] 0 [WARN] — the 8 G4 suites done on both bashes from both cwds (2077 each)",
+            "2026-10-14 gate: tstringlist 192 on 5.2.37 and 5.3.9 (neutral cwd); kkore 670/670 and kklass 709/709 on 5.2.37 threaded; kcl/tests --mode single on 5.2.37 108 + 32 = 140; 0 [FAIL] 0 [WARN]; startup tawk vs a HEAD copy measured; git status: only G4 files (kcl 8 units + 5 contract tests + kcl_units.sh + 8 new stubs, kklass ledger + plan); no leftover test processes; DONE"
+          ],
+          "supervisor_review": "supervisor 2026-10-14: full sweep 30 suites both bashes — 5.2 0 [FAIL]; 5.3 one FAIL in kcl/tutil 003_Contract with rc=0 out=OK but cygwin \"child_copy: cygheap read copy failed, Win32 error 299\" on stderr = an ENV fork failure (machine commit charge 56.1/59.1 GB) — re-run 003 twice on 5.3: 51/51 each; totals identical, kcl/tests 92->140, sum 8588->8636"
         },
         "G5": {
           "units": [
             "tcustomapplication",
             "thttpserver (thttpmessage, thttprouter, thttpserver, thttpapplication)"
           ],
-          "status": "planned",
+          "status": "in_progress",
           "commit": ""
         }
       },
       "flakes": [
-        "2026-10-13 G3 sweep 5.3: kcl/thttpserver 005_Lifecycle l4 never listened (nc listener start timing; 3/3 green on rerun) — same class as 006 s4 seen in P11"
+        "2026-10-13 G3 sweep 5.3: kcl/thttpserver 005_Lifecycle l4 never listened (nc listener start timing; 3/3 green on rerun) — same class as 006 s4 seen in P11",
+        "2026-10-14 G4 sweep 5.3: kcl/tutil 003_Contract cygheap child_copy fork failure (commit charge 95%) — not matched by KT_ENV_FORK_FAILURE_RE because the test captured stderr and asserted it empty; re-run green"
       ]
     },
     "U5": {
