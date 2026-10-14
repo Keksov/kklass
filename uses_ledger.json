@@ -3,7 +3,7 @@
   "project": "kbool `uses` — Pascal-like unit inclusion and duplicate identifiers. Design: kklass/USES_PLAN.md (decisions U1-U37, critic §7.1-7.2, supervisor review §7.3 P1-P10, header shapes §7.4, phases §8).",
   "created": "2026-10-06",
   "updated": "2026-10-14",
-  "status": "U4 G1-G5 committed; U4 final review round (critic_u4 C1-C7, owner U44) in progress",
+  "status": "U4 DONE+COMMITTED 2026-10-14 (all 29 kcl units, final review round); next: owner push + U5 docs",
   "workflow": "per phase: Opus worker implements (red-first) -> Opus critic reviews the worker's result against the plan and the live tree (no edits) -> supervisor review + remarks -> full master sweep on bash 5.2.37 and 5.3.9 -> commit; push only on the owner's word",
   "phases": {
     "U1a": {
@@ -508,9 +508,9 @@
       }
     },
     "U4": {
-      "name": "29 kcl unit files (26 units) migrate to unit headers, in dependency groups; full sweep after EACH group (P10); critic on G1 (pattern) and on the whole U4 at the end",
-      "status": "in_progress",
-      "commit": "",
+      "name": "29 kcl units in 26 folders migrate to unit headers, in dependency groups; full sweep after EACH group (P10); critic on G1 (pattern) and on the whole U4 at the end",
+      "status": "done",
+      "commit": "kcl G1 dbb7538, G2 239448c, G3 8dcb308, G4 c35cb6d, G5 6ecb74e + final round (see review_round_final.commit)",
       "pattern": {
         "set_by": "G1 (2026-10-12); later groups copy it exactly",
         "1_header": "line 1 `#!/bin/bash`; lines 2-3 EXACTLY the §7.4 relative header: `[[ ${__KK_UNITS[@]@a} == A* ]] || source \"${BASH_SOURCE%U.sh}../../kbool.sh\" || return` and `kk.unit U || return $__kk_unit_rc` (U = the file stem); then the unit's own comment block, unchanged. A shebang-less file gets the shebang first (kcl/tests 001 checks line 1)",
@@ -919,9 +919,23 @@
       "review_round_final": {
         "date": "2026-10-14",
         "critic": "scratchpad/critic_u4/ (C1-C7)",
-        "status": "in_progress",
-        "commit": "",
-        "supervisor_verified": "C1 reproduced on the committed tree: env __MATH_FE_UP + __MATH_FE_IN with a shell payload → PWN created via eval; env __MATH_FE_PROGFILE → math.feStop deleted the named file"
+        "status": "done",
+        "commit": "kcl 251094a, kkore f1e72b0, ktests 90b3001",
+        "supervisor_verified": "C1 reproduced on the committed tree: env __MATH_FE_UP + __MATH_FE_IN with a shell payload → PWN created via eval; env __MATH_FE_PROGFILE → math.feStop deleted the named file",
+        "progress": {
+          "R1": "done (5.2 so far): math.sh engine state keyed on the assoc __MATH_FE_OWN (no environment can supply an array) — math._fe_own initialises at load and in every engine entry (_fe_start/_fe_drop/_fe_cleanup/feActive) when absent; OWN[pid/in/out/prog] record what this process started; drop kills only a numeric OWN[pid], closes only all-digit OWN fds; cleanup removes only OWN[prog] matching */.math_fe_$$.awk; _fe_start's up-test requires the scalars == OWN. G2 reload property kept (202 forget test). Tests 202_math: envA, envA2, envB (+ inherited-functions child). Red: 3 of 3 new FAIL (envB's inherited sub-case already passed); critic mathenv.sh A/A2/B green",
+          "R2": "done (5.2 so far): math._fe_drop's kill/wait/close carry '|| :' — feStop rc 0 under set -e (running, killed-from-outside, idle engine); 202's KCLT_FORGET_POST '|| true' and its comment dropped. Red: 202 stopE FAIL + the 4 once/name/taken/engine tests FAIL (rc 143) once '|| true' was removed",
+          "R3": "done (5.2 so far): kkore/kuse.sh kk._ns_share X FILE WHAT (ownership guard first): an already declared X is shared by the owner's own file (string or -ef) or a file whose folder -ef the owner's folder AND kk._ns_free agrees (a class declared in another file is never shared); else rc 2 'X is already the function namespace of unit U (FILE); only a file in that folder may share it (U44)'. Called by kk.namespace (taint 2) and — interpretation — by kk.unit for a unit NAMED like a declared namespace (taint 3; a foreign unit ths.sh would define ths.*). File-less callers (prompt, bash -c) cannot share another's namespace (an own repeat stays rc 0). Tests: kkore 012 +2 (red 2/2), kcl 502_thttpmessage +1 U44 (red 1/1: all five accepted with X.hijack)",
+          "R4": "done: kcl/tests 001 section 5 'dependencies' (one test): one awk over the 29 files lists (file, P) for P.name on code lines and the parent of 'class X : P'; P counts when it is another row's unit name / class / row namespace (KDEFS collected in the per-row loop); it must be defined by the unit itself or by a unit of its kk.uses closure (transitive over the table; a shared namespace through any definer). Today 19 cross-unit references, all covered. Mutations: tfile without 'kk.uses tpath', thttpserver without tstopwatch -> FAIL 'tfile:tpath(of tpath) thttpserver:TStopwatch(of tstopwatch)'; HEAD's 001 against the same mutations: green (0 of 2 caught). Files restored, cmp equal",
+          "R5": "done: 001 rejects 'kk.uses --optional ...' unless the row has the new flag 'optional' (documented in kcl_units.sh; no row has it): mutation 'kk.uses --optional tstopwatch || :' in tdirectory.sh -> FAIL optional-without-flag@17; HEAD's 001 accepted it",
+          "R7": "done: 16 kcl/*/bench.sh (dateutils math tarray tawk tdictionary tfind tgrep thashset thead tinifile tpipe tqueuestack tregex tsed ttail tutil — 16, not 15) 'source $DIR/../tstopwatch/tstopwatch.sh' -> 'kk.uses tstopwatch || exit 1' right after the unit's own path source (the bootstrap); tdictionary + tqueuestack also '../tlist/tlist.sh' -> 'kk.uses tlist || exit 1' (same pattern); smoke runs from a neutral cwd: tarray 11 s, tqueuestack 24 s, tpipe 15 s, rc 0, no error lines. thttprouter.sh / thttpserver.sh ths comments: the PACKAGE's helpers, owned by thttpmessage (U44). USES_PLAN §8 U4 row '29 units in 26 folders'; ledger U4 name likewise. kuse.sh index comment: kcl/* 79 .sh files after U4 (32 kcl/tests), 29 units in 26 folders (P5 measured at 48)",
+          "R8": "done: tpath.sh rule-10 block: case $OSTYPE in msys*|cygwin*|mingw*|win32*) (Windows values) else POSIX — no fork at load. Measured: Git-bash 5.2.37 OSTYPE=msys, msys64 5.3.9 OSTYPE=cygwin (uname -s MINGW64_NT-10.0-26200 under both PATHs used here) -> both Windows, as uname gave. Test kcl/tests 102_tpath +1: loaded with PATH='' after kbool + kklass_pascal, the constants equal the uname -s reference (red: w=0 ps=: plus 'uname: No such file or directory')",
+          "R6": "done: ktests runner (sequential + threaded) empties BASH_ENV for every test file; kclt_run env -u BASH_ENV; the 001 bash -s decoy unsets VERBOSE_KKLASS / KKLASS_CKK_DIR / BASH_ENV; ktests 040 +1"
+        },
+        "gate": {
+          "kcl_tests": "179/179 (172 + 7 new) 0 FAIL: 5.2.37 threaded 76 s, 5.3.9 threaded 74 s, 5.2.37 single 257 s"
+        },
+        "supervisor_review": "supervisor 2026-10-14: worker cut off twice by ECONNRESET at R6 — R6 verified on disk by the supervisor; own probe scratchpad/r5/v_mathenv.sh both bashes: env injection no PWN, env progfile victim kept, math.sin correct, feStop under set -e survives; full sweep 30 suites 0 [FAIL] 0 [WARN] both bashes, kcl/tests 172->179, kkore 670->672, ktests 441->442, sum 8668->8678"
       }
     },
     "U5": {
