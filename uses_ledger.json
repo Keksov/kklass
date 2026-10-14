@@ -941,7 +941,7 @@
     "U5": {
       "name": "docs",
       "status": "done",
-      "commit": "PENDING",
+      "commit": "kklass 2e12eb2, kcl 1c94f0e, kkore d3bd7cf, kbool README.md + SECURITY.md",
       "progress": [
         "2026-10-14 started (worker): brief, USES_PLAN.md in full, ledger U1a-U4 + U5 docs list read; code read: kbool.sh, kkore/kuse.sh (API + config sections), kklass.sh sites / taken names / caches, kcl units",
         "2026-10-14 doc-check test written FIRST: kkore/tests/doc_examples.sh (helper: <!-- doctest --> before a ```bash fence; `# => LINE` = the whole stdout in order, `# 2> TEXT` = stderr substrings, else stderr empty; rc 0; env -i hermetic run in an empty folder + HOME, /etc hook missing), kkore/tests/015_DocExamples.sh (2 checker self-tests + root README.md + kkore/README.md), kklass/tests/142_DocExamples.sh (kklass_book.md). RED vs the docs before U5, 5.2.37: 015 2 FAIL of 4 tests (README.md: 0 examples, want 7; kkore/README.md missing, want 5; the 2 self-tests green), 142 1 FAIL of 1 (book: 0 examples, want 10)",
