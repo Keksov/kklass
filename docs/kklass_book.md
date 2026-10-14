@@ -13,11 +13,12 @@
 6. [Advanced Features](#advanced-features)
 7. [Pascal DSL: class ... end with Real Function Bodies](#pascal-dsl-class--end-with-real-function-bodies)
 8. [Compilation and Autoloading](#compilation-and-autoloading)
-9. [Serialization](#serialization)
-10. [Design Patterns](#design-patterns)
-11. [Best Practices](#best-practices)
-12. [API Reference](#api-reference)
-13. [Troubleshooting](#troubleshooting)
+9. [Units and uses](#units-and-uses)
+10. [Serialization](#serialization)
+11. [Design Patterns](#design-patterns)
+12. [Best Practices](#best-practices)
+13. [API Reference](#api-reference)
+14. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -61,32 +62,31 @@ Kklass is a comprehensive object-oriented programming (OOP) system for Bash that
 
 ### Installation
 
-1. **Clone or download the kklass system:**
+kklass is one folder of the kbool tree (`kbool.sh`, `kkore/`, `kklass/`,
+`kcl/`, `ktests/` — see the [kbool README](../../README.md)); it is not
+installed on its own. Its modules are **units** loaded through kbool's
+`kk.uses`:
 
-```bash
-# If part of a repository
-cd your-project/lib/kklass
+| unit | what it adds |
+|---|---|
+| `kklass` | the core: `defineClass`, instances, dispatch, `defineMethod`, `kk.class` |
+| `kklass_decl` | the declarative API (`declareClass` … `endImplementation`); loaded by `kklass` itself |
+| `kklass_pascal` | the Pascal DSL (`class … end`, `build`, `uses`); loads `kklass` |
+| `kklass_serializable` | `defineSerializableClass`, `toString`/`toJSON`, `saveObjects`; loads `kklass` |
+| `kklass_autoload` | `kkload` / `autoloadClasses`: compiled caches; loads `kklass` |
 
-# Or download standalone
-wget https://example.com/kklass.tar.gz
-tar -xzf kklass.tar.gz
-```
-
-2. **Verify installation:**
-
-```bash
-# Check that files exist
-ls -la kklass.sh kklass_compiler.sh kklass_autoload.sh kklass_serializable.sh
-```
+`kklass_compiler.sh` and `kklass_kkp.sh` are tools run with `bash`, not units.
 
 ### Your First Class
 
 Create a file `hello_world.sh`:
 
+<!-- doctest -->
 ```bash
 #!/bin/bash
-# Load the kklass system
-source "path/to/kklass.sh"
+# Load kbool, then the kklass unit
+source /path/to/kbool/kbool.sh || exit
+kk.uses kklass || exit
 
 # Define a simple class
 defineClass "Greeter" "" \
@@ -98,7 +98,7 @@ Greeter.new greeter
 
 # Use the instance
 greeter.name = "World"
-greeter.greet
+greeter.greet            # => Hello, World!
 
 # Clean up
 greeter.delete
@@ -110,6 +110,12 @@ Run it:
 bash hello_world.sh
 # Output: Hello, World!
 ```
+
+`source kbool.sh` is found through `$PATH` too when the kbool folder is on it.
+Sourcing a module directly — `source path/to/kklass/kklass.sh` — still works:
+its unit header loads `kbool.sh` first. The rest of this book writes the
+canonical `source …/kbool.sh` + `kk.uses`; the chapter [Units and
+uses](#units-and-uses) covers what being a unit means for your classes.
 
 ---
 
@@ -159,7 +165,8 @@ defineClass "ClassName" "ParentClass" \
 Kklass also supports a Pascal-flavoured two-phase API where declaration and implementation are split explicitly:
 
 ```bash
-source "kklass.sh"
+source /path/to/kbool/kbool.sh
+kk.uses kklass
 
 declareClass "CounterPascal" ""
 privateSection
@@ -188,7 +195,8 @@ This API keeps the existing runtime model, but makes class structure explicit. `
 **Example:**
 
 ```bash
-source "kklass.sh"
+source /path/to/kbool/kbool.sh
+kk.uses kklass
 
 defineClass "Person" "" \
     "property" "name" \
@@ -310,7 +318,8 @@ shell's function table. After `.delete` the name is free: `obj.anything` is
 
 ```bash
 #!/bin/bash
-source "kklass.sh"
+source /path/to/kbool/kbool.sh
+kk.uses kklass
 
 # Define a Counter class
 defineClass "Counter" "" \
@@ -1036,8 +1045,10 @@ TList.new kc                     # Invalid instance name: kc (a function namespa
 **Not protected:** a plain library that has neither a unit header nor a
 `kk.namespace` line declares nothing — `source libns.sh; TB.new libns` still
 replaces its `libns.*` functions. Give such a library a header or a
-`kk.namespace libns` line. (kcl's own helper namespaces — tawk, tpipe, tsed,
-tutil, ths, tca — are declared when the kcl units get their headers, phase U4.)
+`kk.namespace libns` line. (kcl's helper namespaces are declared: `tawk`,
+`tpipe`, `tsed`, `tutil` are unit names, `ths`, `tca`, `TSet`, `TDict`,
+`TQueueStack` are `kk.namespace` lines.) The whole unit picture — sites,
+caches, forgetting — is the chapter [Units and uses](#units-and-uses).
 
 ### Silent Calls: kk.call_silent
 
@@ -1067,8 +1078,10 @@ works, but strings have three practical costs:
 You declare the class STRUCTURE first (the Pascal "interface"), then write the
 method BODIES as **real bash functions**, then `build` the class:
 
+<!-- doctest -->
 ```bash
-source "kklass/kklass_pascal.sh"      # pulls in kklass.sh itself
+source /path/to/kbool/kbool.sh || exit
+kk.uses kklass_pascal || exit         # loads the kklass core itself
 
 class TGreeter
     public
@@ -1084,8 +1097,8 @@ TGreeter.Salutation() { RESULT="Greetings from $Name"; }
 build TGreeter
 
 TGreeter.new g "Alice"
-g.Greet                       # Hello, Alice!
-echo "$(g.Salutation)"        # Greetings from Alice
+g.Greet                       # => Hello, Alice!
+echo "$(g.Salutation)"        # => Greetings from Alice
 g.delete
 ```
 
@@ -1109,6 +1122,7 @@ static <var|proc|func> X         class-level (shared) member, not per-instance
 abstract <proc|func> X           no body; class not instantiable until overridden
 override <proc|func> X           guard: build errors unless an ancestor has X
 build N                          extract bodies + finalize the class
+uses A B ...                     load units once (= kk.uses, names resolved from this file)
 ```
 
 Notes:
@@ -1127,7 +1141,12 @@ Notes:
   bash); a class WITH static vars needs stdout-capturing dispatchers so that
   `$(Class.method)` still persists mutations (funsub on bash 5.3+, a scratch
   file on 5.2). Do not declare constants as `static var` — keep them as plain
-  file-scope globals (see kcl/tpath/tpath.sh for the worked example).
+  file-scope globals (see kcl/tpath/tpath.sh for the worked example). In a
+  unit, assign `readonly` constants once per process — wrap the assignments
+  and the `readonly` statement in
+  `if [[ -z ${X+x} || ${X@a} != *r* ]]; then … fi`, keyed on one of the names
+  (kcl/README.md §1.10, rule 7) — otherwise `kk.unit --forget` + a re-source
+  prints `readonly variable` and, under `set -e`, exits the caller.
 - **`static` names**: a static member cannot be named like the class's
   constructor (`Create` unless `constructor OtherName`), nor `new`,
   `constructor`, `__decl_new_impl`, `__static_*`, `__decl_*`, `method_body_*`; a `static var`
@@ -1346,7 +1365,8 @@ Autoloading automatically compiles and caches classes:
 
 ```bash
 #!/bin/bash
-source "kklass_autoload.sh"
+source /path/to/kbool/kbool.sh
+kk.uses kklass_autoload
 
 # Automatically compiles if needed, caches result
 kkload "my_classes.kk"
@@ -1431,13 +1451,14 @@ end.
 Load it exactly like a `.kk` file:
 
 ```bash
-source "kklass_autoload.sh"
+source /path/to/kbool/kbool.sh
+kk.uses kklass_autoload
 kkload "CounterPascal.kkp"
 ```
 
 `--no-compile` works for `.kkp` as well and routes through the same translated runtime path instead of the compiled cache.
 
-**Units (`unit X;`, `uses A, B;`).** `unit X;` must be the first statement and `X` the file's stem (`unit CounterPascal;` lives in `CounterPascal.kkp`); otherwise the translation fails. It becomes the two unit header lines of a unit outside the kbool tree (`kk.unit X`, the user form of USES_PLAN.md §7.4), so the translated file is a unit: loaded once, registered with kbool, which it loads from `KBOOL_HOME` when kbool is not loaded yet (`kkload` and `kklass_compiler.sh` set `KBOOL_HOME` to their own kbool when it is unset; a translation sourced by hand needs kbool loaded or `KBOOL_HOME` set). `uses A, B;` (outside a class, may span lines) becomes `kk.uses A B`. Put comments on their own lines: text after a `unit` / `uses` statement's `;` is an error naming FILE:LINE. A translated unit only loads from a file named `X.sh`: the runtime translation is `<cache>/X.sh`. A compiled cache names such a unit by its unit name (`# Source unit: X`) and registers its classes like a build does.
+**Units (`unit X;`, `uses A, B;`).** `unit X;` must be the first statement and `X` the file's stem (`unit CounterPascal;` lives in `CounterPascal.kkp`); otherwise the translation fails. It becomes the two unit header lines of a unit outside the kbool tree (`kk.unit X`, the user form of USES_PLAN.md §7.4), so the translated file is a unit: loaded once, registered with kbool, which it loads from `KBOOL_HOME` when kbool is not loaded yet (`kkload` and `kklass_compiler.sh` set `KBOOL_HOME` to their own kbool when it is unset; a translation sourced by hand needs kbool loaded or `KBOOL_HOME` set). `uses A, B;` (outside a class, may span lines) becomes `kk.uses A B || return`. Put comments on their own lines: text after a `unit` / `uses` statement's `;` is an error naming FILE:LINE. A translated unit only loads from a file named `X.sh`: the runtime translation is `<cache>/X.sh`. A compiled cache names such a unit by its unit name (`# Source unit: X`) and registers its classes like a build does.
 
 ### Autoload Helper Functions
 
@@ -1504,7 +1525,8 @@ defineClass Employee Person \
 
 ```bash
 #!/bin/bash
-source "kklass_autoload.sh"
+source /path/to/kbool/kbool.sh
+kk.uses kklass_autoload
 
 # Auto-compiles on first run
 kkload "person.kk"
@@ -1546,6 +1568,306 @@ bash main.sh
 
 ---
 
+## Units and uses
+
+kbool has Pascal-like **units**: a file that starts with a two-line header is
+loaded once per shell, has a unique name (its file stem), and names its
+dependencies with `kk.uses`. The unit system itself — header shapes,
+`kk.uses` lookup, configuration, projects — is described in the
+[kbool README](../../README.md) and the [kkore reference](../../kkore/README.md);
+the design and its reasons in [USES_PLAN.md](../USES_PLAN.md). This chapter is
+what it means for classes: where a class is *declared*, what happens when the
+same class is declared again, which names are taken, and how compiled caches
+and `.kkp` units fit in.
+
+### kklass Is a Unit
+
+`kklass`, `kklass_decl`, `kklass_pascal`, `kklass_serializable` and
+`kklass_autoload` are units (see the table in [Installation](#installation)):
+
+```bash
+source /path/to/kbool/kbool.sh || exit
+kk.uses kklass_pascal || exit        # once per shell, however many units ask for it
+```
+
+A direct `source kklass/kklass_pascal.sh` still works — its header loads
+`kbool.sh` first — and a later `kk.uses kklass_pascal` is then a no-op.
+
+### Writing a Class Unit
+
+Give the file the header (the user form below; units inside the kbool tree use
+a relative path, see the [kbool README](../../README.md#units)), load the
+kklass module it needs, then declare classes as usual. In the Pascal DSL,
+`uses A B …` is a synonym of `kk.uses A B …` that resolves names from the
+calling file, like Pascal's `uses A, B;`.
+
+<!-- doctest -->
+```bash
+mkdir -p geo
+cat > geo/point.sh <<'EOF'
+#!/bin/bash
+[[ ${__KK_UNITS[@]@a} == A* ]] || source "${KBOOL_HOME-}/kbool.sh" || return 2
+kk.unit point || return $__kk_unit_rc
+kk.uses kklass_pascal || return
+
+class TPoint
+    public
+        var X
+        var Y
+end
+build TPoint
+EOF
+cat > geo/segment.sh <<'EOF'
+#!/bin/bash
+[[ ${__KK_UNITS[@]@a} == A* ]] || source "${KBOOL_HOME-}/kbool.sh" || return 2
+kk.unit segment || return $__kk_unit_rc
+kk.uses kklass_pascal || return
+uses point || return                 # the Pascal-DSL synonym of kk.uses
+
+class TSegment
+    public
+        var  Len
+        func Twice
+end
+TSegment.Twice() { RESULT=$(( 2 * Len )); }
+build TSegment
+EOF
+source /path/to/kbool/kbool.sh || exit
+kk.uses geo/segment.sh || exit
+TSegment.new s; s.Len = 21; s.Twice; echo "$RESULT"   # => 42
+kk.uses geo/point.sh geo/segment.sh                   # no-ops: loaded once
+kk._unit_classes segment; echo "segment: $RESULT"     # => segment: TSegment
+```
+
+A class built while a unit loads is filed under that unit, so
+`kk.unit --forget segment` drops `TSegment`'s declaration site too and the next
+load rebuilds it (live instances of the old class are yours to delete).
+
+### Declaration Sites and *Duplicate identifier*
+
+The **site** of a class declaration is where it happens: the chain of
+`FILE:LINE` call positions from the innermost one outside kklass outward, up to
+the position inside the sourced file (or the script itself). `declareClass` —
+and so every builder: the Pascal `class`, `defineClass`,
+`defineSerializableClass` — compares a new declaration of a BUILT class with
+the site it was built from:
+
+| the new declaration comes from | result |
+|---|---|
+| **another site** — another file, another line, a wrapper function called twice | `kklass: Duplicate identifier: class 'X' is already declared at SITE; refusing to redeclare it at SITE` on stderr, rc 1. The built class is kept and **poisoned** against a rebuild from that block, the rest of the block (`end`, members, `build`, `endImplementation`) is swallowed silently with rc 1, and the unit being loaded is tainted (its next load runs it again) |
+| **the same site** — a file *without* a unit header sourced again, a loop, two declarations on one line, two different `source <(…)` declaring it on the same line (both are the file `/dev/fd/63`) | one `kklass: WARNING: class 'X' declared again from the same place (SITE); ignored, the class is not rebuilt` (silenced by `VERBOSE_KKLASS=quiet`), rc 0. The class is **not rebuilt**: instances, `defineMethod` changes and static values survive; the block is swallowed, and a swallowed Pascal `build` restores the static methods the re-run redefined and drops its body functions; `defineClass` is ignored as a whole. File-scope `defineMethod` / `addSerializable` calls of such a file still run |
+| **the unit's own file run again** — after `kk.unit --forget UNIT`, or because its earlier load was tainted (U42: a failed `kk.uses`, a *Duplicate identifier*, … inside it) | **rebuilt**, no WARNING: dropping the unit's registration drops the sites of every class it declared, so the run builds them from the file as it is now (an edited property list included) |
+| an **interactive prompt** (`$-` has `i`) and no file position at all | allowed: the class is rebuilt (a file sourced at a prompt is still checked; `bash -c`, `bash -s` and a pipe are files named "(no file)", judged by line) |
+
+A file **with** a unit header is not run twice while it is registered and
+complete, so it never meets the same-site rule; when it does run again (the
+row above) its classes are rebuilt. File parts of two sites are compared with
+`[[ -ef ]]`: `C:/x`, `C:\x`, `/c/x` and a `..` spelling of one file are one site. A class is
+"declared" once it is built; a refused or still-open declaration can be
+declared again from anywhere.
+
+<!-- doctest -->
+```bash
+cat > shapes.sh <<'EOF'
+class TCircle
+    public
+        var  R
+        func Diameter
+end
+TCircle.Diameter() { RESULT=$(( 2 * R )); }
+build TCircle
+EOF
+cat > imposter.sh <<'EOF'
+class TCircle
+    public
+        var  Radius
+end
+build TCircle
+EOF
+source /path/to/kbool/kbool.sh || exit
+kk.uses kklass_pascal || exit
+source ./shapes.sh
+TCircle.new c; c.R = 3
+source ./shapes.sh; echo "the same file again: rc=$?"   # => the same file again: rc=0
+# 2> kklass: WARNING: class 'TCircle' declared again from the same place
+source ./imposter.sh; echo "another file: rc=$?"        # => another file: rc=1
+# 2> kklass: Duplicate identifier: class 'TCircle' is already declared at
+c.Diameter; echo "diameter=$RESULT"                     # => diameter=6
+```
+
+<!-- doctest -->
+```bash
+source /path/to/kbool/kbool.sh || exit
+kk.uses kklass || exit
+mk() { defineClass "$1" "" property "$2"; }      # a wrapper: its callers are the site
+mk TPair left;  echo "first: rc=$?"               # => first: rc=0
+mk TPair right; echo "second: rc=$?"              # => second: rc=1
+# 2> Duplicate identifier: class 'TPair'
+for i in 1 2; do defineClass TLoop "" property x; done; echo "loop: rc=$?"   # => loop: rc=0
+# 2> WARNING: class 'TLoop' declared again from the same place
+```
+
+A *Duplicate identifier* inside a unit's load taints the unit even when the
+unit carries on and returns 0: `kk.uses` reports it (rc 2), and the next load
+runs the unit again instead of counting it complete.
+
+<!-- doctest -->
+```bash
+cat > fake.sh <<'EOF'
+#!/bin/bash
+[[ ${__KK_UNITS[@]@a} == A* ]] || source "${KBOOL_HOME-}/kbool.sh" || return 2
+kk.unit fake || return $__kk_unit_rc
+defineClass TShape "" property area
+echo "fake: body ends"
+EOF
+source /path/to/kbool/kbool.sh || exit
+kk.uses kklass || exit
+defineClass TShape "" property name
+kk.uses fake; echo "rc=$?"     # => fake: body ends
+                               # => rc=2
+# 2> kklass: Duplicate identifier: class 'TShape'
+# 2> kbool: error: kk.uses: unit 'fake' is not completely loaded
+```
+
+### Taken Names in Units
+
+A unit's name is a declared function namespace (`kk.unit tlist` declares
+`tlist`), and so is every `kk.namespace X` — see [Taken Class and Instance
+Names](#taken-class-and-instance-names). The rule works in both directions: a
+class or an instance may not take a declared namespace, a DSL verb or a class
+name, and a unit (or `kk.namespace`) may not take the name of a built class or
+a live instance — `kk.unit` fails the load with rc 2. A unit may declare a
+class with its own name (kcl's `class dateutils` in the unit `dateutils`).
+
+<!-- doctest -->
+```bash
+cat > TBox.sh <<'EOF'
+#!/bin/bash
+[[ ${__KK_UNITS[@]@a} == A* ]] || source "${KBOOL_HOME-}/kbool.sh" || return 2
+kk.unit TBox || return $__kk_unit_rc
+TBox.helper() { :; }
+EOF
+source /path/to/kbool/kbool.sh || exit
+kk.uses kklass || exit
+defineClass TBox "" property side
+kk.uses TBox; echo "unit named like a class: rc=$?"    # => unit named like a class: rc=2
+# 2> 'TBox' is already a class declared at
+# 2> kk.uses: loading unit 'TBox' failed
+TBox.new uses; echo "instance named like a verb: rc=$?"   # => instance named like a verb: rc=1
+# 2> Invalid instance name: uses (a kklass DSL verb)
+```
+
+### Forgetting a Class or a Unit
+
+| command | effect |
+|---|---|
+| `kk.class --forget CLASS` | drops CLASS's declaration site (and closes an open swallowed block), so the next declaration from anywhere builds it again. rc 0 forgotten; 1 not a built class; 2 malformed (no or extra arguments, not an identifier; silent) |
+| `kk.unit --forget UNIT` | drops the unit's registration and the sites of every class it declared, so the next `source` / `kk.uses` loads and rebuilds them (rc 0 / 1 / 2, kkore) |
+
+Neither deletes the class functions or any instance: they are development
+hatches for a prompt, not a reload. A recompiled `.ckk` cache of a class that
+is already loaded is ignored in the same shell (the same site) — forget the
+class first.
+
+<!-- doctest -->
+```bash
+cat > box.sh <<'EOF'
+defineClass TBox2 "" property side
+EOF
+source /path/to/kbool/kbool.sh || exit
+kk.uses kklass || exit
+source ./box.sh
+echo 'defineClass TBox2 "" property side property depth' > box.sh   # edit the file
+source ./box.sh 2>/dev/null                 # the same site: ignored
+kk.class --forget TBox2; echo "rc=$?"       # => rc=0
+source ./box.sh                             # rebuilt from the edited file
+TBox2.new b; b.depth = 7; echo "depth=$(b.depth)"   # => depth=7
+kk.class --forget TBox2; kk.class --forget TBox2; echo "rc=$?"   # => rc=1
+```
+
+The REPL flow for a unit: edit it, forget it, load it again — its classes are
+rebuilt from the edited file, without a WARNING:
+
+<!-- doctest -->
+```bash
+cat > shape.sh <<'EOF2'
+#!/bin/bash
+[[ ${__KK_UNITS[@]@a} == A* ]] || source "${KBOOL_HOME-}/kbool.sh" || return 2
+kk.unit shape || return $__kk_unit_rc
+kk.uses kklass || return
+defineClass TShape "" property p
+EOF2
+source /path/to/kbool/kbool.sh || exit
+kk.uses shape || exit
+sed -i 's/property p/property q/' shape.sh      # edit the unit
+kk.uses shape                                   # still loaded: a no-op
+kk.unit --forget shape; echo "forget: rc=$?"    # => forget: rc=0
+kk.uses shape || exit                           # runs again: TShape is rebuilt
+TShape.new s; s.q = 5; echo "q=$(s.q)"          # => q=5
+```
+
+### Compiled Caches and Units
+
+A `.ckk` cache (see [Autoloading](#autoloading-with-kklass_autoloadsh)) loads
+kklass with `kk.uses kklass`, and **registers the classes** it holds like a
+build does — at the site of the source they were compiled from (its path
+relative to the cache folder, so a project moved together with its cache keeps
+working; else the source unit found by name; else the absolute path at compile
+time). So a class from a cache declared again from another file is a
+*Duplicate identifier*, and a cache whose class is already built from another
+place — or is named like a verb or a namespace — skips that class instead of
+overwriting it.
+
+A cache holds the unit's **classes only** — not its other file-scope code: its
+`kk.uses` lines, helper functions, variables. It therefore does not register
+the unit: a later `kk.uses` / `source` of the unit runs the unit body
+normally (helpers, dependencies), and its declaration of a class the cache
+already built is skipped silently once. The cache folder is `KKLASS_CKK_DIR`,
+else the configuration's `ckkdir` (`kk.config ckkdir`), else `./.ckk`.
+
+<!-- doctest -->
+```bash
+cat > shapes.sh <<'EOF'
+#!/bin/bash
+[[ ${__KK_UNITS[@]@a} == A* ]] || source "${KBOOL_HOME-}/kbool.sh" || return 2
+kk.unit shapes || return $__kk_unit_rc
+kk.uses kklass_pascal || return
+
+shapes.describe() { printf 'a %s\n' "$1"; }
+
+class TSquare
+    public
+        var  Side
+        func Area
+end
+TSquare.Area() { RESULT=$(( Side * Side )); }
+build TSquare
+EOF
+source /path/to/kbool/kbool.sh || exit
+kk.uses kklass_autoload || exit
+kkload shapes.sh >/dev/null 2>&1 || exit        # compiles .ckk/shapes.ckk.sh, loads it
+TSquare.new sq; sq.Side = 4; sq.Area; echo "area=$RESULT"   # => area=16
+declare -F shapes.describe >/dev/null || echo "the cache has no helper"   # => the cache has no helper
+kk.uses shapes || exit                          # runs the unit body; TSquare is not rebuilt
+shapes.describe square                          # => a square
+```
+
+### `.kkp` Units
+
+A `.kkp` file is a unit when it starts with `unit X;` (X = the file stem); its
+`uses A, B;` becomes `kk.uses A B || return`. The translation, its rules and
+its errors are in [Pascal-style `.kkp` Units](#pascal-style-kkp-units).
+
+### Child Shells
+
+kklass's tables are associative arrays and are never inherited by a child
+`bash`, even when its functions are (`set -a`, `KKLASS_EXPORT_FUNCTIONS=1`): a
+child starts with empty site and taken-name tables, so loading the same files
+there again is harmless — and its classes must be built there anyway. A `( … )`
+or `$( … )` subshell shares the parent's tables.
+
+---
+
 ## Serialization
 
 ### What is Serialization?
@@ -1570,8 +1892,8 @@ Regular names such as `key`, `value`, `input`, or other domain terms remain safe
 **Define a serializable class:**
 
 ```bash
-source "kklass.sh"
-source "kklass_serializable.sh"
+source /path/to/kbool/kbool.sh
+kk.uses kklass_serializable          # loads kklass too
 
 defineSerializableClass "User" "" ":" "string" \
     "property" "id" \
@@ -1662,8 +1984,8 @@ user2.delete
 Use `addSerializable` to add serialization to a class after definition:
 
 ```bash
-source "kklass.sh"
-source "kklass_serializable.sh"
+source /path/to/kbool/kbool.sh
+kk.uses kklass_serializable          # loads kklass too
 
 # Define class normally
 defineClass "Product" "" \
@@ -1691,8 +2013,8 @@ prod.delete
 ### JSON Serialization
 
 ```bash
-source "kklass.sh"
-source "kklass_serializable.sh"
+source /path/to/kbool/kbool.sh
+kk.uses kklass_serializable          # loads kklass too
 
 defineClass "Book" "" \
     "property" "isbn" \
@@ -1841,8 +2163,8 @@ item.delete
 Use utility functions to save/load multiple objects:
 
 ```bash
-source "kklass.sh"
-source "kklass_serializable.sh"
+source /path/to/kbool/kbool.sh
+kk.uses kklass_serializable          # loads kklass too
 
 defineSerializableClass "Contact" "" "|" "string" \
     "property" "name" \
@@ -1925,8 +2247,8 @@ neither gets a `Warning:` line on stderr and is skipped.
 ### Nested Object Serialization
 
 ```bash
-source "kklass.sh"
-source "kklass_serializable.sh"
+source /path/to/kbool/kbool.sh
+kk.uses kklass_serializable          # loads kklass too
 
 # Define classes
 defineClass "Address" "" \
@@ -1984,7 +2306,8 @@ addr2.delete
 Create objects through factory methods:
 
 ```bash
-source "kklass.sh"
+source /path/to/kbool/kbool.sh
+kk.uses kklass
 
 defineClass "Shape" "" \
     "property" "type" \
@@ -2019,7 +2342,8 @@ eval "$square.delete"
 Ensure only one instance exists:
 
 ```bash
-source "kklass.sh"
+source /path/to/kbool/kbool.sh
+kk.uses kklass
 
 defineClass "DatabaseConnection" "" \
     "static_property" "instance" \
@@ -2063,7 +2387,8 @@ $conn1.delete
 Event-driven programming with notifications:
 
 ```bash
-source "kklass.sh"
+source /path/to/kbool/kbool.sh
+kk.uses kklass
 
 defineClass "Observable" "" \
     "property" "observers" \
@@ -2108,7 +2433,8 @@ obs2.delete
 Swap algorithms at runtime:
 
 ```bash
-source "kklass.sh"
+source /path/to/kbool/kbool.sh
+kk.uses kklass
 
 defineClass "SortStrategy" "" \
     "property" "name" \
@@ -2153,7 +2479,8 @@ quick.delete
 Construct complex objects step by step:
 
 ```bash
-source "kklass.sh"
+source /path/to/kbool/kbool.sh
+kk.uses kklass
 
 defineClass "Pizza" "" \
     "property" "size" \
@@ -2191,7 +2518,8 @@ eval "$my_pizza.delete"
 Objects containing other objects:
 
 ```bash
-source "kklass.sh"
+source /path/to/kbool/kbool.sh
+kk.uses kklass
 
 defineClass "Engine" "" \
     "property" "type" \
@@ -2326,7 +2654,8 @@ defineClass "System" "" \
 
 ```bash
 # Development: Use runtime mode
-source "kklass.sh"
+source /path/to/kbool/kbool.sh
+kk.uses kklass
 source "my_classes_dev.sh"
 
 # Production: Use compiled classes
@@ -2334,7 +2663,7 @@ bash kklass_compiler.sh my_classes.kk my_classes.sh
 source "my_classes.sh"
 
 # Or use autoload (best of both)
-source "kklass_autoload.sh"
+kk.uses kklass_autoload
 kkload "my_classes.kk"
 ```
 
@@ -2984,7 +3313,8 @@ trap cleanup EXIT
 
 **Solution:** Test with runtime mode first:
 ```bash
-source "kklass.sh"
+source /path/to/kbool/kbool.sh
+kk.uses kklass
 source "my_classes.kk"  # Will show errors
 ```
 
@@ -3003,8 +3333,8 @@ Counter.count = "0"  # Initialize before use
 
 **Solution:**
 ```bash
-source "kklass.sh"
-source "kklass_serializable.sh"  # Required!
+source /path/to/kbool/kbool.sh
+kk.uses kklass_serializable   # Required! (it loads kklass too)
 ```
 
 ### Debugging Tips
@@ -3014,7 +3344,8 @@ source "kklass_serializable.sh"  # Required!
 ```bash
 #!/bin/bash
 set -x  # Enable debug output
-source "kklass.sh"
+source /path/to/kbool/kbool.sh
+kk.uses kklass
 # ... your code ...
 ```
 
@@ -3040,7 +3371,8 @@ declare -p MyClass_class_methods
 ```bash
 # Create minimal test case
 #!/bin/bash
-source "kklass.sh"
+source /path/to/kbool/kbool.sh
+kk.uses kklass
 
 defineClass "TestClass" "" \
     "property" "prop" \

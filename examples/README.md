@@ -154,8 +154,10 @@ done
 
 ## Prerequisites
 
-- All examples require the kklass system to be sourced
-- Some examples (22-28) require both `kklass.sh` and `kklass_autoload.sh`
+- Every example loads kklass by sourcing `../kklass.sh` directly (its unit header
+  loads `kbool.sh` first); a script of your own would write
+  `source /path/to/kbool/kbool.sh` + `kk.uses kklass` (see the book, *Units and uses*)
+- Some examples (22-28) also load `kklass_autoload.sh`
 - Examples create temporary files and clean them up automatically
 
 ## Notes

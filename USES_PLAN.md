@@ -1,6 +1,6 @@
 # `uses` — Pascal-like unit inclusion and duplicate identifiers (design)
 
-**Status: DESIGN COMPLETE — decisions §5 (U1–U17), §6 (U18–U33), critic-amended §7.1–7.2, supervisor review §7.3 (owner P1/P4/P8 2026-10-06), header shapes §7.4; phases §8; no code.**
+**Status: IMPLEMENTED (U1–U5)** — design: decisions §5 (U1–U17), §6 (U18–U33), critic-amended §7.1–7.2 (U34–U44), supervisor review §7.3 (owner P1/P4/P8 2026-10-06), header shapes §7.4; phases §8; implementation summary §9.
 Origin: round 4 (kklass/PLAN.md "Round 4", items N1 and C5 moved out). Owner, 2026-10-05:
 
 > Нужно разработать план реализации "директивы" uses, аналогично Pascal. uses должен
@@ -309,4 +309,33 @@ header lines, then the unit's comment block. A CR at a line end is ignored.
 - **U4-G4 DONE 2026-10-14 (worker; awaiting review, not committed).** tpipe, tutil, tgrep, thead, ttail, tfind, tsed, tawk: §7.4 header on lines 2-3; guards / `X_DIR` / forks / path sources gone; `kk.uses kklass_pascal || return` (tpipe, tutil), tutil `kk.uses tpipe`, the six wrappers only `kk.uses tutil` (amendment i). Census: the lowercase helper prefixes (tpipe.* tutil.* tsed.* tawk.*) are their unit names — kk.unit declares them, so no kk.namespace line (rule 4; taken covers them through the unit name: `.new tawk` / `defineClass tawk` refused, tawk._isId intact); tgrep/thead/ttail/tfind define none. No readonly (rule 10 n/a), no runtime dir (C19: tools come through PATH). Amendment l: tutil's TUTIL_OUT_PREFIXES / _SUFFIXES (the registries the descendants extend at their load) declared once per process — a `kk.unit --forget tutil` + re-source no longer drops their entries (row flag `state`, new; 402_tutil.sh pins it through the G2 hooks). Stale comments updated (amendment f: tawk/tsed/tfind "leaves exactly …", tfind "guard above", the wrappers' "re-source guards" / "ONLY source line"); the footprint test "the unit sources ONLY ../tutil/tutil.sh" of thead/ttail/tfind/tsed/tawk 006_Contract now asserts `kk.uses tutil` and no source line (rule 7c). Red: kcl/tests 33/76 (001 8/51, 401-408 25/25), the five 006 rewrites 1 each; amendment-l and M9 mutations caught. Gate: kcl/tests 92 → 140 on 5.2.37 + 5.3.9 threaded and 5.2.37 single; the 8 G4 suites 2077 unchanged on both bashes from both cwds; tstringlist 192 both bashes; kkore 670, kklass 709 on 5.2.37; no suite outside G4 loads a G4 unit. Startup `source tawk.sh` 5.0 → 4.6 s. Details: ledger `phases.U4.groups.G4`.
 - **U4-G5 DONE 2026-10-14 (worker; awaiting review, not committed).** tcustomapplication and the thttpserver package (thttpmessage, thttprouter, thttpserver, thttpapplication — 4 units, amendment b): §7.4 header on lines 2-3; guards (`_TCUSTOMAPPLICATION_SOURCED`, `_THS_<U>_SOURCED`) / `X_DIR` / forks / path sources gone; `kk.uses kklass_pascal || return`, thttprouter `kk.uses thttpmessage`, thttpserver `kk.uses thttpmessage thttprouter tstopwatch`, thttpapplication `kk.uses thttpserver tcustomapplication`; tcustomapplication's kuse.sh source deleted (amendment e); `kk.namespace tca` and `kk.namespace ths` in each of the three files that define ths.* (amendment a; thttpmessage, loaded first, owns it). No readonly, no reload-surviving state, no runtime dir (FIFOs under TMPDIR). thttpserver 008's three scope tests assert the kk.uses lines (rule 7c); demo.sh / demo_oop.sh / bench.sh keep the package entry by path and load tdictionary / tstopwatch by name. kcl/tests: G5 rows + stubs 501-505; the owners check expects a shared namespace's owner to be the first unit of the load order that declares it (kclt_owner), nsbad does not preload a dependency that declares the namespace itself. Red: kcl/tests 28/80, 008 3/107; shared-owner mutation caught. Gate: kcl/tests 140 → 172 on 5.2.37 + 5.3.9 threaded and 5.2.37 single; tcustomapplication 377 and thttpserver 497 unchanged on both bashes from both cwds (ENV fork failures re-run green); tstopwatch 61 both; kkore 670, kklass 709 on 5.2.37; demos + bench smoke, no nc left. Details: ledger `phases.U4.groups.G5`.
 
+- **U5 DONE 2026-10-14 (worker; awaiting review, not committed).** Docs: kbool `README.md` (entry document: layout, quick start, `KBOOL_HOME`, header shapes, `kk.uses` rules, namespaces + defines, the config chain and format, `kk.project`, `--forget`, messages, running the tests + U41), `kkore/README.md` (new: the loader API with rc contracts, rules, registry/ownership, config reference, security notes, limitations), kklass book chapter 9 *Units and uses* + every example on `source kbool.sh` + `kk.uses`, kcl `README.md` §1.10 (the unit rules in reader form), `kcl/tests` and *Adding a unit*; stale unit docs updated (thttpserver README, tutil README, 10 TEST_COVERAGE_NOTES, TPipe.md / TUtil.md sources, fpjson PLAN), history annotated (*superseded by uses U3/U4*: kcl PLAN / REVIEW, kklass PLAN, unit PLANs, 8 JSON ledgers). Doc-check test red-first: kkore 015 + kklass 142 run every `<!-- doctest -->` block hermetically (§9). Details: ledger `phases.U5`.
+
 Red-first ideas per phase: the critic5 report (copied into the ledger when the phases start).
+
+## 9. Implementation summary
+
+Implemented 2026-10-06 … 2026-10-14 in the phases of §8, each one worker →
+critic → supervisor review → full master sweep on bash 5.2.37 and 5.3.9 →
+commit (details, red-first counts and measurements: `uses_ledger.json`).
+
+| phase | what landed | commits |
+|---|---|---|
+| U1a | `kbool.sh`; `kkore/kuse.sh` rewritten: `kk.unit` (+ `--forget`), `kk.uses`, `kk.defined`, the lazy name index, `KBOOL_HOME`, the `__KK_LOADED` ownership marker (R14); `kk.use` / `kk.getScriptDir` removed | kkore 9d7ec9c, kbool 4a37eda |
+| U1b | the `key = value` reader, the config chain (U5/U29/U30/U38/U39), `kk.project`, `kk.config` | kkore 3a09ab5, kbool 4bf83d2 |
+| U2a | class declaration sites, *Duplicate identifier* + poison, the same-site sink + WARNING, the prompt-only allowance, unit → classes, `kk.class --forget` | kklass ba9c51d, kkore 774746b |
+| U2b | taken names: DSL verbs, classes, declared namespaces (U40, `kk.namespace`); `.ckk` registration; the Pascal `uses`; `.kkp` `unit` / `uses` | kklass 8011ca5, kkore 8c1de55, kbool 63e5990 |
+| U3 | kkore and kklass modules carry the header; `ke.setTrap`; U41 runner isolation; U42 taint + `--optional`; U43 no cwd hijack | kklass 1ba0ea5, kkore 7aea57d, ktests c9787f2, kbool 453f948 |
+| U4 | the 29 kcl units in 26 folders in five groups (G1–G5), `kcl/tests`; final round: U44 namespace sharing, math engine state from the environment refused | kcl dbb7538, 239448c, 8dcb308, c35cb6d, 6ecb74e, 251094a; kkore e26f975, f1e72b0; ktests 90b3001 |
+| U5 | documentation: kbool `README.md`, `kkore/README.md`, the kklass book chapter *Units and uses*, kcl `README.md` §1.10 + `kcl/tests` + adding a unit; stale unit docs updated, history annotated; the runnable-example checker (kkore 015, kklass 142) | (U5 commit) |
+
+Final master sweep (U4, 2026-10-14): 30 suites, 0 [FAIL] 0 [WARN] on both
+bashes, 8678 tests (kkore 672, kklass 709, ktests 442, kcl/tests 179, the 26
+kcl unit suites 6676). U5 adds kkore 015 (16 tests) and kklass 142 (10 tests).
+
+Documented limitations (kkore/README.md §6): no reload (`--forget` is a hatch;
+live instances are the user's); a plain library without a header or
+`kk.namespace` is not protected (U40 gap); a plain-sourced unit failing by its
+own `return N` counts as complete; `KK_UNIT_DIR` after a plain nested source;
+a copied in-tree unit outside its folder; `source FILE FILE` escapes the
+argument WARNING; a `.ckk` cache replays a unit's classes, not its body.

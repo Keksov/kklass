@@ -2,8 +2,8 @@
   "schema_version": 1,
   "project": "kbool `uses` — Pascal-like unit inclusion and duplicate identifiers. Design: kklass/USES_PLAN.md (decisions U1-U37, critic §7.1-7.2, supervisor review §7.3 P1-P10, header shapes §7.4, phases §8).",
   "created": "2026-10-06",
-  "updated": "2026-10-14",
-  "status": "U4 PUSHED 2026-10-14; U5 docs started (owner: Да)",
+  "updated": "2026-10-15",
+  "status": "uses IMPLEMENTED (U1-U5) 2026-10-15; U5 committed, not pushed",
   "workflow": "per phase: Opus worker implements (red-first) -> Opus critic reviews the worker's result against the plan and the live tree (no edits) -> supervisor review + remarks -> full master sweep on bash 5.2.37 and 5.3.9 -> commit; push only on the owner's word",
   "phases": {
     "U1a": {
@@ -940,8 +940,17 @@
     },
     "U5": {
       "name": "docs",
-      "status": "in_progress",
-      "commit": "",
+      "status": "done",
+      "commit": "PENDING",
+      "progress": [
+        "2026-10-14 started (worker): brief, USES_PLAN.md in full, ledger U1a-U4 + U5 docs list read; code read: kbool.sh, kkore/kuse.sh (API + config sections), kklass.sh sites / taken names / caches, kcl units",
+        "2026-10-14 doc-check test written FIRST: kkore/tests/doc_examples.sh (helper: <!-- doctest --> before a ```bash fence; `# => LINE` = the whole stdout in order, `# 2> TEXT` = stderr substrings, else stderr empty; rc 0; env -i hermetic run in an empty folder + HOME, /etc hook missing), kkore/tests/015_DocExamples.sh (2 checker self-tests + root README.md + kkore/README.md), kklass/tests/142_DocExamples.sh (kklass_book.md). RED vs the docs before U5, 5.2.37: 015 2 FAIL of 4 tests (README.md: 0 examples, want 7; kkore/README.md missing, want 5; the 2 self-tests green), 142 1 FAIL of 1 (book: 0 examples, want 10)",
+        "2026-10-14 README.md (root) and kkore/README.md written; their 7 + 5 examples green on 5.2.37 at the first run",
+        "2026-10-14 kklass_book.md: TOC + chapter 9 \"Units and uses\" (kklass is a unit, writing a class unit + the Pascal uses synonym, declaration sites / Duplicate identifier / poison / sink WARNING / interactive allowance, taint, taken names in units, kk.class/kk.unit --forget, .ckk caches register classes and replay no unit body, .kkp units, child shells); Getting Started + Installation rewritten (kbool + kk.uses, direct source still works); every source \"kklass*.sh\" example -> source kbool.sh + kk.uses; :1071 Pascal DSL example; :1130 rule-10 note; Taken names paragraph (U4 done). 142: 9 examples green on 5.2.37 (want lowered 10 -> 9: the planned count was a guess)",
+        "2026-10-14 kcl/README.md (:9 example, unit count, §1.4, new §1.10 rules 1-8, §3 isolation + kcl/tests + Adding a unit), thttpserver README, tutil README (registry once per process), 10 TEST_COVERAGE_NOTES rows, TPipe.md/TUtil.md sources, fpjson PLAN (1.4/1.10 row, bench), history annotations (kcl PLAN :38 :66 :73 :80, REVIEW :25, kklass PLAN :126, thttpserver/math/dateutils/tutil/tpipe PLANs, 8 JSON ledgers as sibling keys superseded_by_uses_U4 / array elements; tdictionary ledger CRLF kept), kklass examples/README prerequisites, kuse.sh header comment (U1-U44, kk.namespace, reference link), USES_PLAN status IMPLEMENTED + §9 + U5 DONE line",
+        "2026-10-14 mutations (scratchpad u5/mut/mut.sh, 5.2.37): 11 of 11 caught — M1 wrong # => line, M2 old kk.use, M3 an _X_SOURCED guard instead of the header, M4 a lost <!-- doctest --> marker (count 6 != 7), M5 kk.project same-file rc, M6 an unclosed block (extract rc 1), M7 a wrong # 2> text, M8 the old source path/to/kklass.sh, M9 a unit without its kk.unit line, M10 CODE drift in a copied tree (kk.unit --forget returning 1): README 1 + kkore/README 1 example fail",
+        "2026-10-15 coordinator reported an ECONNRESET; work had continued: USES_PLAN status + §9 + U5 DONE verified on disk; kcl/docs/review-2026-09-06 05:80 (kk.getScriptDir fix) and 08:12 (_TPATH_SOURCED repro) annotated as well; grep proof run; gate run"
+      ],
       "docs_list_critic_u4": [
         "kcl/README.md: :9 (unit sources kklass itself), :126 §1.4 _X_SOURCED guard rule, :249 Twenty-six units (29 units in 26 folders), no kbool.sh/kk.uses/unit-header section, §3 lacks kcl/tests",
         "thttpserver README.md:118, PLAN.md:118",
@@ -957,7 +966,76 @@
         "root README.md is one line: entry doc (kbool.sh, KBOOL_HOME, config, kk.uses, both header shapes)",
         "kkore/kuse.sh:529 comment counts (fixed in the final round?)",
         "to document: copied/symlinked in-tree unit outside its folder; KK_UNIT_DIR after a plain source; namespace sharing U44; plain third-party libraries without header/kk.namespace are unprotected (U40 gap); a cache replays classes not the unit body"
-      ]
+      ],
+      "date": "2026-10-14",
+      "files": [
+        "README.md (kbool root, rewritten: the entry document, 7 runnable examples)",
+        "kkore/README.md (new: loader API reference, rules, registry/ownership, config reference, security notes, limitations, 5 runnable examples)",
+        "kkore/kuse.sh (header comment only: U1-U44, kk.namespace, reference link)",
+        "kkore/tests/doc_examples.sh (new helper), kkore/tests/015_DocExamples.sh (new, 16 tests)",
+        "kklass/docs/kklass_book.md (TOC, Installation/Your First Class, chapter 9 Units and uses, Pascal DSL example + grammar uses line + rule-7 note, Taken names paragraph, .kkp uses translation, all source kklass*.sh examples -> kbool.sh + kk.uses; 9 runnable examples)",
+        "kklass/tests/142_DocExamples.sh (new, 10 tests)",
+        "kklass/USES_PLAN.md (status IMPLEMENTED, U5 DONE line, §9)",
+        "kklass/PLAN.md, kklass_ledger.json (history annotations)",
+        "kklass/examples/README.md (prerequisites)",
+        "kcl/README.md (:9 example, unit count, §1.4, §1.10, §2 note, §3 isolation + kcl/tests + Adding a unit)",
+        "kcl unit docs: thttpserver README, tutil README, 10 TEST_COVERAGE_NOTES, tpipe/docs/TPipe.md, tutil/docs/TUtil.md, fpjson/PLAN.md",
+        "kcl history annotations: PLAN.md, REVIEW.md, docs/review-2026-09-06/05 + 08, dateutils/math/thttpserver/tutil/tpipe PLAN.md, kcl/dateutils/math/tfind/tinifile/tregex/tdictionary ledgers"
+      ],
+      "red_before": {
+        "how": "the new doc-check tests run against the docs before U5 (5.2.37)",
+        "kkore_015": "2 FAIL of 4 (README.md 0 examples want 7; kkore/README.md missing want 5; the 2 checker self-tests green)",
+        "kklass_142": "1 FAIL of 1 (book: 0 examples)",
+        "mutations": "11/11 caught after the docs were written (scratchpad u5/mut/mut.sh): wrong # => line, old kk.use, _X_SOURCED guard for the header, lost marker (count), kk.project rc, unclosed block, wrong # 2> text, old source path/to/kklass.sh, unit without kk.unit, CODE drift in a copied tree (kk.unit --forget rc 1) -> 1 README + 1 kkore README example"
+      },
+      "gate": {
+        "kkore_015_5.2.37": "16/16 (threaded via -n 15, and --mode single)",
+        "kkore_015_5.3.9": "16/16",
+        "kklass_142_5.2.37": "10/10 (threaded and --mode single)",
+        "kklass_142_5.3.9": "10/10",
+        "kkore_5.2.37_threaded": "688/688, 0 [FAIL] (672 + 16)",
+        "kkore_5.2.37_single": "688/688, 0 [FAIL]",
+        "kklass_5.2.37_threaded": "719/719, 0 [FAIL] (709 + 10)",
+        "ktests_5.2.37_threaded": "442/442, 0 [FAIL] (unchanged)",
+        "master_sweep": "not run (reviewer)",
+        "grep_proof": "every .md hit of _SOURCED / X_DIR=$(cd / source ../../kklass / kk.use / kk.getScriptDir outside USES_PLAN.md is either annotated history (superseded by uses U1a/U3/U4) or a negative statement (kcl README :137 :274 :292, fpjson PLAN :564 no _FPJSON_SOURCED guard)"
+      },
+      "measured": {
+        "doc_check_cost": "015 ~9 s, 142 ~5 s per run on 5.2.37 (each example a fresh env -i bash; the tstringlist / kklass_pascal loads dominate)",
+        "copied_unit": "a copy of an in-tree unit (tstopwatch.sh) outside its folder: bare source rc 1 (cp/../../kbool.sh: No such file); with kbool loaded the copy registers, then kk.uses tstopwatch rc 2 (already loaded from the copy; here it resolves to the tree file) — documented in kkore/README §6"
+      },
+      "deviations": [
+        "the doc check is split by layer: kkore 015 (root README + kkore/README, the layer they describe; kkore tests already load ../kbool.sh) and kklass 142 (the book), sharing kkore/tests/doc_examples.sh (like unit_lint.sh); no kbool-level suite (it would add a 31st suite to the sweep)",
+        "kcl/README.md has no <!-- doctest --> blocks: its examples are header shapes, which kcl/tests 001 already checks byte-exactly for all 29 units; adding a kcl/tests doc file would need a 001 change (it treats every NNN_*.sh as a unit stub)",
+        "example counts pinned at what was written (README 7, kkore/README 5, book 9) — the red-first draft guessed 7/6/10",
+        "JSON ledgers are annotated with a sibling key superseded_by_uses_U4 (or an array element) next to the stale entry, formatting and CRLF preserved; the narrative entries of kcl_ledger :1077 and tinifile :278 (bench pre-sourcing anecdotes) and the U1a-U4 entries of uses_ledger itself are left as they are",
+        "TPipe.md / TUtil.md design records: their runnable scripts are rewritten to source kbool.sh + kk.uses (the recorded outputs are unchanged) instead of annotated",
+        "two frozen reviewer reports (kcl/docs/review-2026-09-06 05:80, 08:12) annotated though not in the critic list",
+        "kkore/kuse.sh touched in its header comment only"
+      ],
+      "found_in_U5": [
+        "none needing a code fix",
+        "observation: kklass_kkp.sh (a tool) keeps its own _KKLASS_KKP_SOURCED guard and ktests keeps _KTEST_*_SOURCED guards (ktests does not use kkore) — consistent with the docs, not stale",
+        "follow-up (R9, not changed by decision): the 48 kklass/examples/*.sh load kklass by `source \"$SCRIPT_DIR/../kklass.sh\"` (works; the unit header bootstraps kbool) — a later pass may switch them to source kbool.sh + kk.uses"
+      ],
+      "review_round_1": {
+        "date": "2026-10-15",
+        "remarks": "R1-R10 from the critic (scratchpad critic_u5/) and the supervisor",
+        "fixes": {
+          "R1": "kkore/README §3 Sharing + kuse.sh:454 comment: a unit NAMED like a namespace shares it from the owner's folder, is refused from another folder",
+          "R2": "book site table: new row — the unit's own file run again after kk.unit --forget or a tainted load is REBUILT without a WARNING; the never-run-twice sentence qualified",
+          "R3": "README kk.uses: a relative PATH without a calling file resolves against $PWD; a NAME is never looked up in $PWD by a non-interactive file-less caller",
+          "R4": "README Projects, kkore/README kk.project + §6: system units = only kuse klib kerr kvar kcfg; kklass, every kcl unit, a not-found NAME and an --optional one count as the first use (probe: kk.uses --optional nosuch -> kk.project rc 2; kk.uses klib -> rc 0)",
+          "R5": "README config levels: KBOOL_CONFIG set, non-empty and missing -> rc 2; empty ignored",
+          "R6": "README lookup + kkore/README §2.3 and §5: U43 protects LOADED system units only; a not-yet-loaded name is found in the caller's folder first (probe: a headered kklass.sh next to the script is loaded by kk.uses kklass)",
+          "R7": "kkore/README §2.3 example: the decoy klib.sh carries the kk.unit klib header",
+          "R8": "README: second kbool.sh copy WARNING, KK_UNIT_DIR in Units (+ kkore/README Variables: meaningless outside a load), U10 no project discovery, Install (git clone --recurse-submodules) + prerequisites, generic second-bash note instead of owner paths, -n N; book: two source <(…) same site; kcl/README: BASH_ENV in the isolation list, generic second-bash note; SECURITY.md pointer to kkore/README §5; kklass_ledger keys carrying U3 texts renamed superseded_by_uses_U3",
+          "R9": "26 kcl unit READMEs: usage lines source kcl/X/X.sh -> source /path/to/kbool/kbool.sh + kk.uses X (thashset: kk.uses thashset tarray); kcl/README:287 a short comment; TPipe.md / TUtil.md restored to their original probe scripts + one superseded-by-U4 line each",
+          "R10": "doc_examples.sh: with # 2> lines every stderr line must contain one of them (015 self-test +1 block: an undocumented line next to a documented one fails); red: 4 examples failed strictly (kkore/README 3, book 1: kk.uses 'loading unit … failed' follow-up lines) -> their # 2> lines added; new examples: README KK_UNIT_DIR data file, README U39 (empty list in KBOOL_CONFIG keeps the project's), book REPL flow (kk.unit --forget + edited unit -> rebuilt); counts README 7->9, book 9->10"
+        },
+        "status": "done"
+      },
+      "supervisor_review": "supervisor 2026-10-15: critic_u5 C1-C13 + readability gaps → remarks R1-R10 (wording fixes, system-unit definition, cwd-protection scope, KK_UNIT_DIR, install/prerequisites, 26 unit README usage lines, TPipe/TUtil restored + annotated, stricter stderr rule in the doc checker, 3 new runnable examples); doc examples README 9, kkore/README 5, book 10 green on both bashes; full sweep 30 suites 0 [FAIL] 0 [WARN] both bashes, kklass 709->720, kkore 672->690, sum 8678->8707. Note: the U5 critic wrote /c/bin/msys64/home/1/.kbool/config (debug = quiet) + 5 .bash_history lines by mistake; deletion was refused to the agent — left for the owner."
     }
   },
   "critic_design": {

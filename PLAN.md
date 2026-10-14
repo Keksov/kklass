@@ -131,6 +131,7 @@ they came from. They also touch kkore and ktests, which kklass loads.
   `${KTESTS_LIB_DIR:-}` and `${KK_OUTPUT_COUNTS:-}`). Test `tests/128_SetUContract.sh`
   (31 assertions: every entry point sourced once AND twice, the kklass→unit re-source
   shape, both class DSLs, full instance lifecycle, rc-booleans under `set -eu`).
+  *(Superseded by uses U3 (2026-10-09): the re-source guards of kklass_pascal.sh, kklass_decl.sh and the kkore units are gone — they are units with the kbool header; kklass_kkp.sh, a tool, keeps its own guard.)*
 - **Builder namespace** (G8-04): `local m p sm sp wm` in `kk._build_class_runtime`,
   `local wm` in `kk._processMethodBody`, `local m` in `_defineMethodType`. Every
   `defineClass` used to clobber the caller's one-letter variables, and kcl units define
