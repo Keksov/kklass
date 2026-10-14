@@ -3,7 +3,7 @@
   "project": "kbool `uses` — Pascal-like unit inclusion and duplicate identifiers. Design: kklass/USES_PLAN.md (decisions U1-U37, critic §7.1-7.2, supervisor review §7.3 P1-P10, header shapes §7.4, phases §8).",
   "created": "2026-10-06",
   "updated": "2026-10-14",
-  "status": "U4 DONE+COMMITTED 2026-10-14 (all 29 kcl units, final review round); next: owner push + U5 docs",
+  "status": "U4 PUSHED 2026-10-14; U5 docs started (owner: Да)",
   "workflow": "per phase: Opus worker implements (red-first) -> Opus critic reviews the worker's result against the plan and the live tree (no edits) -> supervisor review + remarks -> full master sweep on bash 5.2.37 and 5.3.9 -> commit; push only on the owner's word",
   "phases": {
     "U1a": {
@@ -940,8 +940,24 @@
     },
     "U5": {
       "name": "docs",
-      "status": "planned",
-      "commit": ""
+      "status": "in_progress",
+      "commit": "",
+      "docs_list_critic_u4": [
+        "kcl/README.md: :9 (unit sources kklass itself), :126 §1.4 _X_SOURCED guard rule, :249 Twenty-six units (29 units in 26 folders), no kbool.sh/kk.uses/unit-header section, §3 lacks kcl/tests",
+        "thttpserver README.md:118, PLAN.md:118",
+        "math PLAN.md:104,:121; TEST_COVERAGE_NOTES.md:29; math_ledger.json:43 (history)",
+        "dateutils/PLAN.md:63,:81",
+        "re-source guard wording in TEST_COVERAGE_NOTES: tawk:473 tfind:414 tgrep:351 thashset:52/88 thead:345 tpipe:271 tsed:502 ttail:369 tutil:171/261",
+        "hard-coded absolute sources: tpipe/docs/TPipe.md:51,94; tutil/docs/TUtil.md:172,234,309,369,410,466",
+        "tutil PLAN.md:30, README.md:436",
+        "tpipe/PLAN.md:431",
+        "kcl/fpjson/PLAN.md:564 (future unit must use the header)",
+        "history to ANNOTATE not rewrite: kcl/PLAN.md:38,73,80 (D7); kcl/REVIEW.md:25; kcl_ledger.json; tfind/tinifile/tregex/dateutils/tdictionary ledgers; kklass/PLAN.md:126; kklass_ledger",
+        "kklass/docs/kklass_book.md: no Units and uses chapter; :1071 source kklass_pascal pulls kklass; :1130 tpath constants without rule 10; source kklass.sh examples should show kbool.sh + kk.uses",
+        "root README.md is one line: entry doc (kbool.sh, KBOOL_HOME, config, kk.uses, both header shapes)",
+        "kkore/kuse.sh:529 comment counts (fixed in the final round?)",
+        "to document: copied/symlinked in-tree unit outside its folder; KK_UNIT_DIR after a plain source; namespace sharing U44; plain third-party libraries without header/kk.namespace are unprotected (U40 gap); a cache replays classes not the unit body"
+      ]
     }
   },
   "critic_design": {
