@@ -1020,5 +1020,51 @@
     "found_for_round5": [
       "C3 (DC3, owner 2026-10-05): dynamic scope — a static method body, or another class's method body without property y, called from an instance method, sees and WRITES the caller's property namerefs (SThin.bump 'y=fromStatic' sets i.y; B.m 'y=fromB' sets a.y; no global created). Re-verified 2026-10-05 on 5.2.37 + 5.3.9 (critic4/v1/staticleak.sh, i2i.sh). Documented as a trap in kklass_book; separate research round"
     ]
+  },
+  "round5": {
+    "status": "PLANNED (critics r5a/r5b/r5c folded 2026-10-16)",
+    "plan": "PLAN.md # Round 5",
+    "findings": {
+      "K1": "class build forks: 741/493/495 per fresh dateutils/math/thttpapplication load, ~86% of 7-10 s; all avoidable (r5a)",
+      "K2": "dynamic-scope leak, write+read, statics see caller this/state; nobody relies on it (r5b)",
+      "K3": "nocasematch folds class names/tokens; quoted rhs folds too; derivesFrom, _warn_visibility, token parsers (r5c C3/C11)",
+      "K3b": "unknown declaration tokens silently dropped (r5c C3)",
+      "K4": "class may take live instance name; _name_in_use false positive css_class (r5c C4)",
+      "K5": "KKLASS_EXPORT_FUNCTIONS half-working; tests 135 D3, 138 I5 (r5c C5)",
+      "K6": "49 examples old loading + 15 child loads; .ckk in caller cwd (r5c C10)",
+      "K7": "kk.unit skip path 60-100 us; index shifts + extdebug test (r5a C8)"
+    },
+    "decisions": {
+      "DR14": "refuse class named like live instance via tightened _class check",
+      "DR15": "remove KKLASS_EXPORT_FUNCTIONS, keep R14 guards, warn if set",
+      "DR16a": "owner 2026-10-16: K2 = A5 full isolation",
+      "DR17": "entry guard on public verbs; refuse unknown tokens",
+      "DR18": "helpers via output vars, kk._fn_text held fd/funsub, new-wrapper from template; RESULT preserved",
+      "DR19": "49 examples + child loads canonical; normalised stdout+stderr gate"
+    },
+    "phases": {
+      "P13": {
+        "name": "K3,K3b,K4,K5,K6",
+        "status": "planned"
+      },
+      "P14": {
+        "name": "K1,K7",
+        "status": "planned"
+      },
+      "R5-research": {
+        "name": "K2 research",
+        "status": "done",
+        "critic": "scratchpad/critic_r5b/REPORT.md"
+      },
+      "P15": {
+        "name": "K2 A5",
+        "status": "planned"
+      }
+    },
+    "critics": [
+      "scratchpad/critic_r5a/REPORT.md",
+      "scratchpad/critic_r5b/REPORT.md",
+      "scratchpad/critic_r5c/REPORT.md"
+    ]
   }
 }
