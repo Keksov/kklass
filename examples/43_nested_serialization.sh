@@ -185,7 +185,11 @@ echo
 echo "=== File Persistence (one file per class) ==="
 # loadObjects creates instances of ONE class, so every class gets its own
 # file. saveObjects prefers toJSON for a class that has both formats.
-temp_dir=$(mktemp -d)
+# a named temp folder, removed also on an early exit or a signal (ktests
+# round 5, DE1 / review R5)
+temp_dir=$(mktemp -d "${TMPDIR:-/tmp}/kklass_example43.XXXXXX")
+trap 'rm -rf "$temp_dir"' EXIT
+trap 'exit 143' TERM; trap 'exit 130' INT; trap 'exit 129' HUP
 echo "Saving objects to: $temp_dir"
 
 saveObjects "$temp_dir/addresses.txt" addr2

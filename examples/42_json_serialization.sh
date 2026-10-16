@@ -75,7 +75,11 @@ fi
 # Test file persistence with JSON
 echo
 echo "=== JSON File Persistence ==="
-temp_file=$(mktemp)
+# a named temp file, removed also on an early exit or a signal (ktests round 5,
+# DE1 / review R5)
+temp_file=$(mktemp "${TMPDIR:-/tmp}/kklass_example42.XXXXXX")
+trap 'rm -f "$temp_file"' EXIT
+trap 'exit 143' TERM; trap 'exit 130' INT; trap 'exit 129' HUP
 echo "Saving to: $temp_file"
 
 saveObjects "$temp_file" user1 user2

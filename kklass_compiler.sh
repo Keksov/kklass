@@ -99,6 +99,52 @@ kk.compiler._site_part() {
     REPLY=$__kk_o
 }
 
+# The .kkp translation folder of this run (ktests round 5, E1/DE1): named
+# kklass_compiler.<pid>.* (a leftover is attributable) and removed by the EXIT
+# trap set in Main — also when the sourced input `exit`s (a used unit ending
+# the process) or on TERM/INT/HUP, which exit 128+N so the EXIT trap runs
+# (bash 5.2 runs no EXIT trap on a signal by itself). Set here, never taken
+# from the environment, and only a folder of THIS pid is removed.
+__KK_COMPILER_TDIR=""
+kk.compiler._cleanup() {
+    if [[ -n $__KK_COMPILER_TDIR && ${__KK_COMPILER_TDIR##*/} == kklass_compiler."$$".* ]]; then
+        rm -rf -- "$__KK_COMPILER_TDIR"
+    fi
+    __KK_COMPILER_TDIR=""
+    return 0
+}
+
+# A translation folder whose cleanup never ran — the sourced input dropped the
+# EXIT trap and exited, or the compiler was SIGKILLed — is removed by the NEXT
+# compile (ktests round 5 review R4), the shape of ktests' kt_runner_iso_begin:
+# only ${TMPDIR:-/tmp}/kklass_compiler.<pid>.* (a folder, not a symlink) whose
+# pid is all digits, not this process and not alive — AND that is older than
+# an hour (review round 2, N5): another MSYS runtime sharing TMPDIR has pids
+# `kill -0` cannot see, and its LIVE compile's folder would go. The age is read
+# by ONE `find -mmin +60` per compile, only when a candidate exists; no other
+# fork.
+kk.compiler._sweep() {
+    local __kk_d __kk_p __kk_t="${TMPDIR:-/tmp}" __kk_aged=0
+    local -A __kk_old=()
+    for __kk_d in "$__kk_t"/kklass_compiler.*; do
+        [[ -d $__kk_d && ! -L $__kk_d ]] || continue
+        if (( ! __kk_aged )); then
+            __kk_aged=1
+            [[ $__kk_t == /* || $__kk_t == [A-Za-z]:/* || $__kk_t == [A-Za-z]:"\\"* ]] || __kk_t=./$__kk_t
+            while IFS= read -r __kk_p; do
+                __kk_old["${__kk_p##*/}"]=1
+            done < <(command find "$__kk_t/" -maxdepth 1 -type d -name 'kklass_compiler.*' -mmin +60 2>/dev/null)
+        fi
+        [[ -n "${__kk_old["${__kk_d##*/}"]+x}" ]] || continue
+        __kk_p=${__kk_d##*/kklass_compiler.}
+        __kk_p=${__kk_p%%.*}
+        [[ -n $__kk_p && $__kk_p != *[!0-9]* && $__kk_p != "$$" ]] || continue
+        kill -0 "$__kk_p" 2>/dev/null && continue
+        rm -rf -- "$__kk_d"
+    done
+    return 0
+}
+
 # Compile = DUMP. The classes are built in this process by the normal runtime
 # (source the input), then every `<Class>_*` variable and every `<Class>.*`
 # function is written out verbatim with `declare -p` / `declare -f`. There is
@@ -130,7 +176,8 @@ compile_class_file() {
     if [[ "$input_file" == *.kkp ]]; then
         # translated into a temporary <stem>.sh: a `unit X;` header (U36) loads
         # only from a file named X.sh (kk.unit checks the stem, U33)
-        translated_dir="$(mktemp -d)" || return 1
+        translated_dir="$(mktemp -d "${TMPDIR:-/tmp}/kklass_compiler.$$.XXXXXX")" || return 1
+        __KK_COMPILER_TDIR=$translated_dir
         # a `unit X;` translation bootstraps kbool from ${KBOOL_HOME-} (§7.4 user
         # form): with neither kbool nor KBOOL_HOME, this compiler's own kbool
         if [[ ${__KK_UNITS[@]@a} != A* && -z ${KBOOL_HOME-} ]]; then
@@ -307,4 +354,7 @@ USAGE
     exit 1
 fi
 
+kk.compiler._sweep
+trap 'kk.compiler._cleanup' EXIT
+trap 'exit 143' TERM; trap 'exit 130' INT; trap 'exit 129' HUP
 compile_class_file "$1" "$2"

@@ -65,7 +65,11 @@ else
 fi
 
 # Test file persistence
-temp_file=$(mktemp)
+# a named temp file, removed also on an early exit or a signal (ktests round 5,
+# DE1 / review R5)
+temp_file=$(mktemp "${TMPDIR:-/tmp}/kklass_example41.XXXXXX")
+trap 'rm -f "$temp_file"' EXIT
+trap 'exit 143' TERM; trap 'exit 130' INT; trap 'exit 129' HUP
 saveObjects "$temp_file" user1 user2
 echo "✓ Saved to $temp_file"
 
