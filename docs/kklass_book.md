@@ -1028,6 +1028,15 @@ taken (uses phase U2b, USES_PLAN.md U22 / U35 / U40):
 | a DSL verb (`class`, `end`, `var`, `build`, `uses`, `declareClass`, `defineClass`, …) | it would shadow the DSL | refused | refused |
 | a built class | `X.new`, `X.<static>` | the site rules (*Duplicate identifier* from another place) | refused |
 | a **declared namespace** | someone's functions `X.*` | refused (unless declared by its owner) | refused |
+| a **live instance** (round 5 / P13) | the instance's functions `X.*` and variables `X_*` | refused (*Duplicate identifier*: `'X' is a live instance of class C`), on every path — `defineClass`, `declareClass`, Pascal `class`, a `.ckk` cache; free again after `X.delete` | re-created (`T.new X` again) |
+
+A **live instance** is a name whose `X_class` names a registered class *and*
+whose `X_data` is an associative array — exactly what `CLASS.new X` creates
+and `X.delete` removes, of a class that is still registered (after `kk.class
+--forget C` the instances of C keep working but their names are no longer
+protected — the forget says so in a WARNING). A plain variable of yours that happens to be called
+`X_class` (`css_class=btn`) does not make `X` an instance: before round 5 it
+made `kk.unit css` / `kk.namespace css` refuse "an instance of btn".
 
 Declared namespaces are kkore's `kk kl ke kv kc`, kklass's `kkp`, the name of
 every unit (`kk.unit tlist` declares `tlist`) and every `kk.namespace X [Y …]`
@@ -1761,11 +1770,15 @@ TBox.new uses; echo "instance named like a verb: rc=$?"   # => instance named li
 
 | command | effect |
 |---|---|
-| `kk.class --forget CLASS` | drops CLASS's declaration site (and closes an open swallowed block), so the next declaration from anywhere builds it again. rc 0 forgotten; 1 not a built class; 2 malformed (no or extra arguments, not an identifier; silent) |
+| `kk.class --forget CLASS` | drops CLASS's declaration site (and closes an open swallowed block), so the next declaration from anywhere builds it again; one WARNING names CLASS's live instances (their names lose the taken-name protection). rc 0 forgotten; 1 not a built class; 2 malformed (no or extra arguments, not an identifier; silent) |
 | `kk.unit --forget UNIT` | drops the unit's registration and the sites of every class it declared, so the next `source` / `kk.uses` loads and rebuilds them (rc 0 / 1 / 2, kkore) |
 
 Neither deletes the class functions or any instance: they are development
-hatches for a prompt, not a reload. A recompiled `.ckk` cache of a class that
+hatches for a prompt, not a reload. `kk.class --forget CLASS` prints one
+WARNING naming CLASS's live instances, if it has any (round 5 review F3):
+they keep working, but once their class is forgotten their names are no
+longer protected — a class may then be declared with an instance's name
+(see *Taken Class and Instance Names*); delete them first. A recompiled `.ckk` cache of a class that
 is already loaded is ignored in the same shell (the same site) — forget the
 class first.
 
@@ -1782,7 +1795,8 @@ source ./box.sh 2>/dev/null                 # the same site: ignored
 kk.class --forget TBox2; echo "rc=$?"       # => rc=0
 source ./box.sh                             # rebuilt from the edited file
 TBox2.new b; b.depth = 7; echo "depth=$(b.depth)"   # => depth=7
-kk.class --forget TBox2; kk.class --forget TBox2; echo "rc=$?"   # => rc=1
+kk.class --forget TBox2      # 2> 1 live instance(s) of TBox2 (b) keep working
+kk.class --forget TBox2; echo "rc=$?"   # => rc=1
 ```
 
 The REPL flow for a unit: edit it, forget it, load it again — its classes are
@@ -1860,11 +1874,27 @@ its errors are in [Pascal-style `.kkp` Units](#pascal-style-kkp-units).
 
 ### Child Shells
 
-kklass's tables are associative arrays and are never inherited by a child
-`bash`, even when its functions are (`set -a`, `KKLASS_EXPORT_FUNCTIONS=1`): a
-child starts with empty site and taken-name tables, so loading the same files
-there again is harmless — and its classes must be built there anyway. A `( … )`
-or `$( … )` subshell shares the parent's tables.
+kklass exports nothing to a child `bash`. A child shell loads kbool itself,
+the way a script does — `source /path/to/kbool/kbool.sh` and `kk.uses kklass`
+(or `kklass_pascal`, `kklass_serializable`, `kklass_autoload`), or through a
+unit header — and builds its classes there:
+
+<!-- doctest -->
+```bash
+"$BASH" -c 'source /path/to/kbool/kbool.sh && kk.uses kklass_pascal || exit
+    declareClass TJob ""; property id; endClass; endImplementation TJob
+    TJob.new j; j.id = 7; echo "$(j.id)"'               # => 7
+```
+
+`KKLASS_EXPORT_FUNCTIONS=1` is gone (round 5 / P13): it exported the public
+verbs but not the internals, the class functions or the registries, so a child
+could not even `declareClass`; a shell where it is still set gets one WARNING
+when kklass loads, and nothing is exported. kklass's tables are associative
+arrays and are never inherited by a child even when you export its functions
+yourself (`set -a`, `export -f`): such a child starts with empty site and
+taken-name tables, so loading the same files there again is harmless — and its
+classes must be built there anyway. A `( … )` or `$( … )` subshell shares the
+parent's tables.
 
 ---
 
@@ -2807,7 +2837,15 @@ Static names follow *Reserved static member names*; instance names follow
 **Returns:** rc 0, silent (a `VERBOSE_KKLASS=debug` note goes to stderr). A
 refused token prints its error and returns 1: the class is not built, no class
 is left open, and a refused redefinition keeps the already-built class intact
-(see *A refused member fails its class*).
+(see *A refused member fails its class*). An **unknown token** (the keywords
+are exact: `PROPERTY` is not `property`, also under `shopt -s nocasematch`) or
+a token **missing its arguments** (`method m` without a body) returns **2**
+with `defineClass: unknown token 'T' in the declaration of class 'X' …` /
+`… token 'T' … is missing its arguments …`, and the class is not built (round
+5 / P13; before, an unknown token was dropped silently and a missing body
+looped forever). An EMPTY word between tokens is skipped, as before (an optional
+argument passed as `"$x"` while empty). The low-level `kk._build_class_runtime`
+refuses the same way, also under nocasematch.
 
 **Example:**
 ```bash
@@ -3010,6 +3048,26 @@ The reserved names (the tables in [Reserved Member Names](#reserved-member-names
 are case-sensitive, as bash names are: under `nocasematch` a property
 `result`, a method `Delete` or a static method `New` is accepted, `RESULT`,
 `delete` and `new` are still refused.
+
+**`nocasematch` and names (round 5 / P13).** Under the caller's
+`shopt -s nocasematch` every bash comparison folds case — a quoted right-hand
+side of `[[ == ]]` too, and `case` and `${x//pat/}` — so kklass used to answer
+`kk.derivesFrom Foo foo` with 0, let a class `foo` touch a private member of
+`Foo` without a warning, drop a property `A` declared next to `a`, take
+`PROPERTY` for `property` and rewrite a Pascal body's `echo Inherited;`. Every
+public verb (all three DSLs, `defineClass` / `defineMethod` / …, the
+serializable and autoload verbs, `kk.derivesFrom`, `kk.isAbstract`,
+`kk.class`, a compiled cache's class check) and the runtime check of a
+non-public access now start with an entry guard: with nocasematch on they run
+with it switched off and give the caller's setting back. Class, member and
+token names are therefore always exact. Cost: with nocasematch OFF there is
+none worth measuring — one `[[ ]]` / `case` probe per verb (≈1–2 µs on MSYS,
+inside the noise of a declaration; `kk.derivesFrom` ≈60 → ≈61 µs), and method
+and property calls carry no guard at all (they compare no names). With
+nocasematch ON, every call that touches a private or protected member re-runs
+the visibility check with nocasematch off: such calls are ≈20 % slower (bash
+5.2 ≈830 → ≈1000 µs, 5.3 ≈720 → ≈870 µs); public members and `.new` are
+unaffected. `uses` is `kk.uses`, which has its own guard.
 
 `CLASS.new` itself carries an inline copy of the rule (the hottest path: in
 round 3 the function call plus two locale switches cost ~18 µs per `.new` on

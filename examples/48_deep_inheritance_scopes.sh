@@ -8,7 +8,8 @@
 # Hierarchy:  TAnimal  ->  TMammal  ->  TDog  ->  TPuppy   (four levels)
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/../kklass_pascal.sh"
+source "$SCRIPT_DIR/../../kbool.sh" || exit 1
+kk.uses kklass_pascal || exit 1
 
 check() {
     if [[ "$2" == "$3" ]]; then

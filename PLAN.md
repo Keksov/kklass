@@ -332,7 +332,7 @@ Supervisor re-verified C3 (i.y = fromStatic), C6 (heredoc :100-104), C9 (70 → 
 
 # Round 5 — the leftovers after `uses` (2026-10-15)
 
-**Status: PLANNED, owner decisions taken (2026-10-15/16), critics r5a/r5b/r5c folded (2026-10-16); no code.**
+**Status: P13 DONE + committed 2026-10-17 (K3/K3b nocasematch guard + unknown tokens refused, K4 class named like a live instance refused, K5 KKLASS_EXPORT_FUNCTIONS removed, K6 49 examples canonical; review F1–F7); P14 (fork-free class build) and P15 (K2 = A5) PLANNED. Critics r5a/r5b/r5c folded 2026-10-16; owner decisions 2026-10-15/16.**
 Owner 2026-10-15 (after `uses` U1–U5 was implemented and pushed): "Приступай к
 оставшимся пунктам" — every still-open `found_in_*` item of `round3`, `round4` and
 `uses_ledger.json` (U1a–U5). Items already closed elsewhere are not repeated (static

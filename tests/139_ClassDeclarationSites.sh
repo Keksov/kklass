@@ -628,9 +628,9 @@ cd "$TMPD/pw6"; kk.class --forget 'a[$(touch PWN)]'; echo "hostile=$?"; [[ -e PW
 kk.class --forget; echo "none=$?"
 kk.class --bogus TKf; echo "bad-opt=$?"
 EOF
-kt_test_start "S22 R8: kk.class --forget X -> the next source of its header-less file rebuilds X (silently); rc 1 unknown class, rc 2 malformed (silent, no PWN)"
+kt_test_start "S22 R8: kk.class --forget X -> the next source of its header-less file rebuilds X (silently); rc 1 unknown class, rc 2 malformed (silent, no PWN); round 5 review F3: forgetting a class with live instances prints ONE WARNING naming them"
 case_run S22; e2="$(fl S22.err2)"
-if [[ "$OUT" == $'before=v1\nforget=0\nreload=0\nafter=v2 old=v2\nunknown=1\nhostile=2\nnone=2\nbad-opt=2' && -z "$e2" && -z "$ERR" ]]; then
+if [[ "$OUT" == $'before=v1\nforget=0\nreload=0\nafter=v2 old=v2\nunknown=1\nhostile=2\nnone=2\nbad-opt=2' && -z "$e2" && "$ERR" == "kklass: WARNING: kk.class --forget TKf: 2 live instance(s) of TKf (k1 k2) keep working, but their names are no longer protected from a class declaration until they are deleted" ]]; then
     kt_test_pass "ok"
 else
     kt_test_fail "out='${OUT//$'\n'/|}' err2='$e2' err='$ERR'"

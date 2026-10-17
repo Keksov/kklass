@@ -140,12 +140,51 @@ e.m
 e.g
 e.delete"
 
+# (round 5 / P13, K3b: this case used to pass `destructor Destroy` to
+# defineClass, which has no such token — it was dropped silently, so no
+# destructor ever ran; defineClass now refuses it. The destructor is declared
+# with the Pascal DSL, which has one.)
 expect_clean "instance lifecycle under set -u (with destructor) [G1-14]" "
-source '$KKLASS_DIR/kklass.sh'
-defineClass TSuF '' property v destructor Destroy method Destroy 'v=' \
-    constructor 'v=0'
+source '$KKLASS_DIR/kklass_pascal.sh'
+class TSuF; var v; constructor Create; destructor Destroy; end
+TSuF.Create() { v=0; }
+TSuF.Destroy() { v=; declare -g gone=1; }
+build TSuF
 TSuF.new f
-f.delete"
+f.delete
+[[ \${gone-} == 1 ]] || exit 3"
+
+# round 5 / P13 review F4: _defineMethodType read ${meth_index[$method_name]}
+# with no default — a NEW method name aborted a `set -u` shell, so defineMethod
+# / defineProcedure / defineFunction and the serializable DSL (which adds its
+# methods through them) could not be used under set -u.
+expect_clean "defineMethod / defineProcedure / defineFunction under set -u [P13 F4]" "
+source '$KKLASS_DIR/kklass.sh'
+defineClass TSuM '' property v
+defineMethod TSuM m 'v=1'
+defineProcedure TSuM p 'v=2'
+defineFunction TSuM f 'RESULT=\"f\$v\"'
+defineMethod TSuM m 'v=3'
+TSuM.new mm
+mm.m; mm.p; mm.f >/dev/null
+[[ \$RESULT == f2 ]] || exit 4
+mm.delete"
+
+expect_clean "defineSerializableClass / addSerializable / saveObjects / loadObjects under set -u [P13 F4]" "
+source '$KKLASS_DIR/kklass_serializable.sh'
+defineSerializableClass TSuS '' ':' string property a property b
+TSuS.new s1; s1.a = x; s1.b = y
+t=\$(s1.toString)
+TSuS.new s2; s2.fromString \"\$t\" >/dev/null
+[[ \$(s2.b) == y ]] || exit 4
+defineClass TSuJ '' property a
+addSerializable TSuJ '' json
+TSuJ.new j1; j1.a = 1
+f='$(kt_fixture_tmpdir)/setu.ser'
+saveObjects \"\$f\" j1 >/dev/null
+loadObjects \"\$f\" TSuJ loaded >/dev/null
+[[ \${#loaded[@]} == 1 ]] || exit 5
+s1.delete; s2.delete; j1.delete"
 
 expect_clean "computed, lazy and static members under set -u" "
 source '$KKLASS_DIR/kklass.sh'

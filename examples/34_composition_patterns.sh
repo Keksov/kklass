@@ -2,9 +2,10 @@
 # Example 34: Composition Patterns
 # Demonstrates objects containing other objects as properties (composition over inheritance)
 
-# Source the kklass system
+# Load kbool, then the kklass unit(s) it needs (the canonical way)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/../kklass.sh"
+source "$SCRIPT_DIR/../../kbool.sh" || exit 1
+kk.uses kklass || exit 1
 
 echo "=== Composition Patterns Example ==="
 echo

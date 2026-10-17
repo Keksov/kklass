@@ -1022,7 +1022,7 @@
     ]
   },
   "round5": {
-    "status": "PLANNED (critics r5a/r5b/r5c folded 2026-10-16)",
+    "status": "P13 DONE, committed 2026-10-17 (not pushed); next P14",
     "plan": "PLAN.md # Round 5",
     "findings": {
       "K1": "class build forks: 741/493/495 per fresh dateutils/math/thttpapplication load, ~86% of 7-10 s; all avoidable (r5a)",
@@ -1045,7 +1045,36 @@
     "phases": {
       "P13": {
         "name": "K3,K3b,K4,K5,K6",
-        "status": "planned"
+        "status": "done (committed 2026-10-17)",
+        "changes": {
+          "K3": "nocasematch entry guard (kk.decl._ncm_off re-run) heads every public verb: kklass.sh kk.class, kk._ckk_class, defineClass/defineMethod/defineProcedure/defineFunction; `case a in A)` probe (cheapest) on kk.isAbstract, kk.derivesFrom and kk._warn_visibility (after its public fast path); kklass_decl.sh all 23 declarative verbs (incl. one-liners classVar/field/property/constructor); kklass_pascal.sh class end public private protected static override abstract var proc func destructor build (not uses = kk.uses); kklass_serializable.sh defineSerializableClass addSerializable saveObjects loadObjects; kklass_autoload.sh autoloadClasses kkload kkrecompile",
+          "K3b": "kk._decl_token (kklass.sh, before kk._build_class_runtime): unknown token -> rc 2 'unknown token T in the declaration of class X'; token missing its arguments -> rc 2 (was an INFINITE LOOP: `method m`, `static_method s`, `constructor` at the end — shift N fails); used by defineClass (abandons the class) and kk._build_class_runtime; the `*) shift` arms are unreachable (return 2)",
+          "K4": "kk._live_instance X (kklass.sh): X_class names a registered class (_KKLASS_CLASS_SITE) AND X_data is an assoc (nameref: indirect @a is empty for a declared empty assoc); kk._taken_check refuses it (kind instance, sink mode n keeps the instance functions); kk._name_in_use uses it (css_class=btn; kk.namespace css no longer refused)",
+          "K5": "KKLASS_EXPORT_FUNCTIONS blocks removed (kklass.sh, kklass_decl.sh, kklass_pascal.sh); ALSO unconditional `export -f` blocks since the initial commit removed in kklass_serializable.sh (12 functions) and kklass_autoload.sh (5) — critic C5 missed them; one kk.warn when KKLASS_EXPORT_FUNCTIONS is still set; comments kklass.sh:73/:727",
+          "K6": "48 examples load `source $SCRIPT_DIR/../../kbool.sh || exit 1` + `kk.uses kklass|kklass kklass_serializable|kklass_autoload|kklass_pascal || exit 1`; 22-28 child shells `source kbool.sh && kk.uses kklass_autoload && ...` / `source kbool.sh && source .ckk/...`; 22-28 and 45 work in their own mktemp dir (kklass_exampleNN.XXXXXX, trap EXIT + TERM/INT/HUP, cd /); example 37 fixed (its accessor calculate_price was an unknown token dropped silently -> final_price was always empty; now get_final_price via awk); examples/README.md load + cleanup text",
+          "tests": "new 144_Round5Hygiene.sh (H1-H16); 128 G1-14 'with destructor' rewritten (it passed `destructor Destroy` to defineClass — never a token, dropped silently; now Pascal destructor, checked to run); 135 D3, 138 I5 rewritten for the child-bootstrap path",
+          "docs": "kklass_book.md: defineClass refused tokens, nocasematch paragraph (Identifier checks), taken names table (live instance), Child Shells; examples/README.md"
+        },
+        "red_first": "144 before the fix: 15/16 FAIL on 5.2.37 and 5.3.9 (H14 child-bootstrap green by design); review round: 144 5/20 FAIL both bashes (H6, H6b, H8b, H11b, H11c), 128 2/36 FAIL (F4: rc 127 unbound meth_index)",
+        "review": {
+          "critic": "scratchpad/critic_p13/REPORT.md",
+          "F1": "entry guard on kk._build_class_runtime and kk.register_static_methods; H6 now checks the guard is the FIRST statement (kk._warn_visibility: after its public fast path); H6b behaviour test",
+          "F2": "kk._live_instance returns 1 for a nameref X_class / X_data before any expansion (R14); H11b (critic PWN probe: defineClass, kk.namespace — nothing evaluated)",
+          "F3": "kk.class --forget CLASS: one WARNING naming CLASS's live instances (kk._class_instances: fork-free walk of the variable table by first letter ${!A@}..${!_@}, X_class == CLASS + assoc X_data, namerefs skipped; --forget only); book (Taken names, Compiled caches table, doctest TBox2 now expects the WARNING); H11c",
+          "F4": "pre-existing: _defineMethodType ${meth_index[$method_name]-} (set -u: defineMethod*/serializable aborted the shell); two 128 cases; grep of the other ${assoc[$k]} reads on declaration paths: all iterate their own keys or are +x-guarded; examples under bash -u show only RUNTIME body reads of unset properties (04 value, 40 builder_data via kklass.sh eval of the body) — a semantics question, not a declaration path (found_in)",
+          "F5": "examples 22-28: 22 child lines use \"$BASH\" -c; README; H15 checks it",
+          "F6": "book: nocasematch ON makes private/protected calls ~20 % slower; OFF no measurable cost",
+          "F7": "an EMPTY word between tokens is skipped (rc 0) as in HEAD, in defineClass and kk._build_class_runtime; non-empty unknown words refused; H8b; book",
+          "doc": "Child Shells snippet: \"$BASH\" -c 'source /path/to/kbool/kbool.sh …' with <!-- doctest --> (142 count 10 -> 11)",
+          "ckk": "tests 027/032/033 work in kt_fixture_tmpdir (028-031 already did); verified: a run of 027-033 writes nothing to kklass/.ckk or kklass/tests/.ckk. Leftovers NOT deleted (for the supervisor): kklass/.ckk {sample_counter.runtime.sh 2026-09-06, test_028.kk 09-05, test_029.kk 09-05, test_030.kk 09-05, test_031.kk 09-05}; kklass/tests/.ckk {test_027.kk + .ckk.sh, test_032.kk (10-09) + .ckk.sh, test_033.kk (10-09) + .ckk.sh — the .ckk.sh files rewritten by the P13 suite runs 2026-10-17}"
+        },
+        "gate": {
+          "kklass": "747/747 on 5.2.37 and 5.3.9 (threaded; after the review round: 144 has 20, 128 has 36)",
+          "kkore": "690/690 both bashes",
+          "examples": "49 examples both bashes vs HEAD after normaliser (scratchpad/w_p13/ex_norm.sh + ex_gate.sh): rc all 0; diffs only intended — 37 (bug fix: final=108.00), 45 (.ckk now in its temp dir, not the caller's cwd), demo (aggregate of 37+45); 22-28 identical after mapping their new temp dir to the old cwd; new 5.2 == new 5.3; 0 entries left in cwd/HOME/TMPDIR",
+          "hot_path": "A/B vs HEAD snapshot, 5.2: obj.m 173-177 vs 174-176 us, prop 48-51 vs 48-49, private-call within noise; kk.derivesFrom +1.4 us (59.3-61.0 -> 61.1-61.4, the case probe); 5.3: obj.m 142.7/143.1 vs 141.9/142.2, prop 43.3/43.5 vs 43.8/42.5, derivesFrom 49.7 -> 51.1-51.7; declarations (60 classes) within noise"
+        },
+        "final_gate": "master sweep 2026-10-17 (supervisor): 5.2 30/30 8803 tests rc 0; 5.3 30/30 8804 rc 0; no leftovers; strays none both runtimes; old .ckk test caches removed (kklass/.ckk, kklass/tests/.ckk)"
       },
       "P14": {
         "name": "K1,K7",

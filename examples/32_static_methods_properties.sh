@@ -2,9 +2,10 @@
 # Example 32: Static/Class Methods and Properties
 # Demonstrates class-level methods and properties that belong to the class itself
 
-# Source the kklass system
+# Load kbool, then the kklass unit(s) it needs (the canonical way)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/../kklass.sh"
+source "$SCRIPT_DIR/../../kbool.sh" || exit 1
+kk.uses kklass || exit 1
 
 echo "=== Static/Class Methods and Properties Example ==="
 echo

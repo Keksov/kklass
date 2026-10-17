@@ -2,9 +2,10 @@
 # Example 07: Parent Method Calls
 # Demonstrates how to call parent class methods from derived classes using $this.parent
 
-# Source the kklass system
+# Load kbool, then the kklass unit(s) it needs (the canonical way)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/../kklass.sh"
+source "$SCRIPT_DIR/../../kbool.sh" || exit 1
+kk.uses kklass || exit 1
 
 echo "=== Parent Method Calls Example ==="
 echo

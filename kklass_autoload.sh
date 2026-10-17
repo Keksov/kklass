@@ -33,6 +33,7 @@ autoloadClasses_runtime_source() {
 # Auto-load classes with transparent compilation
 # Usage: autoloadClasses <source.kk|source.kkp> [--force-compile] [--no-compile]
 autoloadClasses() {
+    [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off autoloadClasses "$@"; return; }   # exact names (K3)
     local source_file="$1"
     local force_compile=false
     local no_compile=false
@@ -190,12 +191,14 @@ autoloadClasses() {
 # Quick wrapper for common use case
 # Usage: kkload <file.kk>
 kkload() {
+    [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off kkload "$@"; return; }   # exact names (K3)
     autoloadClasses "$@"
 }
 
 # Force recompilation
 # Usage: kkrecompile <file.kk>
 kkrecompile() {
+    [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off kkrecompile "$@"; return; }   # exact names (K3)
     autoloadClasses "$1" --force-compile
 }
 
@@ -213,9 +216,6 @@ kkinfo() {
     fi
 }
 
-# Export functions
-export -f autoloadClasses
-export -f autoloadClasses_runtime_source
-export -f kkload
-export -f kkrecompile
-export -f kkinfo
+# Nothing is exported (round 5 / P13, DR15 — these five functions were exported
+# unconditionally since the first commit, without the kklass they call): a
+# child shell loads kbool itself (`source kbool.sh; kk.uses kklass_autoload`).

@@ -2,9 +2,10 @@
 # Example 13: Multiple Instances of Same Class
 # Demonstrates creating and using multiple instances of the same class
 
-# Source the kklass system
+# Load kbool, then the kklass unit(s) it needs (the canonical way)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/../kklass.sh"
+source "$SCRIPT_DIR/../../kbool.sh" || exit 1
+kk.uses kklass || exit 1
 
 echo "=== Multiple Instances Example ==="
 echo

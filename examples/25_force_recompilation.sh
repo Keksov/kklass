@@ -2,16 +2,25 @@
 # Example 25: Force Recompilation
 # Demonstrates forcing recompilation of source files
 
-# Source the kklass system
+# Load kbool, then the kklass unit(s) it needs (the canonical way)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/../kklass_autoload.sh"
+source "$SCRIPT_DIR/../../kbool.sh" || exit 1
+kk.uses kklass_autoload || exit 1
+
+# Work in a temp dir of our own: the example creates and deletes .ckk and its
+# test files there, never in the caller's cwd; removed on exit, also on
+# TERM / INT / HUP
+workdir="$(mktemp -d "${TMPDIR:-/tmp}/kklass_example25.XXXXXX")" || exit 1
+trap 'cd / && rm -rf "$workdir"' EXIT
+trap 'exit 143' TERM; trap 'exit 130' INT; trap 'exit 129' HUP
+cd "$workdir" || exit 1
 
 echo "=== Force Recompilation Example ==="
 echo
 
 # Clean up any previous test files
 rm -f test_system.kk .ckk/test_system.ckk.sh 2>/dev/null || true
-rm -rf .ckk 2>/dev/null || true
+rm -rf "$workdir/.ckk" 2>/dev/null || true
 
 # Create a test class file
 cat > test_system.kk << 'EOF'
@@ -24,12 +33,12 @@ echo "✓ Created test_system.kk"
 
 # Initial compilation
 echo "Initial compilation:"
-output1=$(bash -c "source '$SCRIPT_DIR/../kklass_autoload.sh' && kkload test_system.kk" 2>&1)
+output1=$("$BASH" -c "source '$SCRIPT_DIR/../../kbool.sh' && kk.uses kklass_autoload && kkload test_system.kk" 2>&1)
 echo "Output: $output1"
 
 # Force recompilation
 echo "Force recompilation:"
-output2=$(bash -c "source '$SCRIPT_DIR/../kklass_autoload.sh' && kkrecompile test_system.kk" 2>&1)
+output2=$("$BASH" -c "source '$SCRIPT_DIR/../../kbool.sh' && kk.uses kklass_autoload && kkrecompile test_system.kk" 2>&1)
 echo "Output: $output2"
 
 # Check if force recompilation was successful
@@ -42,11 +51,11 @@ fi
 
 # Verify the recompiled version works
 echo "Testing recompiled class:"
-bash -c "source .ckk/test_system.ckk.sh && Test.new t && t.name = 'World' && t.hello"
+"$BASH" -c "source '$SCRIPT_DIR/../../kbool.sh' && source .ckk/test_system.ckk.sh && Test.new t && t.name = 'World' && t.hello"
 
 # Clean up
 rm -f test_system.kk .ckk/test_system.ckk.sh 2>/dev/null || true
-rm -rf .ckk 2>/dev/null || true
+rm -rf "$workdir/.ckk" 2>/dev/null || true
 echo "✓ Test files cleaned up"
 
 echo

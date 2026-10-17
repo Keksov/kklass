@@ -4,8 +4,8 @@
 # Demonstrates serialization of nested objects using both string and JSON formats
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/../kklass.sh"
-source "$SCRIPT_DIR/../kklass_serializable.sh"
+source "$SCRIPT_DIR/../../kbool.sh" || exit 1
+kk.uses kklass kklass_serializable || exit 1
 
 echo "=== Complex Object Serialization Example ==="
 echo

@@ -1,7 +1,8 @@
 #!/bin/bash
 
 SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
-source "$SCRIPT_DIR/../kklass.sh"
+source "$SCRIPT_DIR/../../kbool.sh" || exit 1
+kk.uses kklass || exit 1
 
 declareClass "CounterPascal" ""
 privateSection

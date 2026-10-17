@@ -3,7 +3,7 @@
 #   L2  round 3 / P11 put a `local LC_ALL=C` into kklass's kk._is_ident: under
 #       a UTF-8 caller locale every call paid ≈4.5× (kk.derivesFrom 70 -> 213
 #       us). The helper now lives in kkore/klib.sh (kklass sources klib.sh
-#       first and keeps `export -f kk._is_ident`): ASCII ranges + a
+#       first; since round 5 / P13 it exports nothing, DR15): ASCII ranges + a
 #       `*[![:ascii:]]*` guard, nocasematch switched off around the core — no
 #       locale switch (the 12-combo exactness matrix is kkore test 008; the
 #       inline .new guard's equivalence is 135 C5).
@@ -65,8 +65,8 @@ o=""
 if (( rc == 0 )); then TOvr.new ov; ov.result = 5; ov.ifs = 6; o="$(ov.result)$(ov.ifs)"; fi
 if [[ $rc == 0 && "$o" == 56 ]]; then kt_test_pass "built"; else kt_test_fail "rc=$rc o='$o' err='$(<"$(kt_fixture_tmpdir)/e4")'"; fi
 
-kt_test_start "I5 KKLASS_EXPORT_FUNCTIONS=1 still exports kk._is_ident to a child shell (kklass keeps the export)"
-o="$(KKLASS_EXPORT_FUNCTIONS=1 "$BASH" -c 'source "$1/kklass.sh" && "$BASH" -c "kk._is_ident ok_1 && ! kk._is_ident \"a b\" && echo child-ok"' _ "$KKLASS_DIR" 2>&1)"
-if [[ "$o" == child-ok ]]; then kt_test_pass "exported"; else kt_test_fail "'$o'"; fi
+kt_test_start "I5 a child shell gets nothing exported (round 5 / P13, DR15) and loads kbool itself (source kbool.sh; kk.uses kklass): kkore's kk._is_ident works there"
+o="$(env -u KKLASS_EXPORT_FUNCTIONS "$BASH" -c 'source "$1/kklass.sh" && "$BASH" -c "declare -F kk._is_ident >/dev/null && exit 7; source \"\$1/../kbool.sh\" && kk.uses kklass && kk._is_ident ok_1 && ! kk._is_ident \"a b\" && echo child-ok" _ "$1"' _ "$KKLASS_DIR" 2>&1)"
+if [[ "$o" == child-ok ]]; then kt_test_pass "bootstrapped"; else kt_test_fail "'$o'"; fi
 
 kt_test_log "138_IdentifierLocale.sh completed"

@@ -2,9 +2,10 @@
 # Example 21: Property Access via .property Method
 # Demonstrates accessing properties using the .property method syntax
 
-# Source the kklass system
+# Load kbool, then the kklass unit(s) it needs (the canonical way)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/../kklass.sh"
+source "$SCRIPT_DIR/../../kbool.sh" || exit 1
+kk.uses kklass || exit 1
 
 echo "=== Property Access via .property Method Example ==="
 echo

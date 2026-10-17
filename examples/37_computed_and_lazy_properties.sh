@@ -2,9 +2,10 @@
 # Example 37: Computed and Lazy Properties
 # Demonstrates computed properties (with getters/setters) and lazy-loaded properties
 
-# Source the kklass system
+# Load kbool, then the kklass unit(s) it needs (the canonical way)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/../kklass.sh"
+source "$SCRIPT_DIR/../../kbool.sh" || exit 1
+kk.uses kklass || exit 1
 
 echo "=== Computed and Lazy Properties Example ==="
 echo
@@ -97,10 +98,13 @@ defineClass "Product" "" \
     "property" "base_price" \
     "property" "tax_rate" \
     "property" "discount" \
-    "property" "final_price" "calculate_price" \
-    "method" "calculate_price" '
-        local price=$(echo "scale=2; $base_price * (1 + $tax_rate / 100) * (1 - $discount / 100)" | bc 2>/dev/null || echo "$base_price")
-        echo "$price"
+    "property" "final_price" "get_final_price" \
+    "method" "get_final_price" '
+        # the read accessor: its name starts with get (calculate_price, the name
+        # used here before, is no accessor — it was dropped as an unknown token
+        # and final_price stayed empty; defineClass refuses it since round 5)
+        awk -v b="$base_price" -v t="$tax_rate" -v d="$discount" \
+            "BEGIN { printf \"%.2f\\n\", b * (1 + t / 100) * (1 - d / 100) }"
     ' \
     "method" "getInfo" 'echo "Product: base=$base_price, tax=$tax_rate%, discount=$discount%, final=$($this.final_price)"'
 

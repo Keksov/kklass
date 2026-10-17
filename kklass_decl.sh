@@ -92,6 +92,17 @@ kk.decl._error() {
 # decision DR13). So the three validators run with nocasematch OFF and give
 # the caller's setting back (kk.decl._ncm_off). The probe `[[ a == A ]]` is true
 # only under nocasematch (cheap; $BASHOPTS confirms it).
+# Round 5 / P13 (finding K3, decision DR17): the same ENTRY GUARD heads every
+# public verb of every DSL (declarative, Pascal, defineClass/defineMethod,
+# serializable, autoload), kk.derivesFrom / kk.isAbstract / kk.class, a cache's
+# kk._ckk_class and the runtime visibility check (kk._warn_visibility, past its
+# public fast path): under the caller's nocasematch every `[[ == ]]` (a quoted
+# right-hand side folds too), `case` and `${x//pat/}` of kklass folded case —
+# kk.derivesFrom Foo foo was 0, a property A next to a was dropped, the token
+# parsers took PROPERTY. The guard re-runs the verb with nocasematch off and
+# restores it (≈0.2 us when it is off); the generated method / property hot
+# path compares no names and carries none. Not on `uses` (= kk.uses, which
+# has its own and needs its caller's frame).
 kk.decl._ncm_off() {   # CMD... — run CMD with nocasematch off, restore it, keep CMD's rc
     shopt -u nocasematch
     "$@"
@@ -1018,6 +1029,7 @@ kk.decl._declare_method_core() {
 }
 
 declareClass() {
+    [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off declareClass "$@"; return; }   # exact names (K3)
     local class_name="$1"
     local parent_class="${2:-}"
 
@@ -1047,11 +1059,12 @@ declareClass() {
             kk.decl._sink_enter "$class_name" d "$__kk_site_open"
             return 1
             ;;
-        3)  # a DSL verb or a declared namespace (printed, uses U2b, U40): refused
-            # like a Duplicate identifier; for a namespace the sink (mode n) keeps
+        3)  # a DSL verb, a declared namespace (printed, uses U2b, U40) or a live
+            # instance (round 5 / P13, K4, DR14): refused like a Duplicate
+            # identifier; for a namespace or an instance the sink (mode n) keeps
             # the functions its swallowed verbs name and restores them at its close
             printf -v "${class_name}_decl_refused" '%s' "(reserved name)"
-            if [[ $__kk_taken_kind == ns ]]; then
+            if [[ $__kk_taken_kind == ns || $__kk_taken_kind == instance ]]; then
                 kk.decl._sink_enter "$class_name" n "$__kk_site_open"
             else
                 kk.decl._sink_enter "$class_name" d "$__kk_site_open"
@@ -1116,18 +1129,21 @@ declareClass() {
 }
 
 privateSection() {
+    [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off privateSection "$@"; return; }   # exact names (K3)
     [[ -z ${__KK_SINK_OPEN-} ]] || ! kk.decl._sunk || return $__kk_sr
     kk.decl._require_current_class || return 1
     KK_DECL_CURRENT_VISIBILITY="private"
 }
 
 protectedSection() {
+    [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off protectedSection "$@"; return; }   # exact names (K3)
     [[ -z ${__KK_SINK_OPEN-} ]] || ! kk.decl._sunk || return $__kk_sr
     kk.decl._require_current_class || return 1
     KK_DECL_CURRENT_VISIBILITY="protected"
 }
 
 publicSection() {
+    [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off publicSection "$@"; return; }   # exact names (K3)
     [[ -z ${__KK_SINK_OPEN-} ]] || ! kk.decl._sunk || return $__kk_sr
     kk.decl._require_current_class || return 1
     KK_DECL_CURRENT_VISIBILITY="public"
@@ -1135,10 +1151,10 @@ publicSection() {
 
 # The public member verbs below poison the open class on a refusal (P11/M2,
 # DR8); the work is done by the kk.decl._<verb> bodies.
-classVar() { [[ -z ${__KK_SINK_OPEN-} ]] || ! kk.decl._sunk || return $__kk_sr; kk.decl._classVar "$@" || kk.decl._poison "${1:-}"; }
-field() { [[ -z ${__KK_SINK_OPEN-} ]] || ! kk.decl._sunk || return $__kk_sr; kk.decl._field "$@" || kk.decl._poison "${1:-}"; }
-property() { [[ -z ${__KK_SINK_OPEN-} ]] || ! kk.decl._sunk || return $__kk_sr; kk.decl._property "$@" || kk.decl._poison "${1:-}"; }
-constructor() { [[ -z ${__KK_SINK_OPEN-} ]] || ! kk.decl._sunk "${1:-Create}" || return $__kk_sr; kk.decl._constructor "$@" || kk.decl._poison "${1:-Create}"; }
+classVar() { [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off classVar "$@"; return; }; [[ -z ${__KK_SINK_OPEN-} ]] || ! kk.decl._sunk || return $__kk_sr; kk.decl._classVar "$@" || kk.decl._poison "${1:-}"; }
+field() { [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off field "$@"; return; }; [[ -z ${__KK_SINK_OPEN-} ]] || ! kk.decl._sunk || return $__kk_sr; kk.decl._field "$@" || kk.decl._poison "${1:-}"; }
+property() { [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off property "$@"; return; }; [[ -z ${__KK_SINK_OPEN-} ]] || ! kk.decl._sunk || return $__kk_sr; kk.decl._property "$@" || kk.decl._poison "${1:-}"; }
+constructor() { [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off constructor "$@"; return; }; [[ -z ${__KK_SINK_OPEN-} ]] || ! kk.decl._sunk "${1:-Create}" || return $__kk_sr; kk.decl._constructor "$@" || kk.decl._poison "${1:-Create}"; }
 
 kk.decl._classVar() {
     local property_name="$1"
@@ -1161,18 +1177,21 @@ kk.decl._classVar() {
 }
 
 virtual() {
+    [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off virtual "$@"; return; }   # exact names (K3)
     [[ -z ${__KK_SINK_OPEN-} ]] || ! kk.decl._sunk || return $__kk_sr
     kk.decl._require_current_class || return 1
     kk.decl._push_next_modifier "virtual"
 }
 
 override() {
+    [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off override "$@"; return; }   # exact names (K3)
     [[ -z ${__KK_SINK_OPEN-} ]] || ! kk.decl._sunk || return $__kk_sr
     kk.decl._require_current_class || return 1
     kk.decl._push_next_modifier "override"
 }
 
 abstract() {
+    [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off abstract "$@"; return; }   # exact names (K3)
     [[ -z ${__KK_SINK_OPEN-} ]] || ! kk.decl._sunk || return $__kk_sr
     kk.decl._require_current_class || return 1
     kk.decl._push_next_modifier "abstract"
@@ -1266,26 +1285,32 @@ kk.decl._property() {
 }
 
 procedure() {
+    [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off procedure "$@"; return; }   # exact names (K3)
     kk.decl._declare_method "procedure" "$1"
 }
 
 declareProcedure() {
+    [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off declareProcedure "$@"; return; }   # exact names (K3)
     procedure "$@"
 }
 
 func() {
+    [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off func "$@"; return; }   # exact names (K3)
     kk.decl._declare_method "function" "$1"
 }
 
 declareFunction() {
+    [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off declareFunction "$@"; return; }   # exact names (K3)
     func "$@"
 }
 
 classProcedure() {
+    [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off classProcedure "$@"; return; }   # exact names (K3)
     kk.decl._declare_method "class_procedure" "$1"
 }
 
 classFunction() {
+    [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off classFunction "$@"; return; }   # exact names (K3)
     kk.decl._declare_method "class_function" "$1"
 }
 
@@ -1308,6 +1333,7 @@ kk.decl._constructor() {
 }
 
 endClass() {
+    [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off endClass "$@"; return; }   # exact names (K3)
     if [[ -n ${__KK_SINK_OPEN-} ]] && kk.decl._sunk; then   # the sink's open section ends here
         __KK_SINK_OPEN=""
         return $__kk_sr
@@ -1350,10 +1376,12 @@ endClass() {
 }
 
 finalizeClass() {
+    [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off finalizeClass "$@"; return; }   # exact names (K3)
     endClass "$@"
 }
 
 implement() {
+    [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off implement "$@"; return; }   # exact names (K3)
     local qualified_name="$1"
     local method_body="$2"
     [[ -z ${__KK_SINK-} ]] || ! kk.decl._sink_mode "${qualified_name%%.*}" || return $__kk_sr
@@ -1385,6 +1413,7 @@ implement() {
 }
 
 implementConstructor() {
+    [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off implementConstructor "$@"; return; }   # exact names (K3)
     local class_name="$1"
     local constructor_body="$2"
     [[ -z ${__KK_SINK-} ]] || ! kk.decl._sink_mode "$class_name" || return $__kk_sr
@@ -1401,6 +1430,7 @@ implementConstructor() {
 }
 
 endImplementation() {
+    [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off endImplementation "$@"; return; }   # exact names (K3)
     local class_name="$1"
     if [[ -n ${__KK_SINK-} ]] && kk.decl._sink_mode "$class_name"; then   # ends the sink (C6)
         kk.decl._sink_end "$class_name"
@@ -1660,15 +1690,10 @@ kk._return \"\$RESULT\"")
 }
 
 finalizeImplementation() {
+    [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off finalizeImplementation "$@"; return; }   # exact names (K3)
     endImplementation "$@"
 }
 
-if [[ "${KKLASS_EXPORT_FUNCTIONS:-0}" == "1" ]]; then
-    export -f declareClass privateSection protectedSection publicSection virtual override abstract
-    export -f field property classVar procedure declareProcedure func declareFunction classProcedure classFunction constructor
-    export -f endClass finalizeClass implement implementConstructor endImplementation finalizeImplementation
-    export -f kk.decl._sink_enter kk.decl._sink_mine kk.decl._sink_end kk.decl._sink_close kk.decl._sink_alive kk.decl._sink_here kk.decl._sink_sweep kk.decl._sunk kk.decl._sink_mode kk.decl._ns_snap
-fi
 # the kklass core (uses U3 R5): loaded here when this file is the first one loaded
 # (`kk.uses kklass_decl`, a direct source); while kklass loads this file it is registered already
 [[ -n ${__KK_UNITS[kklass]+x} ]] || kk.uses kklass || return

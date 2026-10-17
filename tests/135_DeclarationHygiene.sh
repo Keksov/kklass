@@ -647,8 +647,10 @@ defineClass TDbg3 "" property a > "$OUTF" 2> "$ERRF"
 defineMethod TDbg3 n 'echo n' >> "$OUTF" 2>> "$ERRF"
 if [[ ! -s "$OUTF" && ! -s "$ERRF" ]]; then kt_test_pass "silent"; else kt_test_fail "out='$(<"$OUTF")' err='$(<"$ERRF")'"; fi
 
-kt_test_start "D3 KKLASS_EXPORT_FUNCTIONS=1: every module sources without an export error and kk._is_ident reaches a child shell"
-o="$(KKLASS_EXPORT_FUNCTIONS=1 "$BASH" -c 'source "$1/kklass_pascal.sh" && source "$1/kklass_serializable.sh" && "$BASH" -c "kk._is_ident ok_1 && ! kk._is_ident \"a b\" && echo child-ok"' _ "$KKLASS_DIR" 2>&1)"
+kt_test_start "D3 a child shell bootstraps kbool itself (round 5 / P13, DR15: KKLASS_EXPORT_FUNCTIONS is gone): source kbool.sh; kk.uses kklass_pascal kklass_serializable loads every module clean; kk._is_ident and a declared class work there"
+o="$(env -u KKLASS_EXPORT_FUNCTIONS "$BASH" -c 'source "$1/../kbool.sh" && kk.uses kklass_pascal kklass_serializable && "$BASH" -c "source \"\$1/../kbool.sh\" && kk.uses kklass_pascal kklass_serializable || exit 9
+    kk._is_ident ok_1 && ! kk._is_ident \"a b\" || exit 8
+    declareClass TD3 \"\"; property v; endClass; endImplementation TD3; TD3.new d; d.v = 1; [[ \$(d.v) == 1 ]] && echo child-ok" _ "$1"' _ "$KKLASS_DIR" 2>&1)"
 if [[ "$o" == child-ok ]]; then kt_test_pass "clean"; else kt_test_fail "'$o'"; fi
 
 cd / || :

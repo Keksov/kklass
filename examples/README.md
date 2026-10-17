@@ -18,7 +18,7 @@ The demo script will run through all 48 examples sequentially, showing the progr
 - **Manual control**: Run all examples or select specific ones as needed
 - **Clear output**: Each example shows its progress and results
 - **Error handling**: Individual examples handle their own errors gracefully
-- **Automatic cleanup**: Each example cleans up its own instances and files
+- **Automatic cleanup**: Each example cleans up its own instances, and its files live in a temp folder of its own (removed on exit, also when interrupted)
 - **Progress tracking**: Clear indicators show which examples are running
 
 ## Overview
@@ -127,7 +127,7 @@ for file in examples/[0-9]*.sh; do
 done
 ```
 
-**Note**: The demo script runs all 46 examples sequentially and shows:
+**Note**: The demo script runs all 48 examples sequentially and shows:
 - ✅ **Progress indicators** for each example
 - ✅ **Success/failure status** for each example
 - ✅ **Automatic cleanup** after each example
@@ -154,11 +154,22 @@ done
 
 ## Prerequisites
 
-- Every example loads kklass by sourcing `../kklass.sh` directly (its unit header
-  loads `kbool.sh` first); a script of your own would write
-  `source /path/to/kbool/kbool.sh` + `kk.uses kklass` (see the book, *Units and uses*)
-- Some examples (22-28) also load `kklass_autoload.sh`
-- Examples create temporary files and clean them up automatically
+- Every example loads kklass the canonical way — the way a script of your own
+  does it (see the book, *Units and uses*):
+  ```bash
+  source "$SCRIPT_DIR/../../kbool.sh" || exit 1   # /path/to/kbool/kbool.sh
+  kk.uses kklass || exit 1                        # or kklass_pascal, kklass_serializable, kklass_autoload
+  ```
+  A child shell started by an example (22-28) loads kbool the same way
+  (`"$BASH" -c "source …/kbool.sh && kk.uses kklass_autoload && …"` — the
+  same bash that runs the example); nothing is
+  exported to it.
+- Examples 22-28 and 45 load `kklass_autoload`, 41-43 `kklass_serializable`, 47-48
+  `kklass_pascal`
+- Examples that create files (22-28, 41-43, 45) do it in a temp folder of their
+  own (`mktemp` with a named template, `${TMPDIR:-/tmp}/kklass_exampleNN.*`),
+  never in your current folder — no `.ckk` cache is created or deleted there —
+  and remove it on exit, also when interrupted (TERM / INT / HUP)
 
 ## Notes
 

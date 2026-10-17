@@ -5,7 +5,8 @@
 # on stderr — it is a diagnostic aid, not a hard block (the value is still returned).
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/../kklass.sh"
+source "$SCRIPT_DIR/../../kbool.sh" || exit 1
+kk.uses kklass || exit 1
 
 echo "=== Visibility Modifiers Example ==="
 echo

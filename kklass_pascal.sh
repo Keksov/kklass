@@ -53,6 +53,7 @@ declare -g __KK_PASCAL_OVERRIDE=""
 # ---- class header / footer -------------------------------------------------
 
 class() {
+    [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off class "$@"; return; }   # exact names (K3)
     local name="$1" parent=""
     if [[ "${2:-}" == ":" ]]; then
         parent="$3"          # class TDog : TAnimal
@@ -70,6 +71,7 @@ class() {
 }
 
 end() {
+    [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off end "$@"; return; }   # exact names (K3)
     [[ -z "$KK_DECL_CURRENT_CLASS" ]] || kk.pascal._check_ctor_static "$KK_DECL_CURRENT_CLASS"
     endClass
 }
@@ -102,21 +104,22 @@ kk.pascal._check_ctor_static() {   # CLASS
 
 # ---- visibility sections (repeatable, any order) ---------------------------
 
-public()    { publicSection; }
-private()   { privateSection; }
-protected() { protectedSection; }
+public()    { [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off public "$@"; return; }; publicSection; }
+private()   { [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off private "$@"; return; }; privateSection; }
+protected() { [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off protected "$@"; return; }; protectedSection; }
 
 # ---- modifiers (prefix form: `static proc X`, `override func Y`) ------------
 
 # In a sink (uses U20/U21, kklass_decl.sh) a modifier only passes the member
 # verb on, which the sink swallows — no flag is left behind for the next class.
-static()   { [[ -z ${__KK_SINK_OPEN-} ]] || ! kk.decl._sunk || { "$@"; return; }; __KK_PASCAL_STATIC=1; "$@"; }
-override() { [[ -z ${__KK_SINK_OPEN-} ]] || ! kk.decl._sunk || { "$@"; return; }; __KK_PASCAL_OVERRIDE=1; "$@"; }
-abstract() { [[ -z ${__KK_SINK_OPEN-} ]] || ! kk.decl._sunk || { "$@"; return; }; kk.decl._push_next_modifier "abstract"; "$@"; }
+static()   { [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off static "$@"; return; }; [[ -z ${__KK_SINK_OPEN-} ]] || ! kk.decl._sunk || { "$@"; return; }; __KK_PASCAL_STATIC=1; "$@"; }
+override() { [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off override "$@"; return; }; [[ -z ${__KK_SINK_OPEN-} ]] || ! kk.decl._sunk || { "$@"; return; }; __KK_PASCAL_OVERRIDE=1; "$@"; }
+abstract() { [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off abstract "$@"; return; }; [[ -z ${__KK_SINK_OPEN-} ]] || ! kk.decl._sunk || { "$@"; return; }; kk.decl._push_next_modifier "abstract"; "$@"; }
 
 # ---- members ---------------------------------------------------------------
 
 var() {
+    [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off var "$@"; return; }   # exact names (K3)
     if [[ -n "$__KK_PASCAL_STATIC" ]]; then
         __KK_PASCAL_STATIC=""
         classVar "$1"
@@ -128,8 +131,8 @@ var() {
 # `property X read G write S` — reuse the declarative property verb verbatim.
 # (Its getter/setter targets must be declared as methods with bodies.)
 
-proc() { kk.pascal._declare_method "procedure" "$1"; }
-func() { kk.pascal._declare_method "function"  "$1"; }
+proc() { [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off proc "$@"; return; }; kk.pascal._declare_method "procedure" "$1"; }
+func() { [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off func "$@"; return; }; kk.pascal._declare_method "function"  "$1"; }
 
 kk.pascal._declare_method() {
     local kind="$1" name="$2"
@@ -156,6 +159,7 @@ kk.pascal._declare_method() {
 # `constructor [Name]` — reuse the declarative verb (records the constructor name).
 
 destructor() {
+    [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off destructor "$@"; return; }   # exact names (K3)
     local name="${1:-Destroy}"
     [[ -z ${__KK_SINK_OPEN-} ]] || ! kk.decl._sunk "$name" || return $__kk_sr
     kk.decl._require_current_class || return 1
@@ -215,6 +219,7 @@ kk.pascal._ctor_inherited() {
 }
 
 build() {
+    [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off build "$@"; return; }   # exact names (K3)
     local class_name="$1"
     [[ -n "$class_name" ]] || { echo "build: class name required" >&2; return 1; }
     kk.decl._validate_ident "$class_name" "class name" || return 1
@@ -348,9 +353,3 @@ kk.pascal._ancestor_has_method() {
     done
     return 1
 }
-
-if [[ "${KKLASS_EXPORT_FUNCTIONS:-0}" == "1" ]]; then
-    export -f class end public private protected static override abstract var proc func \
-        destructor build kk.pascal._declare_method kk.pascal._body kk.pascal._ancestor_has_method \
-        kk.pascal._check_ctor_static uses
-fi

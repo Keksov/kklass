@@ -16,4 +16,4 @@ KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 KDOC_ROOT="$(cd "$KKLASS_DIR/.." && pwd)"
 source "$KDOC_ROOT/kkore/tests/doc_examples.sh"
 
-kdoc_check_file "$KKLASS_DIR/docs/kklass_book.md" "kklass_book.md" 10
+kdoc_check_file "$KKLASS_DIR/docs/kklass_book.md" "kklass_book.md" 11

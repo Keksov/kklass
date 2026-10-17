@@ -4,13 +4,17 @@ SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
 # a `unit X;` file is a unit outside the kbool tree: it finds kbool.sh through
 # KBOOL_HOME (the §7.4 user header)
 export KBOOL_HOME="${KBOOL_HOME:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
-source "$SCRIPT_DIR/../kklass_autoload.sh"
+source "$SCRIPT_DIR/../../kbool.sh" || exit 1
+kk.uses kklass_autoload || exit 1
 
 # a named temp folder, removed also on an early exit or a signal (ktests
 # round 5, DE1 / review R5)
 workdir="$(mktemp -d "${TMPDIR:-/tmp}/kklass_example45.XXXXXX")"
-trap 'rm -rf "$workdir"' EXIT
+trap 'cd / && rm -rf "$workdir"' EXIT
 trap 'exit 143' TERM; trap 'exit 130' INT; trap 'exit 129' HUP
+# the compiled cache (.ckk) goes into the current folder: work in the temp
+# folder, never in the caller's cwd
+cd "$workdir" || exit 1
 # the unit name is the file stem (U33/U36): unit CounterPascal; lives in CounterPascal.kkp
 unit_file="$workdir/CounterPascal.kkp"
 
@@ -82,4 +86,4 @@ echo "Total created: $(CounterUnit.GetTotal)"
 
 one.delete
 two.delete
-rm -rf "$workdir"
+cd / && rm -rf "$workdir"

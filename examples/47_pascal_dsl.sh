@@ -24,7 +24,8 @@
 # works in methods, constructors (forwards args), and destructors, just like Pascal.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/../kklass_pascal.sh"
+source "$SCRIPT_DIR/../../kbool.sh" || exit 1
+kk.uses kklass_pascal || exit 1
 
 # Tiny self-check helper: check "label" actual expected
 check() {

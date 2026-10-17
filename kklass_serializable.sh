@@ -38,6 +38,7 @@ _addSerializable_checkSep() {   # SEPARATOR CALLER
 #   an empty FORMAT "string"). FORMAT and SEPARATOR are validated BEFORE
 #   defineClass: a refused call builds nothing, rc 1 + one error line.
 defineSerializableClass() {
+    [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off defineSerializableClass "$@"; return; }   # exact names (K3)
     if (( $# < 4 )); then
         echo "Error: defineSerializableClass: usage: defineSerializableClass CLASS_NAME PARENT_CLASS SEPARATOR FORMAT [DEFINITIONS...]" >&2
         return 1
@@ -73,6 +74,7 @@ defineSerializableClass() {
 #   FORMAT     - "string" (default) or "json"
 # NOTE: Must be called IMMEDIATELY AFTER defineClass, BEFORE creating instances
 addSerializable() {
+    [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off addSerializable "$@"; return; }   # exact names (K3)
     local class_name="$1"
     local separator="${2:-:}"
     local format="${3:-string}"
@@ -510,6 +512,7 @@ kk._return \"\$this\""
 # format does not escape (a value holding the separator or a newline would
 # not survive the round trip).
 saveObjects() {
+    [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off saveObjects "$@"; return; }   # exact names (K3)
     local file="$1"
     shift
     
@@ -550,6 +553,7 @@ saveObjects() {
 #   All locals carry the __kk_ prefix, which kk._outName refuses, so an
 #   output array named line / count / file / ... binds the caller's array.
 loadObjects() {
+    [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off loadObjects "$@"; return; }   # exact names (K3)
     local __kk_file="${1-}" __kk_cls="${2-}" __kk_out="${3-}"
     if ! kk._outName "$__kk_out"; then
         kk.debug "Error: loadObjects: invalid output array name '$__kk_out'"
@@ -616,15 +620,7 @@ loadObjects() {
     return $(( __kk_refused ? 1 : 0 ))
 }
 
-export -f defineSerializableClass
-export -f addSerializable
-export -f _addSerializable_checkSep
-export -f _addSerializable_string
-export -f _addSerializable_json
-export -f kk._jsonInit
-export -f kk._jsonEscape
-export -f kk._jsonObject
-export -f kk._jsonString
-export -f kk._jsonParse
-export -f saveObjects
-export -f loadObjects
+# Nothing is exported (round 5 / P13, DR15 — the verbs and the JSON helpers
+# were exported unconditionally since the first commit, without the kklass
+# they call): a child shell loads kbool itself (`source kbool.sh; kk.uses
+# kklass_serializable`).

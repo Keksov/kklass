@@ -2,9 +2,10 @@
 # Example 08: Multiple Inheritance Levels
 # Demonstrates a deep inheritance chain with multiple levels
 
-# Source the kklass system
+# Load kbool, then the kklass unit(s) it needs (the canonical way)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/../kklass.sh"
+source "$SCRIPT_DIR/../../kbool.sh" || exit 1
+kk.uses kklass || exit 1
 
 echo "=== Multiple Inheritance Levels Example ==="
 echo

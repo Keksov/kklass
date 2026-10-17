@@ -69,8 +69,8 @@ unset -f kk._kklass_dir
 #   _KKLASS_SINK_NS[X]       `declare -f` text of the namespace X's functions a
 #                            swallowed verb named (sink mode n), restored at its close
 #   __KKLASS_TABLES          ([on]=1) OWNERSHIP: the tables are this shell's.
-# A child bash never inherits assoc arrays (functions exported with set -a /
-# KKLASS_EXPORT_FUNCTIONS=1 do arrive): every entry point checks
+# A child bash never inherits assoc arrays (functions a user exports with set -a
+# or export -f do arrive): every entry point checks
 # `${__KKLASS_TABLES[@]@a} == A` before it subscripts a table and starts an empty
 # registry otherwise (U28) — a non-assoc table would evaluate the key as
 # arithmetic (uses R14). The sink state (__KK_SINK, __KK_SINK_OPEN,
@@ -186,10 +186,10 @@ kk._name_in_use() {
     RESULT=""
     kk._is_ident "${1-}" || return 1
     [[ ${__KKLASS_TABLES[@]@a} == A ]] || kk._class_tables
-    local __kk_v=${1}_class __kk_p __kk_site_txt
+    local __kk_p __kk_site_txt __kk_inst_cls
     local -a __kk_a
-    if [[ -n ${!__kk_v+x} ]]; then
-        RESULT="an instance of ${!__kk_v}"
+    if kk._live_instance "$1"; then
+        RESULT="an instance of $__kk_inst_cls"
         return 0
     fi
     [[ -n ${_KKLASS_CLASS_SITE[$1]+x} ]] || return 1
@@ -201,6 +201,28 @@ kk._name_in_use() {
     kk._class_site_text "${_KKLASS_CLASS_SITE[$1]}"
     RESULT="a class declared at $__kk_site_txt"
     return 0
+}
+
+# kk._live_instance X — rc 0 when X is a live instance (round 5 / P13, finding
+# K4, decision DR14): X_class names a REGISTERED class AND X_data is an
+# associative array (what CLASS.new creates and X.delete unsets) — a user's
+# plain X_class variable (`css_class=btn`) is not one (before P13 `X_class`
+# alone made kk.unit / kk.namespace css refuse "an instance of btn").
+# __kk_inst_cls = its class (the caller's local). The caller owns the tables
+# (R14) and validated X; the class name is validated before it subscripts one.
+# One nameref: an indirect `${!v@a}` is empty for a declared, still empty
+# assoc (`declare -gA X_data`, an instance without properties).
+kk._live_instance() {
+    # R14 (review F2): CLASS.new never makes X_class or X_data a nameref — a
+    # nameref is not followed (its target may be `arr[$(cmd)]`: expanding it
+    # would run cmd on every class declaration / kk.unit / kk.namespace)
+    [[ -R ${1}_class || -R ${1}_data ]] && return 1
+    local __kk_v=${1}_class
+    [[ -n ${!__kk_v+x} ]] || return 1
+    __kk_inst_cls=${!__kk_v}
+    kk._is_ident "$__kk_inst_cls" && [[ -n ${_KKLASS_CLASS_SITE[$__kk_inst_cls]+x} ]] || return 1
+    local -n __kk_li_d=${1}_data
+    [[ ${__kk_li_d@a} == *A* ]]
 }
 
 # kk._ns_txt X -> __kk_ns_txt: "X.* of unit U (FILE)" / "X.* (FILE)" for messages.
@@ -220,9 +242,9 @@ kk._ns_txt() {
 }
 
 # kk._taken_check CLASS — may a class CLASS that is not built yet be declared?
-# rc 0 yes; rc 1 CLASS is a DSL verb or a declared namespace it does not own:
+# rc 0 yes; rc 1 CLASS is a DSL verb, a declared namespace it does not own or a live instance (K4):
 # printed (the caller's __kk_site names the refused declaration), the loading
-# unit marked incomplete (U34); __kk_taken_kind = verb | ns for the caller.
+# unit marked incomplete (U34); __kk_taken_kind = verb | ns | instance for the caller.
 kk._taken_check() {
     [[ ${__KKLASS_TABLES[@]@a} == A ]] || kk._class_tables     # ownership first (R14)
     kk._is_ident "${1-}" || return 0
@@ -251,7 +273,14 @@ kk._taken_check() {
             kk._ns_txt "$1"
             __kk_what="a function namespace ($__kk_ns_txt)"
             ;;
-        *) return 0 ;;
+        *)  # a live instance (round 5 / P13, K4, DR14): its X.* functions and
+            # X_* variables are the instance's — refused like a namespace (the
+            # sink, mode n, keeps the instance functions a swallowed verb names)
+            local __kk_inst_cls
+            kk._live_instance "$1" || return 0
+            __kk_taken_kind=instance
+            __kk_what="a live instance of class $__kk_inst_cls"
+            ;;
     esac
     kk._class_site_text "$__kk_site"
     echo "kklass: Duplicate identifier: '$1' is $__kk_what; refusing to declare a class '$1' at ${__kk_site_txt}" >&2
@@ -392,7 +421,7 @@ kk._class_site_text() {
 #   rc 1 "Duplicate identifier" (printed; the loading unit tainted, U34);
 #   rc 2 the same site again (WARNING printed);
 #   rc 3 not built yet, but CLASS is a DSL verb or a function namespace
-#        (printed, "Taken names" above; __kk_taken_kind = verb | ns).
+#        (printed, "Taken names" above; __kk_taken_kind = verb | ns | instance).
 # Needs the caller's locals __kk_site __kk_site_tty __kk_site_open
 # __kk_taken_kind.
 kk._class_verdict() {
@@ -470,6 +499,7 @@ kk._unit_forget_class() {
 # `kk.unit --forget UNIT`. rc 0 forgotten, 1 CLASS is not a registered (built)
 # class, 2 a malformed call (silent, kk.debug — kcl §1).
 kk.class() {
+    [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off kk.class "$@"; return; }   # exact names (K3)
     if [[ ${1-} != --forget || $# -ne 2 ]]; then
         kk.debug "kk.class: usage: kk.class --forget CLASS"
         return 2
@@ -480,7 +510,37 @@ kk.class() {
     fi
     [[ ${__KKLASS_TABLES[@]@a} == A ]] || kk._class_tables
     [[ -n ${_KKLASS_CLASS_SITE[$2]+x} ]] || return 1
+    # its live instances keep working, but a forgotten class is no longer
+    # "registered": their names stop being protected from a class declaration
+    # (kk._live_instance, round 5 review F3) — say so, once
+    local -a __kk_insts=()
+    kk._class_instances "$2"
+    if (( ${#__kk_insts[@]} )); then
+        kk.warn "kklass: WARNING: kk.class --forget $2: ${#__kk_insts[@]} live instance(s) of $2 (${__kk_insts[*]}) keep working, but their names are no longer protected from a class declaration until they are deleted"
+    fi
     kk._unit_forget_class "$2"
+}
+
+# kk._class_instances CLASS — the live instances of CLASS into the caller's
+# array __kk_insts (round 5 review F3). There is no instance registry: the
+# variable table is walked once — by first letter, `${!A@}` … `${!_@}`, which
+# lists names without a fork — for X_class == CLASS with an associative X_data
+# (namerefs are not followed, R14). Called by kk.class --forget only (rare).
+kk._class_instances() {
+    local __kk_n __kk_x
+    for __kk_n in ${!A@} ${!B@} ${!C@} ${!D@} ${!E@} ${!F@} ${!G@} ${!H@} ${!I@} ${!J@} ${!K@} ${!L@} ${!M@} \
+                  ${!N@} ${!O@} ${!P@} ${!Q@} ${!R@} ${!S@} ${!T@} ${!U@} ${!V@} ${!W@} ${!X@} ${!Y@} ${!Z@} \
+                  ${!a@} ${!b@} ${!c@} ${!d@} ${!e@} ${!f@} ${!g@} ${!h@} ${!i@} ${!j@} ${!k@} ${!l@} ${!m@} \
+                  ${!n@} ${!o@} ${!p@} ${!q@} ${!r@} ${!s@} ${!t@} ${!u@} ${!v@} ${!w@} ${!x@} ${!y@} ${!z@} ${!_@}; do
+        [[ $__kk_n == *_class && ! -R $__kk_n ]] || continue
+        [[ ${!__kk_n-} == "$1" ]] || continue
+        __kk_x=${__kk_n%_class}
+        kk._is_ident "$__kk_x" && [[ ! -R ${__kk_x}_data ]] || continue
+        local -n __kk_ci_d=${__kk_x}_data
+        [[ ${__kk_ci_d@a} == *A* ]] && __kk_insts+=("$__kk_x")
+        unset -n __kk_ci_d
+    done
+    return 0
 }
 
 # ---------------------------------------------------------------------------
@@ -555,6 +615,7 @@ kk._ckk_begin() {
 # (Duplicate identifier), from the same place (WARNING), or a verb / namespace
 # (printed by kk._class_verdict).
 kk._ckk_class() {
+    [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off kk._ckk_class "$@"; return; }   # exact names (K3)
     local __kk_site __kk_site_tty __kk_site_open __kk_taken_kind __kk_s=${2-}
     kk._is_ident "${1-}" || { echo "kklass: a compiled cache names an invalid class: '${1-}'" >&2; return 1; }
     __kk_s=${__kk_s//$'\x1e'/${__KK_CKK_FILE-}}
@@ -697,7 +758,8 @@ kk._class_derives_from() {
 # with kk._outName and kc.alias: ASCII ranges + a `*[![:ascii:]]*` guard,
 # nocasematch switched off around the core, NO locale switch (P11's
 # `local LC_ALL=C` cost ≈4.5× under a UTF-8 caller locale: kk.derivesFrom
-# 70 -> 213 us). kklass keeps exporting it (KKLASS_EXPORT_FUNCTIONS, test 135 D3).
+# 70 -> 213 us). kklass exports nothing (round 5 / P13, DR15: a child shell loads
+# kbool itself).
 
 # kk.isAbstract CLASS — the public "would CLASS.new refuse?" predicate (round 2
 # / R2_P9, finding K4, decision DR3; replaces reading ${CLASS}_class_abstract).
@@ -712,6 +774,7 @@ kk._class_derives_from() {
 # is a fatal error that aborts the caller's whole top-level command. The check
 # is kk._is_ident (P11/M3): locale-exact, BASH_REMATCH left alone.
 kk.isAbstract() {
+    case a in A) kk.decl._ncm_off kk.isAbstract "$@"; return ;; esac   # exact names under nocasematch (K3; `case` is the cheapest probe)
     kk._is_ident "${1:-}" || return 2
     declare -p "${1}_class_methods" &>/dev/null || return 2
     local __kk_ia="${1}_class_abstract"
@@ -730,6 +793,7 @@ kk.isAbstract() {
 # answer 0. Reflexive, no existence check. Silent, fork-free; the identifier
 # check is kk._is_ident (P11/M3), BASH_REMATCH is left alone.
 kk.derivesFrom() {
+    case a in A) kk.decl._ncm_off kk.derivesFrom "$@"; return ;; esac   # exact names under nocasematch (K3; `case` is the cheapest probe)
     kk._is_ident "${1:-}" && kk._is_ident "${2:-}" || return 2
     kk._class_derives_from "$1" "$2"
 }
@@ -755,6 +819,9 @@ kk._warn_visibility() {
     if [[ "$visibility" == "public" || -z "$visibility" ]]; then
         return 0
     fi
+    # the owner / caller class compares below are exact (K3): a non-public
+    # access only, so a public call pays nothing for the guard
+    case a in A) kk.decl._ncm_off kk._warn_visibility "$@"; return ;; esac
 
     if declare -p "$owner_var" &>/dev/null; then
         local -n owner_ref="$owner_var"
@@ -1217,7 +1284,30 @@ kk._class_static_api() {
     done
 }
 
+# kk._decl_token WHO CLASS NARGS TOKEN — round 5 / P13 (finding K3b, DR17): may
+# the definition-token loop of defineClass / kk._build_class_runtime take TOKEN
+# with NARGS words left (TOKEN included)? rc 0 yes; rc 2 printed: an UNKNOWN
+# token — names are exact (under nocasematch PROPERTY used to be taken; with it
+# off it was dropped silently by `*) shift`) — or a token MISSING its
+# arguments (`method m` without a body looped forever: `shift 3` fails with two
+# words left and shifts nothing).
+kk._decl_token() {
+    local __kk_n
+    case $4 in
+        static_property|property|constructor) __kk_n=2 ;;
+        static_method|lazy_property|method|procedure|function) __kk_n=3 ;;
+        *)
+            echo "$1: unknown token '$4' in the declaration of class '$2' (tokens: property static_property static_method method procedure function lazy_property constructor)" >&2
+            return 2
+            ;;
+    esac
+    (( $3 >= __kk_n )) && return 0
+    echo "$1: token '$4' in the declaration of class '$2' is missing its arguments ($(( __kk_n - 1 )) expected after it)" >&2
+    return 2
+}
+
 kk._build_class_runtime() {
+    [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off kk._build_class_runtime "$@"; return; }   # exact names (K3)
     local class_name="$1"
     local parent_class="$2"
     shift 2
@@ -1378,6 +1468,10 @@ kk._build_class_runtime() {
 
     # Parse class definition (can override parent methods)
     while [[ $# -gt 0 ]]; do
+        # an EMPTY word is skipped, as before round 5 (review F7: an optional
+        # argument passed as "$x" when it is empty); only a word is refused
+        [[ -n $1 ]] || { shift; continue; }
+        kk._decl_token kk._build_class_runtime "$class_name" $# "$1" || return 2
         case "$1" in
             static_property)
                 kk.decl._validate_static "$2" "static property name" || return 1
@@ -1469,8 +1563,8 @@ kk._build_class_runtime() {
                 constructor_body="$2"
                 shift 2
                 ;;
-            *)
-                shift
+            *)      # refused above (kk._decl_token, K3b)
+                return 2
                 ;;
         esac
     done
@@ -1692,6 +1786,7 @@ __INST__.delete() { kk._delete __INST__ \"\$@\"; }"
 }
 
 defineClass() {
+    [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off defineClass "$@"; return; }   # exact names (K3)
     local class_name="$1"
     local parent_class="$2"
     local -a declared_methods=()
@@ -1717,6 +1812,10 @@ defineClass() {
     fi
 
     while [[ $# -gt 0 ]]; do
+        # an EMPTY word is skipped, as before round 5 (review F7: an optional
+        # argument passed as "$x" when it is empty); only a word is refused
+        [[ -n $1 ]] || { shift; continue; }
+        kk._decl_token defineClass "$class_name" $# "$1" || { kk.decl._abandon_class "$class_name" "$1"; return 2; }
         case "$1" in
             static_property)
                 kk.decl._remember_static_property "$class_name" "$2" || { kk.decl._abandon_class "$class_name" "$2"; return 1; }
@@ -1791,8 +1890,8 @@ defineClass() {
                 constructor_body="$2"
                 shift 2
                 ;;
-            *)
-                shift
+            *)      # refused above (kk._decl_token, K3b)
+                return 2
                 ;;
         esac
     done
@@ -1847,7 +1946,7 @@ _defineMethodType() {
     done
     
     # Check if method already exists (will override it)
-    if [[ -z "${meth_index[$method_name]}" ]]; then
+    if [[ -z "${meth_index[$method_name]-}" ]]; then   # set -u: a NEW name has no key (P13 F4)
         meths_ref+=("$method_name")
     fi
     
@@ -1898,18 +1997,22 @@ __INST__.delete() \{}"
 }
 
 defineMethod() {
+    [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off defineMethod "$@"; return; }   # exact names (K3)
     _defineMethodType "$1" "$2" "$3" "method" "Method"
 }
 
 defineProcedure() {
+    [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off defineProcedure "$@"; return; }   # exact names (K3)
     _defineMethodType "$1" "$2" "$3" "procedure" "Procedure"
 }
 
 defineFunction() {
+    [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off defineFunction "$@"; return; }   # exact names (K3)
     _defineMethodType "$1" "$2" "$3" "function" "Function"
 }
 
 kk.register_static_methods() {
+    [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off kk.register_static_methods "$@"; return; }   # exact names (K3)
     local class_name="$1"
     local public_prefix="$2"
     local display_name="${3:-$1}"
@@ -1965,8 +2068,11 @@ kk.register_static_methods() {
 # the unit that loaded kklass (U3 R5: kklass_decl loaded first loads kklass at its end)
 [[ -n ${__KK_UNITS[kklass_decl]+x} ]] || kk.uses kklass_decl || return
 
-if [[ "${KKLASS_EXPORT_FUNCTIONS:-0}" == "1" ]]; then
-    export -f kk._processMethodBody kk.call_silent kk._class_derives_from kk._is_ident kk.isAbstract kk.derivesFrom kk._warn_visibility kk._build_class_runtime _defineMethodType defineClass defineMethod defineProcedure defineFunction kk.register_static_methods
-    export -f kk._class_tables kk._class_site kk._class_site_same kk._class_site_text kk._class_verdict kk._class_register kk._unit_forget_class kk.class kk._class_static_api
-    export -f kk._taken_init kk._namespace_add kk._name_in_use kk._ns_txt kk._taken_check kk._new_refused kk._ckk_begin kk._ckk_class kk._ckk_built kk._ckk_end
+# KKLASS_EXPORT_FUNCTIONS (round 5 / P13, finding K5, decision DR15) is gone:
+# it exported the public verbs but not the internals, the class functions or
+# the registries (assoc arrays cannot be exported), so a child could not even
+# declareClass. A child shell bootstraps kbool itself: `source …/kbool.sh;
+# kk.uses kklass` (or a unit header). One warning when it is still set.
+if [[ -n ${KKLASS_EXPORT_FUNCTIONS-} ]]; then
+    kk.warn "kklass: WARNING: KKLASS_EXPORT_FUNCTIONS is no longer supported and is ignored (nothing is exported); a child shell loads kbool itself: source kbool.sh; kk.uses kklass"
 fi
