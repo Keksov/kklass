@@ -1319,5 +1319,36 @@
       "scratchpad/critic_r5b/REPORT.md",
       "scratchpad/critic_r5c/REPORT.md"
     ]
+  },
+  "round6": {
+    "status": "PLANNED (owner decisions 2026-10-17)",
+    "plan": "PLAN.md # Round 6",
+    "research": "scratchpad/research_r6/REPORT.md",
+    "findings": {
+      "E1": "property nameref hides exported var (children get TZ=e_data[TZ]); PATH/bash specials as property names",
+      "E2": "stale frame + localvar_unset in EXIT trap after set -e exit",
+      "E3": "set -u: accessor of never-assigned property aborts; examples 04/40/38",
+      "E4": "kklass/experimental still present",
+      "E5": "Pascal DSL 17.3 -> 22.6 ms/class after P14 hardening",
+      "E6": "thttpserver/math PLAN.md describe removed _X_SOURCED guards"
+    },
+    "decisions": {
+      "DR20": "owner: local -n +x at 3 binding sites (+ckk format 3) AND refuse bash/env special names + BASH_/LC_/COMP_/READLINE_/HIST prefixes for variable-like members",
+      "DR21": "owner: kk.frameReset helper + docs",
+      "DR22": "owner: accessor - default, document ${prop-}, fix examples 04/40/38",
+      "DR23": "owner: delete kklass/experimental after reference check",
+      "DR24": "owner: attribute Pascal cost, fix if cheap without weakening hardening",
+      "DR25": "supervisor: fix the two PLAN.md passages"
+    },
+    "phases": {
+      "P16": {
+        "name": "E1,E2,E3,E4,E6",
+        "status": "planned"
+      },
+      "P17": {
+        "name": "E5 Pascal cost",
+        "status": "planned"
+      }
+    }
   }
 }

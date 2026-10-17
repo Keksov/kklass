@@ -378,3 +378,38 @@ Order: **ktests P3 → kklass P13 (hygiene) → P14 (class-build cost) → R5-re
 | **P14** class-build cost | K1 (DR18), K7 (hygiene + extdebug test) | 0 forks in the `set -x` traces of fresh `kk.uses` dateutils/math/thttpapplication and of all three DSLs (probe `critic_r5a/dsl.sh`, apart from one fd setup per shell); empty `declare -f`/`declare -p` dump diff vs HEAD for the three units (critic `dump.sh`/`norm.sh`) both bashes; `RESULT` preserved by `implement`/`implementConstructor`; dateutils and math suites < 30 s on 5.2; no `.kk_fntext*`/fd-file left in TMPDIR; master sweep 0 [FAIL] both, totals unchanged except new tests |
 | **R5-research** | K2 (DR16): critic measures candidate designs | DONE 2026-10-16 (critic r5b; owner chose A5 — DR16a) |
 | **P15** | K2 = A5 (DR16a) | all r5b leak cases closed (write + read) both bashes; test 066 + a property named `state`; hot-path cost recorded per DR16b (A/A control); `.ckk` old caches rebuilt; kklass + every kcl suite + examples unchanged; master sweep 0 [FAIL] both |
+
+# Round 6 — the leftovers after Round 5 (2026-10-17)
+
+**Status: PLANNED, owner decisions taken (2026-10-17); research `scratchpad/research_r6/REPORT.md`; no code.**
+Owner 2026-10-17 (after Round 5 was pushed): "Plan Round 6 from open items". The ktests item S1
+is planned in `ktests/PLAN.md` "Round 6" (phase P4). Ledger: `kklass_ledger.json` key `round6`.
+
+## R6.1 Findings
+
+| ID | Sev | Where | Symptom |
+|---|---|---|---|
+| E1 | medium | `kklass.sh:1292` (properties), `:1298` (static properties), `:1555` (fat-static bindings, cached in .ckk) | A property nameref hides an EXPORTED variable of the same name: a new local inherits the export flag and an exported nameref exports its TARGET NAME — children of a method get `TZ=e_data[TZ]`, `LANG=e_data[LANG]` (also when the property was never set); a callee of another class reads TZ unset but its children still get `TZ=e_data[TZ]`. A property named PATH breaks command lookup in the class's methods and everything they call (5.2 fat-static `rm` not found → `.kk_static_*` leftover). 12 bash names (BASHOPTS, SHELLOPTS, BASH_VERSINFO, EUID, UID, PPID, BASH_ARGC, BASH_ARGV, BASH_LINENO, BASH_SOURCE, FUNCNAME, GROUPS) print a bash error on every method call; HOME, TMPDIR, PWD/OLDPWD, LANG/LC_*/TZ carry silent hazards. Today only `this __inst__ __class__ RESULT REPLY IFS` + `__kk_*` are refused (`kklass_decl.sh:133` kk.decl._validate_ident, shared with class/method names). No kcl unit or example uses any of these names (research: 162 kcl property names vs 128 shell names, 0 overlap). |
+| E2 | low | `kklass.sh:1355-1365` (frame cleanup in kk._invoke) | After the shell exits through `set -e` inside a method body (no `\|\|`), the EXIT trap runs with one stale frame in `__KLIB_FRAME_STACK`, `localvar_unset` still on and FUNCNAME still listing the chain, while the body's locals are gone; a private method of that class called from the handler gets no visibility warning; `unset x` in the handler hides instead of revealing. An explicit `exit` / `set -u` abort runs the trap inside the method scope (consistent). |
+| E3 | low | `kklass.sh:1198` (kk._property), `:1212` (kk._prop_plain); examples 04, 40, 38 | Under `bash -u`, kklass's own accessor `a.y` of a declared but never-assigned property aborts; method bodies reading such a property abort on 5.3 but not on 5.2; `n=$((n+1))` aborts on both. Examples 04 (`value`), 40 (`counter`) fail under -u, 38 has its own bug (`$emailNotifier` never set). Serializers already treat unset as "". |
+| E4 | info | `kklass/experimental/` (6 files) | Still in the repo; deletion was the owner's call (PLAN.md:107). |
+| E5 | low (perf) | Pascal DSL after P14 hardening | ≈22.6 ms per class vs 17.3 ms in P14 round 1 (critic P14 N1); cause not yet attributed. |
+| E6 | info (docs) | `kcl/thttpserver/PLAN.md:118`, `kcl/math/PLAN.md:122` | Still describe the removed `_X_SOURCED` re-source guards. |
+
+## R6.2 Decisions (owner 2026-10-17 quiz, all as recommended)
+
+| # | Decision |
+|---|---|
+| DR20 | E1: BOTH (a) export-safe binding — the three binding sites use `local -n +x` (children always see the global value; ≈+0.2 µs per bound name per call; .ckk cache format bump to 3 because fat-static bindings are cached) AND (b) variable-like members (property, static property, lazy property, field — NOT class/method names) named like bash's own variables, TZ, TERM, USER, LOGNAME, or with the prefixes BASH_, LC_, COMP_, READLINE_, HIST are refused at declaration (Duplicate-identifier style message naming the reason). |
+| DR21 | E2: a public `kk.frameReset` for EXIT handlers (clears stale frames, restores localvar_unset via a global owner flag set by the outermost kk._invoke) + the book documents it; no hot-path cost beyond one global assignment on top-level calls. |
+| DR22 | E3: no runtime change — the two accessor reads get a `-` default; the book documents `${prop-}` / `${prop:-0}` for method code (and the 5.2/5.3 difference); examples 04, 40 and 38 fixed. |
+| DR23 | E4: `kklass/experimental/` deleted after a reference check (grep all repos + docs). |
+| DR24 | E5: a critic attributes the extra ≈5 ms per Pascal class; fixed only if it does not weaken the P14 hardening. |
+| DR25 | (supervisor) E6: the two PLAN.md passages are corrected. |
+
+## R6.3 Phases
+
+| phase | content | gate |
+|---|---|---|
+| **P16** | E1 (DR20), E2 (DR21), E3 (DR22), E4 (DR23), E6 (DR25) | red-first per item both bashes; kklass + kkore + all kcl suites both bashes; examples gate (`bash -u` too for 04/38/40); hot-path A/B for the `+x` binding; .ckk format 3 rebuild tests; master sweep 0 [FAIL] both |
+| **P17** | E5 (DR24) | per-phase attribution of a Pascal build before/after; empty dump diff; master sweep |
