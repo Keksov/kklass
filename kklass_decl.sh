@@ -442,14 +442,16 @@ kk.decl._sink_enter() {   # CLASS MODE (s|d) OPENER
 # kk.decl._ns_snap NS NAME — sink mode n: keep the `declare -f` text of the
 # function NS.NAME (when it exists and is not kept yet) in _KKLASS_SINK_NS[NS].
 # Called by kk.decl._sunk after its ownership check; NS and NAME are
-# identifiers. An error path: the capture may fork.
+# identifiers. An error path; the capture is kk._fn_text (no fork, P14).
 kk.decl._ns_snap() {   # NS NAME
     [[ ${__KKLASS_TABLES[@]@a} == A ]] || return 0          # ownership first (R14)
     kk._is_ident "${1-}" && kk._is_ident "${2-}" || return 0
     declare -F "$1.$2" >/dev/null || return 0
     local __kk_nl=$'\n'
     [[ $__kk_nl${_KKLASS_SINK_NS[$1]-} != *"$__kk_nl$1.$2 ()"* ]] || return 0
-    _KKLASS_SINK_NS[$1]+=$__kk_nl$(declare -f "$1.$2")
+    local __kk_fx
+    kk._fn_text "$1.$2" __kk_fx                     # no fork (P14)
+    _KKLASS_SINK_NS[$1]+=$__kk_nl$__kk_fx
 }
 
 # kk.decl._sink_mine — the sink state is this shell's (else it is cleared, rc 1).
@@ -711,12 +713,18 @@ kk.decl._runtime_method_exists() {
     kk.decl._array_contains "$methods_var" "$method_name"
 }
 
+# CLASS BODY -> __kk_btxt (the caller's local; round 5 / P14, K1: no `$( )`).
+# BODY with every `inherited M` (M a method of an ancestor) rewritten to
+# `$this.parent M`, trailing newlines stripped as `$( )` stripped them.
+# kk.decl._parent_of answers in RESULT: a LOCAL RESULT here keeps the caller's
+# (implement / implementConstructor must not clobber it — critic r5a C10).
 kk.decl._rewrite_inherited() {
     local class_name="$1"
     local method_body="$2"
     local parent_class=""
     local parent_methods_var=""
     local parent_method=""
+    local RESULT
 
     kk.decl._parent_of "$class_name"
     parent_class="$RESULT"
@@ -742,7 +750,8 @@ kk.decl._rewrite_inherited() {
         parent_class="$RESULT"
     done
 
-    printf '%s' "$method_body"
+    __kk_btxt=$method_body
+    while [[ $__kk_btxt == *$'\n' ]]; do __kk_btxt=${__kk_btxt%$'\n'}; done
 }
 
 # Is METHOD (as declared in CLASS or an ancestor) a `function`, i.e. does it
@@ -765,23 +774,26 @@ kk.decl._method_kind_is_function() {
     return 1
 }
 
+# CLASS PROPERTY TARGET -> __kk_btxt (the caller's local; P14: printf -v, no
+# `$( )`); kk.decl._method_kind_is_function answers through RESULT, kept local.
 kk.decl._build_property_getter_body() {
     local class_name="$1"
     local property_name="$2"
     local read_target="$3"
+    local RESULT
 
     if [[ -z "$read_target" ]]; then
-        printf 'echo "Error: Property '\''%s'\'' is write-only" >&2\nreturn 1' "$property_name"
+        printf -v __kk_btxt 'echo "Error: Property '\''%s'\'' is write-only" >&2\nreturn 1' "$property_name"
         return 0
     fi
 
     if [[ "$read_target" == "$property_name" ]]; then
-        printf 'RESULT="$%s"' "$property_name"
+        printf -v __kk_btxt 'RESULT="$%s"' "$property_name"
         return 0
     fi
 
     if kk.decl._field_declared "$class_name" "$read_target"; then
-        printf 'RESULT="$%s"' "$read_target"
+        printf -v __kk_btxt 'RESULT="$%s"' "$read_target"
         return 0
     fi
 
@@ -795,34 +807,35 @@ kk.decl._build_property_getter_body() {
         # The getter's exit status must reach the caller (kcl: predicates answer
         # by rc): keep it across the kk._return trailer that endImplementation
         # appends to every func (found_in_P6 P6-F1).
-        printf 'RESULT=""; $__inst__.call %s; local __kk_grc=$?; kk._return "$RESULT"; return "$__kk_grc"' "$read_target"
+        printf -v __kk_btxt 'RESULT=""; $__inst__.call %s; local __kk_grc=$?; kk._return "$RESULT"; return "$__kk_grc"' "$read_target"
         return 0
     fi
 
-    printf 'RESULT="$($__inst__.call %s)"' "$read_target"
+    printf -v __kk_btxt 'RESULT="$($__inst__.call %s)"' "$read_target"
 }
 
+# CLASS PROPERTY TARGET -> __kk_btxt (the caller's local; P14: printf -v).
 kk.decl._build_property_setter_body() {
     local class_name="$1"
     local property_name="$2"
     local write_target="$3"
 
     if [[ -z "$write_target" ]]; then
-        printf 'echo "Error: Property '\''%s'\'' is read-only" >&2\nreturn 1' "$property_name"
+        printf -v __kk_btxt 'echo "Error: Property '\''%s'\'' is read-only" >&2\nreturn 1' "$property_name"
         return 0
     fi
 
     if [[ "$write_target" == "$property_name" ]]; then
-        printf '%s="$1"' "$property_name"
+        printf -v __kk_btxt '%s="$1"' "$property_name"
         return 0
     fi
 
     if kk.decl._field_declared "$class_name" "$write_target"; then
-        printf '%s="$1"' "$write_target"
+        printf -v __kk_btxt '%s="$1"' "$write_target"
         return 0
     fi
 
-    printf '$__inst__.call %s "$1"' "$write_target"
+    printf -v __kk_btxt '$__inst__.call %s "$1"' "$write_target"
 }
 
 kk.decl._compute_unresolved_abstracts() {
@@ -914,11 +927,12 @@ kk.decl._install_new_wrapper() {
     local class_name="$1"
     local abstract_flag_var="${class_name}_class_abstract"
 
+    # The real constructor behind the abstract-class guard: the same template
+    # kk._build_class_runtime defined CLASS.new with (round 5 / P14, DR18 (3):
+    # it used to be read back through `$(declare -f CLASS.new)` — a fork).
     if ! declare -f "${class_name}.__decl_new_impl" >/dev/null 2>&1; then
-        local new_definition
-        new_definition="$(declare -f "${class_name}.new")" || return 1
-        new_definition="${new_definition/${class_name}.new ()/${class_name}.__decl_new_impl ()}"
-        eval "$new_definition"
+        declare -F "${class_name}.new" >/dev/null || return 1
+        kk._new_define "${class_name}.__decl_new_impl" "$class_name"
     fi
 
     eval "${class_name}.new() {
@@ -1408,7 +1422,8 @@ implement() {
         return 1
     fi
 
-    method_body="$(kk.decl._rewrite_inherited "$class_name" "$method_body")"
+    local __kk_btxt
+    kk.decl._rewrite_inherited "$class_name" "$method_body"; method_body=$__kk_btxt
     body_ref["$method_name"]="$method_body"
 }
 
@@ -1425,7 +1440,8 @@ implementConstructor() {
     # P11 review R2: CLASS_NAME is spliced into an eval'd assignment below.
     kk.decl._validate_ident "$class_name" "class name" || return 1
 
-    constructor_body="$(kk.decl._rewrite_inherited "$class_name" "$constructor_body")"
+    local __kk_btxt
+    kk.decl._rewrite_inherited "$class_name" "$constructor_body"; constructor_body=$__kk_btxt
     eval "${class_name}_decl_constructor_body=\$constructor_body"
 }
 
@@ -1536,9 +1552,10 @@ endImplementation() {
             local setter_name="_set_${property_name}"
             local getter_body
             local setter_body
+            local __kk_btxt
 
-            getter_body="$(kk.decl._build_property_getter_body "$class_name" "$property_name" "$read_target")"
-            setter_body="$(kk.decl._build_property_setter_body "$class_name" "$property_name" "$write_target")"
+            kk.decl._build_property_getter_body "$class_name" "$property_name" "$read_target"; getter_body=$__kk_btxt
+            kk.decl._build_property_setter_body "$class_name" "$property_name" "$write_target"; setter_body=$__kk_btxt
 
             class_args+=("property" "$property_name" "$getter_name" "$setter_name")
             class_args+=("function" "$getter_name" "$getter_body")

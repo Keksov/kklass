@@ -1116,6 +1116,54 @@ runtime (the same declarative core that `defineClass` uses), and removes the
 scratch functions. Everything you know about instances, properties and dispatch
 still applies — the DSL changes how classes are *written*, not how they *run*.
 
+**Building a class forks nothing** (round 5 / P14). Up to round 5 every
+Pascal method cost four `$( )` subshells (the body extraction, its inner
+`declare -f`, the bare-`inherited` rewrite, the `inherited` → `$this.parent`
+rewrite of `implement`), every accessor property two, every class one — on
+msys/cygwin a fork costs 12–30 ms, so a fresh `kk.uses dateutils` (one class,
+185 methods) took ~10.5 s, ~86 % of it in forks. The string helpers now return
+through a variable and the one real capture, `declare -f`, goes through
+`kk._fn_text`: the shell keeps two READ descriptors on a scratch file that
+is deleted right after it is created; a capture appends a random marker, the
+`declare -f` text and the marker again (the write side is opened through
+`/proc/PID/fd` or `/dev/fd` for one `build` at most) and reads exactly that
+back — anything else (descriptors the caller reopened, data a process added)
+makes that capture a plain `$( )`. The same load takes ~0.45 s on both
+bashes (math ~0.27 s, thttpapplication ~0.46 s); per class (2 fields, 2
+accessor properties, a constructor, 5 methods) Pascal 486 → 17 ms,
+declarative 181 → 13 ms, `defineClass` 122 → 10 ms (bash 5.2, msys). The
+setup — one `rm`, the system one by absolute path — is paid once per shell
+(a subshell that builds a class opens its own pair), and again after ~256 KB
+of captured text. What it does and does not guarantee:
+
+- The name is `kbool_fntext.PID.<SRANDOM>.<SRANDOM>` (never your `$RANDOM`
+  stream); a name where anything exists is skipped, the created descriptor
+  must be a regular file. noclobber alone refuses only an existing *regular*
+  file, hence those checks; a planted FIFO or device is never opened. A
+  `.u` probe next to it holds nothing but your umask (bash cannot read the
+  umask without a fork) and goes with the same `rm`.
+- The file is removed at once. If the `rm` fails (an ACL, a lock) that ONE
+  file stays, kklass says so on stderr (`kk.warn`) and the shell builds with
+  `$( )` from then on; three out-of-step captures or 16 setups in one shell
+  switch the fast path off too.
+- Processes started by the shell inherit the two read descriptors of the
+  deleted file, never a write descriptor kept open after a `build`. The trust
+  boundary is the USER: a child running as the same user could change your
+  scripts anyway — it can reopen the file and add data, but the per-capture
+  marker (it must occur exactly twice, nothing after it) makes the parent
+  notice and fall back, so it cannot make the parent read a forged function
+  text; it can read the function texts captured after it started. A child
+  running as ANOTHER user (`runuser`, `setpriv` keep descriptors) cannot open
+  the file for writing: it is created mode 0600 (`umask 077`, your umask is
+  restored right after). On MSYS/Cygwin `noacl` mounts (the default) the
+  POSIX mode is not stored; the file carries the Windows ACL of `$TMPDIR` —
+  keep `TMPDIR` private (the per-user `%TEMP%` is). A child keeps the (small,
+  capped) file allocated until it exits.
+- Opening the pair is not free of the caller's descriptor table: it takes
+  three numbers ≥ 10 for a moment and keeps two; a caller that reopens them
+  (`exec 12>file`) is detected before every capture and is never written to
+  or read from — the pair is simply forgotten.
+
 ### Grammar Reference
 
 ```text
@@ -1309,7 +1357,9 @@ function (`.new`, `.constructor`, static accessors and methods) with
 `declare -f` — into one bash file. Loading that file is a plain `source`.
 
 - **Loads faster**: the class-definition code (parsing, inheritance
-  resolution, template generation, DSL processing) does not run again.
+  resolution, template generation, DSL processing) does not run again. Since
+  round 5 / P14 that code forks nothing (see *Pascal DSL*: ~0.45 s for 185
+  methods), so the gain is smaller than it was; the cache still skips it.
 - **Identical behaviour**: there is no second code generator. Compiled classes
   use exactly the same `kk._*` runtime as classes defined at run time, so a
   runtime-vs-compiled parity test (`tests/123_CompiledParity.sh`) holds by

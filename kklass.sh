@@ -693,6 +693,259 @@ kk.call_silent() {
     return "$call_status"
 }
 
+# ---------------------------------------------------------------------------
+# kk._fn_text NAME VAR — VAR = the `declare -f NAME` text with every trailing
+# newline stripped, i.e. exactly what `VAR=$(declare -f NAME)` gave, WITHOUT
+# the fork (round 5 / P14, finding K1, decision DR18). rc 1 and VAR="" when
+# NAME is not a function; rc 2 when VAR is not an identifier or starts with
+# this helper's own `__kk_ft` (VAR is assigned by `printf -v`, so it lands in
+# the caller's local of that name).
+#
+# Why: a `$( )` costs 12-33 ms on MSYS/Cygwin, and the class build captured a
+# function text per Pascal method — 741 forks, ~86 % of a fresh
+# `kk.uses dateutils` (critic r5a C1-C7).
+#
+# How: the shell keeps two READ descriptors (R, R2) on one scratch file that
+# is already deleted. A capture appends
+#   MARKER / the `declare -f NAME` text / MARKER
+# to the file and reads back with `read -d '' <&R` exactly what was appended
+# (R's offset follows the end). The write side is opened through FDDIR/R
+# (FDDIR = /proc/PID/fd, else /dev/fd):
+# for the one command of each capture, or — between kk._fn_text_hold and
+# kk._fn_text_release, which `build` puts around its extraction loop — once
+# per class build. So no WRITE descriptor outlives a class build, and a
+# process the shell starts later inherits only the two read descriptors
+# (review P14 F2). MARKER is `$SRANDOM.$SRANDOM`, new per capture; what is
+# read must be exactly MARKER, the `NAME () ` line, …, MARKER — the marker
+# EXACTLY twice, nothing after the second one — else this call falls back to
+# `$( )`: a process that writes into the file (it would have to reopen it
+# itself) cannot forge or extend a capture, not even one that saw the
+# in-flight marker and appended `NAME () {…}` + MARKER before the text
+# (round 2 of the review). Trust boundary: a child running as the same user
+# could change the user's scripts anyway; the file is mode 0600 (below), so a
+# child running as ANOTHER user (runuser/setpriv keep descriptors) cannot
+# reopen it for writing.
+# Before every capture `-ef` checks that the descriptors are still one file:
+# a caller who reopened one of the numbers (`exec 11>file`) is never written
+# to or read from (F1) — the numbers are forgotten, not closed (they are the
+# caller's now).
+#
+# Setup (kk._fn_text_open), once per shell (a subshell opens its own pair and
+# never touches the parent's numbers), again after ~256 KB of captured text:
+# an `rm` is found FIRST (/usr/bin/rm, /bin/rm, else the one PATH hashes;
+# called through `command`, so no function can stand in for it); the name
+# ${TMPDIR:-/tmp}/kbool_fntext.PID.SRANDOM.SRANDOM (never the caller's
+# $RANDOM: F3/F4) is skipped when anything exists there (-e / -L: a planted
+# FIFO or a symlink to /dev/tty is never opened); it is created under
+# noclobber (which refuses only an existing REGULAR file — hence the -e/-L
+# test before and the -f test after) and under `umask 077` (mode 0600; the
+# caller's umask is restored at once — see kk._fn_text_open; on MSYS/Cygwin
+# `noacl` mounts the mode is not stored at all: the file gets the Windows ACL
+# of TMPDIR, the per-user %TEMP% by default); the read descriptors must be that file
+# (-ef); the creating descriptor is closed and the file removed (the `rm` is
+# the one process started per setup). A failed delete leaves that ONE file,
+# says so (kk.warn) and switches the capture off for this shell (F5); so do
+# three out-of-step captures or 16 setups in one shell (F6). Off = every
+# capture is a plain `$( )`. No private 0700 directory: mkdir would be one
+# more process per setup; the file lives for the few microseconds between
+# its creation and the rm, under a name that cannot be predicted.
+#
+# State: the indexed array __kk_ft = (PID R R2 CHARS FAILS SETUPS W HOLD FDDIR).
+# An array cannot come from the environment, so its attribute is the
+# ownership test (R14); it is reset whenever PID is not this process. Each
+# load of kklass.sh closes this shell's descriptors (when still its own).
+kk._fn_text() {   # NAME VAR
+    case ${2-} in
+        ""|*[!A-Za-z0-9_]*|*[![:ascii:]]*|[0-9]*|__kk_ft*) return 2 ;;
+    esac
+    local __kk_ft_t= __kk_ft_m
+    if [[ ${__kk_ft[0]+${__kk_ft@a}} != a* || ${__kk_ft[0]} != "$BASHPID" ]]; then
+        kk._fn_text_reset                       # this process's state (R14)
+    fi
+    if [[ -n ${__kk_ft[1]} ]]; then
+        if [[ -n ${__kk_ft[6]} ]]; then          # held write side: still one file?
+            [[ ${__kk_ft[8]}/${__kk_ft[6]} -ef ${__kk_ft[8]}/${__kk_ft[1]} ]] \
+                || __kk_ft[1]="" __kk_ft[2]="" __kk_ft[6]="" __kk_ft[4]=$(( __kk_ft[4] + 1 ))
+        elif [[ ! ${__kk_ft[8]}/${__kk_ft[1]} -ef ${__kk_ft[8]}/${__kk_ft[2]} ]]; then
+            __kk_ft[1]="" __kk_ft[2]="" __kk_ft[4]=$(( __kk_ft[4] + 1 ))   # not ours any more: forget
+        fi
+        if [[ -n ${__kk_ft[1]} ]] && (( __kk_ft[3] > 262144 )); then
+            kk._fn_text_close                    # size cap: a fresh file
+        fi
+    fi
+    if [[ -n ${__kk_ft[1]} ]] || kk._fn_text_open; then
+        local __kk_ft_r=${__kk_ft[1]} __kk_ft_w=${__kk_ft[6]}   # (a trap may change the state)
+        __kk_ft_m="#kk_ft.$SRANDOM.$SRANDOM"
+        if [[ -n $__kk_ft_w ]]; then
+            { printf '%s\n' "$__kk_ft_m"; declare -f -- "$1"; printf '%s\n' "$__kk_ft_m"; } 2>&- >&"$__kk_ft_w"
+        else
+            { printf '%s\n' "$__kk_ft_m"; declare -f -- "$1"; printf '%s\n' "$__kk_ft_m"; } 2>/dev/null >>"${__kk_ft[8]}/$__kk_ft_r"
+        fi && { IFS= read -r -d '' -u "$__kk_ft_r" __kk_ft_t 2>&- || :; }
+        if [[ $__kk_ft_t == "$__kk_ft_m"$'\n'"$__kk_ft_m"$'\n' ]]; then
+            printf -v "$2" ''                    # NAME is not a function: what $( ) gave
+            return 1
+        fi
+        if [[ $__kk_ft_t == "$__kk_ft_m"$'\n'"$1 () "$'\n'*$'\n'"$__kk_ft_m"$'\n' ]]; then
+            __kk_ft[3]=$(( __kk_ft[3] + ${#__kk_ft_t} ))
+            # MARKER\n + text\n + MARKER\n -> text (declare -f ends with one \n)
+            __kk_ft_t=${__kk_ft_t:${#__kk_ft_m}+1:${#__kk_ft_t}-2*${#__kk_ft_m}-3}
+            # the marker EXACTLY twice: a writer that saw it in flight and
+            # appended `NAME () {…}` + MARKER before the text is refused
+            # (round 2 of the P14 review); the pattern above already ends
+            # the read at the closing marker
+            if [[ $__kk_ft_t != *"$__kk_ft_m"* ]]; then
+                while [[ $__kk_ft_t == *$'\n' ]]; do __kk_ft_t=${__kk_ft_t%$'\n'}; done
+                printf -v "$2" '%s' "$__kk_ft_t"
+                return 0
+            fi
+        fi
+        # out of step (a trap captured inside this capture, a process read
+        # from or wrote into the file, a number closed): count it, close the
+        # descriptors when they are still ours (else forget them), fork once
+        __kk_ft[4]=$(( __kk_ft[4] + 1 ))
+        kk._fn_text_close
+    fi
+    __kk_ft_t=$(declare -f -- "$1") || { printf -v "$2" ''; return 1; }
+    printf -v "$2" '%s' "$__kk_ft_t"
+}
+
+# kk._fn_text_reset — a fresh state for this process: no descriptors, counters
+# 0, the descriptor directory (/proc/PID/fd when there is one — its `-ef` is
+# ~30 % cheaper on cygwin than /dev/fd's — else /dev/fd).
+kk._fn_text_reset() {
+    __kk_ft=("$BASHPID" "" "" 0 0 0 "" "" /dev/fd)
+    [[ ! -d /proc/$BASHPID/fd ]] || __kk_ft[8]=/proc/$BASHPID/fd
+    return 0
+}
+
+# kk._fn_text_hold / kk._fn_text_release — `build` holds the write side of
+# the pair for its extraction loop (one open per class instead of one per
+# method). A hold is not counted: the next release (or the next load of
+# kklass.sh) closes it. Both are no-ops on a state that is not this process's.
+kk._fn_text_hold() {
+    if [[ ${__kk_ft[0]+${__kk_ft@a}} != a* || ${__kk_ft[0]} != "$BASHPID" ]]; then
+        kk._fn_text_reset
+    fi
+    __kk_ft[7]=1
+    [[ -n ${__kk_ft[1]} && -z ${__kk_ft[6]} ]] && kk._fn_text_wopen
+    return 0
+}
+kk._fn_text_release() {
+    [[ ${__kk_ft[0]+${__kk_ft@a}} == a* && ${__kk_ft[0]} == "$BASHPID" ]] || return 0
+    __kk_ft[7]=""
+    local __kk_ft_w=${__kk_ft[6]}
+    __kk_ft[6]=""
+    if [[ -n $__kk_ft_w && $__kk_ft_w != *[!0-9]* && ${__kk_ft[8]}/$__kk_ft_w -ef ${__kk_ft[8]}/${__kk_ft[1]} ]]; then
+        { exec {__kk_ft_w}>&-; } 2>/dev/null
+    fi
+    return 0
+}
+# kk._fn_text_wopen — open the held write side through FDDIR/R (append).
+kk._fn_text_wopen() {
+    local __kk_ft_w=""
+    [[ ${__kk_ft[8]}/${__kk_ft[1]} -ef ${__kk_ft[8]}/${__kk_ft[2]} ]] || return 1
+    { exec {__kk_ft_w}>>"${__kk_ft[8]}/${__kk_ft[1]}"; } 2>/dev/null || return 1
+    if [[ ${__kk_ft[8]}/$__kk_ft_w -ef ${__kk_ft[8]}/${__kk_ft[1]} ]]; then
+        __kk_ft[6]=$__kk_ft_w
+        return 0
+    fi
+    { exec {__kk_ft_w}>&-; } 2>/dev/null
+    return 1
+}
+
+# kk._fn_text_close — close this shell's descriptors when they still are one
+# file (still ours); otherwise only forget them. Always leaves no pair.
+kk._fn_text_close() {
+    local __kk_ft_x=${__kk_ft[1]-} __kk_ft_y=${__kk_ft[2]-} __kk_ft_w=${__kk_ft[6]-}
+    __kk_ft[1]="" __kk_ft[2]="" __kk_ft[6]=""
+    [[ -n $__kk_ft_x && $__kk_ft_x != *[!0-9]* && -n $__kk_ft_y && $__kk_ft_y != *[!0-9]* && $__kk_ft_x != "$__kk_ft_y" ]] || return 0
+    [[ ${__kk_ft[8]}/$__kk_ft_x -ef ${__kk_ft[8]}/$__kk_ft_y ]] || return 0
+    if [[ -n $__kk_ft_w && $__kk_ft_w != *[!0-9]* && $__kk_ft_w != "$__kk_ft_x" && $__kk_ft_w != "$__kk_ft_y" \
+          && ${__kk_ft[8]}/$__kk_ft_w -ef ${__kk_ft[8]}/$__kk_ft_x ]]; then
+        { exec {__kk_ft_w}>&-; } 2>/dev/null
+    fi
+    { exec {__kk_ft_x}<&- {__kk_ft_y}<&-; } 2>/dev/null
+    return 0
+}
+
+# kk._fn_text_open — set up this shell's pair (see kk._fn_text); rc 1 = not
+# now (switched off, no rm, no SRANDOM, TMPDIR not writable, a name taken …):
+# the capture falls back to `$( )`. The scratch file is created mode 0600
+# (`umask 077` around its creation): no other user can open it, not even
+# through a descriptor a privilege-dropping child inherited (round 2 of the
+# P14 review). bash cannot read its umask without a fork, so `umask` first
+# writes the caller's mask into a probe file next to it (created under the
+# caller's own mask, holding nothing but that mask), it is read back, and
+# restored right after the creation; one `rm` deletes both files.
+kk._fn_text_open() {
+    local - __kk_ft_f __kk_ft_rm="" __kk_ft_w="" __kk_ft_x="" __kk_ft_y="" __kk_ft_p="" __kk_ft_u="" \
+          __kk_ft_pc=0 __kk_ft_ok=0 __kk_ft_a=$SRANDOM __kk_ft_b=$SRANDOM
+    (( __kk_ft[4] < 3 && __kk_ft[5] < 16 )) || return 1
+    __kk_ft[5]=$(( __kk_ft[5] + 1 ))
+    if [[ -z $__kk_ft_a || $__kk_ft_a == "$__kk_ft_b" ]]; then   # SRANDOM is not bash's (unset)
+        __kk_ft[4]=99
+        return 1
+    fi
+    if [[ -x /usr/bin/rm ]]; then __kk_ft_rm=/usr/bin/rm
+    elif [[ -x /bin/rm ]]; then __kk_ft_rm=/bin/rm
+    elif hash rm 2>/dev/null; then __kk_ft_rm=${BASH_CMDS[rm]-}
+    fi
+    [[ -n $__kk_ft_rm ]] || { __kk_ft[4]=99; return 1; }
+    __kk_ft_f=${TMPDIR:-/tmp}/kbool_fntext.$BASHPID.$__kk_ft_a.$__kk_ft_b
+    if [[ -e $__kk_ft_f || -L $__kk_ft_f || -e $__kk_ft_f.u || -L $__kk_ft_f.u ]]; then   # never open what is there
+        __kk_ft[4]=$(( __kk_ft[4] + 1 ))
+        return 1
+    fi
+    set -C
+    # the caller's umask, through the probe file
+    { exec {__kk_ft_p}>"$__kk_ft_f.u"; } 2>/dev/null || { __kk_ft[4]=$(( __kk_ft[4] + 1 )); return 1; }
+    if [[ -f ${__kk_ft[8]}/$__kk_ft_p ]]; then                   # a regular file: created now
+        __kk_ft_pc=1
+        umask >&"$__kk_ft_p"
+        { IFS= read -r __kk_ft_u <"$__kk_ft_f.u"; } 2>/dev/null || __kk_ft_u=""
+    fi
+    { exec {__kk_ft_p}>&-; } 2>/dev/null
+    if [[ -n $__kk_ft_u && $__kk_ft_u != *[!0-7]* ]]; then
+        umask 077
+        { exec {__kk_ft_w}>"$__kk_ft_f"; } 2>/dev/null || __kk_ft_w=""
+        umask "$__kk_ft_u"                                       # restored at once
+    fi
+    if [[ -n $__kk_ft_w ]]; then
+        if [[ -f ${__kk_ft[8]}/$__kk_ft_w ]] \
+           && { exec {__kk_ft_x}<"$__kk_ft_f"; } 2>/dev/null && { exec {__kk_ft_y}<"$__kk_ft_f"; } 2>/dev/null \
+           && [[ ${__kk_ft[8]}/$__kk_ft_w -ef ${__kk_ft[8]}/$__kk_ft_x && ${__kk_ft[8]}/$__kk_ft_w -ef ${__kk_ft[8]}/$__kk_ft_y ]]; then
+            __kk_ft_ok=1
+        fi
+        { exec {__kk_ft_w}>&-; } 2>/dev/null
+    fi
+    # one rm for what this call created (a name it did not create is kept)
+    if [[ -n $__kk_ft_w ]] && (( __kk_ft_pc )); then
+        command "$__kk_ft_rm" -f -- "$__kk_ft_f" "$__kk_ft_f.u" 2>/dev/null
+    elif [[ -n $__kk_ft_w ]]; then
+        command "$__kk_ft_rm" -f -- "$__kk_ft_f" 2>/dev/null
+    elif (( __kk_ft_pc )); then
+        command "$__kk_ft_rm" -f -- "$__kk_ft_f.u" 2>/dev/null
+    fi
+    if (( __kk_ft_pc )) && [[ -e $__kk_ft_f.u && ! -L $__kk_ft_f.u ]] \
+       || [[ -n $__kk_ft_w && -e $__kk_ft_f && ! -L $__kk_ft_f ]]; then
+        __kk_ft_ok=0 __kk_ft[4]=99                              # not deleted: said once, off
+        kk.warn "kklass: cannot delete the scratch file '$__kk_ft_f' (or its '.u' probe); class builds use \$( ) in this shell (remove it)"
+    fi
+    if (( __kk_ft_ok )); then
+        __kk_ft[1]=$__kk_ft_x __kk_ft[2]=$__kk_ft_y __kk_ft[3]=0 __kk_ft[6]=""
+        [[ -z ${__kk_ft[7]} ]] || kk._fn_text_wopen || :   # inside a build: hold the write side
+        return 0
+    fi
+    [[ -z $__kk_ft_x ]] || { exec {__kk_ft_x}<&-; } 2>/dev/null
+    [[ -z $__kk_ft_y ]] || { exec {__kk_ft_y}<&-; } 2>/dev/null
+    (( __kk_ft[4] >= 99 )) || __kk_ft[4]=$(( __kk_ft[4] + 1 ))
+    return 1
+}
+# kklass.sh is (re)loaded: close this shell's descriptors when they are its
+# own; never trust a __kk_ft value that came from the environment (R14).
+if [[ ${__kk_ft[0]+${__kk_ft@a}} == a* && ${__kk_ft[0]} == "$BASHPID" ]]; then kk._fn_text_close; fi
+unset -v __kk_ft
+
 # Final form of a member body: the text as written, plus the kk._return trailer
 # for a `function`. Result in METHOD_BODY.
 #
@@ -1306,6 +1559,59 @@ kk._decl_token() {
     return 2
 }
 
+# kk._new_define FN CLASS — define the function FN as CLASS's constructor
+# (`CLASS.new INSTNAME ARGS...`). ONE template (round 5 / P14, DR18 (3)):
+# kk._build_class_runtime defines CLASS.new with it, and the declarative
+# kk.decl._install_new_wrapper defines CLASS.__decl_new_impl with it — before
+# P14 that one re-read CLASS.new back through `$(declare -f)` (a fork per
+# class) and renamed it; the text is the same, so it is generated again.
+# CLASS is a validated identifier (both callers check it first).
+#
+# Constructor function: materialize the instance by substituting the
+# (validated) instance name into the class template with a pure-bash
+# replacement and eval'ing it (no fork). Methods added later with
+# defineMethod are already in the template (F3), so nothing else to do.
+#
+# Instance-name check (round 3 / P11, M3 + review remark R1): .new is the
+# hottest builder path, and on bash 5.2 a call of kk._is_ident (function
+# call + two locale switches, as it was then) cost +17.6 us per .new. So
+# the check is INLINED here as an explicit-letter glob (round 4 / P12 kept
+# it: the helper no longer switches the locale, but the call itself is
+# still the cost on this path) — every allowed character
+# listed, NO ranges: a bracket of explicit characters is matched by
+# character equality, never by collation, so it is exact in every locale
+# and with globasciiranges on or off (critic probe m3d, list_g). Its one
+# weakness is `shopt -s nocasematch`, whose case folding lets the dotted
+# İ / dotless ı match i/I — so under nocasematch it falls back to
+# kk._is_ident. No =~, so BASH_REMATCH is untouched.
+# THIS INLINE COPY MUST STAY EQUIVALENT TO kk._is_ident (the single
+# definition of the rule); test 135 C5 runs one name table through both
+# in every locale × globasciiranges × nocasematch combination.
+# Then the taken names (uses U2b, "Taken names" at the top): a verb, a
+# class or a declared namespace is refused — one ownership test (R14) and
+# one assoc lookup; nothing lists the function table.
+kk._new_define() {   # FN CLASS
+    local class_name="$2"
+    local __kk_new_guard='if [[ ":$BASHOPTS:" != *:nocasematch:* ]]; then
+            [[ -n "$instname" && "$instname" != [!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_]* && "$instname" != *[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_]* ]]
+        else
+            kk._is_ident "$instname"
+        fi || { echo "Invalid instance name: $instname" >&2; return 1; }
+        [[ ${__KKLASS_TABLES[@]@a} == A ]] || kk._class_tables
+        [[ -z ${_KKLASS_TAKEN[$instname]+x} ]] || { kk._new_refused "$instname"; return 1; }'
+    eval "${1}() {
+        local instname=\"\$1\"
+        shift
+        ${__kk_new_guard}
+        eval \"\${${class_name}_instance_template//__INST__/\$instname}\"
+
+        if [[ -n \"\$${class_name}_constructor_body\" ]]; then
+            local __inst__=\"\$instname\"
+            kk._constructor_exec \"\$instname\" \"${class_name}\" \"\$@\"
+        fi
+    }"
+}
+
 kk._build_class_runtime() {
     [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off kk._build_class_runtime "$@"; return; }   # exact names (K3)
     local class_name="$1"
@@ -1731,47 +2037,8 @@ __INST__.delete() { kk._delete __INST__ \"\$@\"; }"
         kk._class_static_api "$class_name"
     fi
 
-    # Constructor function: materialize the instance by substituting the
-    # (validated) instance name into the class template with a pure-bash
-    # replacement and eval'ing it (no fork). Methods added later with
-    # defineMethod are already in the template (F3), so nothing else to do.
-    #
-    # Instance-name check (round 3 / P11, M3 + review remark R1): .new is the
-    # hottest builder path, and on bash 5.2 a call of kk._is_ident (function
-    # call + two locale switches, as it was then) cost +17.6 us per .new. So
-    # the check is INLINED here as an explicit-letter glob (round 4 / P12 kept
-    # it: the helper no longer switches the locale, but the call itself is
-    # still the cost on this path) — every allowed character
-    # listed, NO ranges: a bracket of explicit characters is matched by
-    # character equality, never by collation, so it is exact in every locale
-    # and with globasciiranges on or off (critic probe m3d, list_g). Its one
-    # weakness is `shopt -s nocasematch`, whose case folding lets the dotted
-    # İ / dotless ı match i/I — so under nocasematch it falls back to
-    # kk._is_ident. No =~, so BASH_REMATCH is untouched.
-    # THIS INLINE COPY MUST STAY EQUIVALENT TO kk._is_ident (the single
-    # definition of the rule); test 135 C5 runs one name table through both
-    # in every locale × globasciiranges × nocasematch combination.
-    # Then the taken names (uses U2b, "Taken names" at the top): a verb, a
-    # class or a declared namespace is refused — one ownership test (R14) and
-    # one assoc lookup; nothing lists the function table.
-    local __kk_new_guard='if [[ ":$BASHOPTS:" != *:nocasematch:* ]]; then
-            [[ -n "$instname" && "$instname" != [!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_]* && "$instname" != *[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_]* ]]
-        else
-            kk._is_ident "$instname"
-        fi || { echo "Invalid instance name: $instname" >&2; return 1; }
-        [[ ${__KKLASS_TABLES[@]@a} == A ]] || kk._class_tables
-        [[ -z ${_KKLASS_TAKEN[$instname]+x} ]] || { kk._new_refused "$instname"; return 1; }'
-    eval "${class_name}.new() {
-        local instname=\"\$1\"
-        shift
-        ${__kk_new_guard}
-        eval \"\${${class_name}_instance_template//__INST__/\$instname}\"
-
-        if [[ -n \"\$${class_name}_constructor_body\" ]]; then
-            local __inst__=\"\$instname\"
-            kk._constructor_exec \"\$instname\" \"${class_name}\" \"\$@\"
-        fi
-    }"
+    # Constructor function CLASS.new: the one template, kk._new_define (P14).
+    kk._new_define "${class_name}.new" "$class_name"
 
     # Constructor caller for explicit parent-constructor chaining. A thin wrapper
     # to the generic helper — the body is never embedded here (a body with quotes
@@ -2049,7 +2316,7 @@ kk.register_static_methods() {
             return 1
         fi
 
-        method_decl="$(declare -f "$public_name")"
+        kk._fn_text "$public_name" method_decl          # no fork (P14)
         method_decl="${method_decl#*$'\n'}"
         eval "${impl_name}() ${method_decl}"
         class_args+=("static_method" "$method_name" "${impl_name} \"\$@\"")

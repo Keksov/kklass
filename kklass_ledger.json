@@ -1022,7 +1022,7 @@
     ]
   },
   "round5": {
-    "status": "P13 DONE, committed 2026-10-17 (not pushed); next P14",
+    "status": "P13 + P14 DONE, committed 2026-10-17 (not pushed); next P15 (K2 = A5)",
     "plan": "PLAN.md # Round 5",
     "findings": {
       "K1": "class build forks: 741/493/495 per fresh dateutils/math/thttpapplication load, ~86% of 7-10 s; all avoidable (r5a)",
@@ -1078,7 +1078,87 @@
       },
       "P14": {
         "name": "K1,K7",
-        "status": "planned"
+        "status": "done (committed 2026-10-17)",
+        "changes": {
+          "K1 (1) string helpers": "kklass_pascal.sh kk.pascal._body / _name_bare_inherited / _ctor_inherited and kklass_decl.sh kk.decl._rewrite_inherited return through the CALLER's `local __kk_btxt` (every trailing newline stripped, as $( ) did); kk.decl._build_property_getter_body / _setter_body use printf -v __kk_btxt; callers build, implement, implementConstructor, endImplementation declare `local __kk_btxt`; kk.decl._rewrite_inherited and the getter builder keep `local RESULT` (kk.decl._parent_of answers in RESULT: implement / implementConstructor no longer clobber the caller's RESULT - critic C10)",
+          "K1 (2) kk._fn_text": "SUPERSEDED by review_round_1 (the first version held a WRITE fd per shell; critic p14 F1-F6)",
+          "K1 (3) new wrapper": "kklass.sh kk._new_define FN CLASS = the one X.new template (moved out of kk._build_class_runtime, which now calls it for X.new); kk.decl._install_new_wrapper defines X.__decl_new_impl with it - no $(declare -f X.new)",
+          "K7": "kkore/kuse.sh kk.unit = fast path + `kk._unit \"$@\"` (8 lines); kk._unit = the old body with exactly the C8 shifts: BASH_SOURCE[1]->[2], FUNCNAME[1]->[2], kk._unit_taint 3->4 (6 sites), kk._unit_check NAME 3->4, __KK_UNIT_BOT #BASH_SOURCE-2 -> -3, extdebug __kk_ai 1->2 and __kk_vo = BASH_ARGC[0]+BASH_ARGC[1]; review: stale MIN comment kuse.sh:251 fixed (kk._unit passes 4)",
+          "docs": "kklass_book.md (Pascal DSL: 'Building a class forks nothing' with numbers + inherited-fd note; Why Compile? gain note); kklass/OPTIMIZATION.md (section P14 + rule); SECURITY.md (hardening bullet: the scratch file)"
+        },
+        "tests": {
+          "kklass 145_ForkFreeBuild.sh (10)": "see review_round_1.tests (now 15)",
+          "kkore 016_UnitExtdebug.sh (6)": "see review_round_1.tests (now 8)"
+        },
+        "red_first": {
+          "145 vs HEAD (scratch HEAD tree) both bashes": "F1 FAIL (427 trace lines of child pids), F3-F6 FAIL (no kk._fn_text; the run dies at F7), F2 green on HEAD by design (HEAD's $( ) hid the RESULT write)",
+          "145 mutants (5.2)": "noLocalRESULT -> F2 FAIL; no load-time unset -> F8 FAIL (function text on stdout); no pid check -> F6 FAIL; no cap -> F5 FAIL; mismatch closes the pair -> F7 FAIL; `command rm` -> F10 FAIL (file left)",
+          "016": "HEAD 6/6 and new 6/6 both bashes; un-shifted extdebug mutant (__kk_ai=1, __kk_vo=BASH_ARGC[0]) 4 FAIL both bashes; BOT -2 mutant 4 FAIL; kk._unit_check MIN 3 mutant 1 FAIL; kk._unit_taint MIN 3 mutant 0 FAIL (unobservable: the BOT match already excludes the unit's own frame)"
+        },
+        "gate": {
+          "forks": "set -x PS4 $BASHPID (critic trace.sh/forks.awk + type -t of every traced word). 5.2 before: dateutils 741, math 493, thttpapplication 495; DSL probe (3 classes): defineClass 21, declarative 33, Pascal 87 (7/11/29 per class). After, 5.2 AND 5.3: 0 subshells for all three units and all three DSLs; the only external is one `/usr/bin/rm` per shell (fd setup; 0 for defineClass/declarative, which capture nothing)",
+          "dump": "critic dump.sh/norm.sh from the repo cwd: declare -f / declare -p diff vs HEAD = 0 lines for dateutils (9304 fn lines), math (7115), thttpapplication (4983) on 5.2.37 and 5.3.9 (also after K7 and the rm fix). Excluded: the changed internals build implement implementConstructor endImplementation kk._build_class_runtime kk.decl._build_property_getter_body kk.decl._build_property_setter_body kk.decl._install_new_wrapper kk.decl._ns_snap kk.decl._rewrite_inherited kk.pascal._body kk.pascal._ctor_inherited kk.pascal._name_bare_inherited kk.register_static_methods kk.unit, the new kk._fn_text kk._fn_text_open kk._new_define kk._unit, the vars __kk_ft_pid/_w/_r/_n and TMPDIR (the probe's env); exactly those differ, nothing else; X.new / X.__decl_new_impl / every class table identical; final RESULT identical",
+          "load_5.2": "fresh kk.uses best of 3 (s) before -> after: dateutils 10.786 -> 0.422 (26x), math 7.885 -> 0.249 (32x), thttpapplication 7.709 -> 0.442 (17x)",
+          "load_5.3": "dateutils 10.535 -> 0.407 (26x), math 7.352 -> 0.243 (30x), thttpapplication 7.474 -> 0.443 (17x)",
+          "dsl": "ms/class (dsl.sh, 10 classes: 2 fields, 2 accessors, ctor, 5 methods) before -> after: 5.2 defineClass 121.7 -> 9.8, declarative 181.1 -> 12.8, Pascal 485.9 -> 16.0; 5.3 124.7 -> 7.6, 171.7 -> 9.4, 464.8 -> 14.0",
+          "capture": "micro (100 fns, best of 3, ms/capture): held fds 0.242 (5.2) / 0.223 (5.3); $(declare -f) 12.1 / 10.9; 5.3 funsub ${ declare -f; } 0.62 -> held fds on both bashes (one code path, faster)",
+          "suites": "kklass 757/757 (747 + 10) 5.2 56 s, 5.3 66 s; kkore 696/696 (690 + 6) 15 / 17 s; dateutils 444/444 5.2 19.7 s, 5.3 19.2 s; math 181/181 5.2 17.7 s, 5.3 18.4 s (gate < 30 s on 5.2; were 6-7.5 min); extra: thttpserver 497/497 both, kcl/tests 179/179 both (after the rm fix)",
+          "K7": "re-source skip path (k7bench, tstopwatch x2000, best of 3): critic p14 measured HEAD 182-185 -> 146-151 us (5.2/5.3, ~19 %); worker 132-141 us after (the earlier '132-137' alone overstated the gain); kk.unit 98 -> 8 lines",
+          "leftovers": "0 kbool_fntext.* / kk145.* in the probe TMPDIR and in the real TMPDIR after every run; strays none both runtimes",
+          "not_run": "master sweep (supervisor); expected totals +10 kklass, +6 kkore"
+        },
+        "notes": [
+          "fd inheritance (critic C12): every child inherits the 2 descriptors of the deleted file; documented (book); size capped by the 256 KB reopen",
+          "a subshell that builds a class pays one fd setup (1 rm) of its own",
+          "kk._fn_text falls back to $( ) only when the pair cannot open (no rm, TMPDIR unwritable) or is out of step"
+        ],
+        "worker_progress": "scratchpad/w_p14/PROGRESS.md",
+        "review_round_1": {
+          "critic": "scratchpad/critic_p14/REPORT.md (F1-F8, EQ/PERF/LEFTOVERS no finding)",
+          "design": "kklass.sh kk._fn_text + _reset/_hold/_release/_wopen/_close/_open. State = indexed array __kk_ft=(PID R R2 CHARS FAILS SETUPS W HOLD FDDIR) - an array cannot come from the environment, so its attribute is the ownership test; reset when PID != $BASHPID. The shell keeps only two READ fds (R, R2) on the deleted scratch file; the write side is opened through FDDIR/R (FDDIR = /proc/$BASHPID/fd, else /dev/fd; -ef there is ~30 % cheaper than /dev/fd on cygwin) per capture (`>>FDDIR/R` for one command) or held between kk._fn_text_hold / _release, which build puts around its extraction loop (released on every return path) - one open per class. Research (a) measured first: reopening the DELETED file for append through /dev/fd/R and /proc/PID/fd/R works on both runtimes (write + read back verified); per-capture reopen costs ~250 us, hence the per-build hold",
+          "F1": "before every capture `-ef` (held: FDDIR/W vs FDDIR/R; else FDDIR/R vs FDDIR/R2); a mismatch forgets the numbers (never closes or uses them) and counts a failure; probe fdreuse (adapted) + 145 F7: caller's file untouched, caller's read gets its first line, a new pair",
+          "F2": "no write fd outlives a build (145 F11: held=[] and both kept fds refuse writes); every capture is MARKER/text/MARKER with MARKER=#kk_ft.$SRANDOM.$SRANDOM new per capture; anything else -> $( ) fallback. Probes childjunk (adapted to the new state: junk / whole fake capture / forged marker / reader through the inherited fd) both bashes: m1-of-PB, nothing injected. Residual (documented, book): a child can reopen the file and READ texts captured after it started; it cannot forge a capture; a write racing INSIDE one declare -f output is not detected",
+          "F3": "name ${TMPDIR:-/tmp}/kbool_fntext.$BASHPID.$SRANDOM.$SRANDOM; skipped when -e or -L; created under noclobber; the new fd must be -f (a FIFO/device is never treated as ours, not removed); fifo.sh (critic, RANDOM-predicted FIFO) no longer hangs, rc 0 both bashes. No private 0700 dir: mkdir is external (one more process per setup) - skipped, documented",
+          "F4": "no $RANDOM draw: critic rnd.sh = 25484 = HEAD both bashes; 145 F12",
+          "F5": "rm resolved first (/usr/bin/rm, /bin/rm, else hash) and called `command \"$rm\"` (functions named rm or /usr/bin/rm cannot stand in: critic rmfail fn -> 0 left; 145 F13); a failed delete (shown with a mutant whose delete always fails) leaves ONE file, one kk.warn naming it, FAILS=99 -> $( ) for the rest of the shell, no file per capture",
+          "F6": "bounded: open refused when FAILS >= 3 or SETUPS >= 16; out-of-step closes the pair when -ef still holds (else forgets); nested.sh (adapted, DEBUG trap capturing inside each capture): 0 mismatches, fails 4, setups 3, next free fd 10 (was w=31 r=32); 145 F14 counts /proc/$BASHPID/fd: not growing (the pre-review version: 9 -> 49). kklass.sh load closes this shell's own pair then `unset -v __kk_ft` (145 F15: kk.unit --forget kklass + source -> both fds closed)",
+          "F7": "kkore 016 X6/X7 = critic k7.sh taint/taintf (plain source at the same depth, re-source with a header usage error, kk.uses -> loads=1): pass on HEAD and tree, FAIL on the kk._unit_taint 4->3 mutant, both bashes; kuse.sh:251 comment",
+          "F8": "book (Pascal DSL paragraph: what is and is not guaranteed), SECURITY.md bullet, kklass.sh block comment (no `>>f`, no 'noclobber = O_EXCL'), OPTIMIZATION.md section, ledger K7 numbers",
+          "tests": {
+            "kklass 145 (15)": "F1-F4 unchanged; F5 reopen (setups=2); F6 subshell own pair; F7 caller reopened R/R2 + held W (review F1); F8 env __kk_ft scalar + old names ignored; F9 set -Eeuo pipefail + ERR trap (held, per-capture, reopen); F10 empty PATH; F11 no write fd after build, child junk/fake/forged-marker injects nothing (F2); F12 RANDOM untouched (F4); F13 rm functions ignored (F5); F14 DEBUG-trap nesting bounded, no fd growth (F6); F15 kklass reload closes the pair (F6)",
+            "kkore 016 (8)": "X1-X5 + X6/X7 taint counter-cases (F7)"
+          },
+          "red_first": {
+            "145 vs the pre-review P14 code (reconstructed: old kk._fn_text/_open, current rest) 5.2 and 5.3": "behaviour FAILs: F7 (caller), F12 (RANDOM 16178 vs 25484), F13 (file left), F14 (fds 9 -> 49); state-API FAILs (the tests read __kk_ft[]): F5, F6, F10; F11 passes there only because it writes through __kk_ft[1] (empty in the old code) - the critic's own childjunk showed INJECTED-BY-CHILD on that code",
+            "145 mutants of the final code (5.2)": "no held -ef -> F7; no unheld -ef -> F7; no release in build -> F11 (held=[11]); fixed marker -> F11 (forged capture taken, rc 2); $RANDOM name -> F12; no `command` -> F13 (1 file + the warning: the real-failure path); no setup/failure bound -> F14; no close at load -> F15",
+            "016": "taint MIN 4->3 mutant: X6, X7 FAIL both bashes; HEAD and tree 8/8"
+          },
+          "gate": {
+            "forks": "0 subshells for dateutils/math/thttpapplication and the 3 DSLs on 5.2 and 5.3; one `command /usr/bin/rm` per unit load and per Pascal DSL run, 0 for defineClass/declarative; no other external",
+            "dump": "0 fn / 0 var diff lines vs HEAD, 3 units x 2 bashes; differing functions exactly: build endImplementation implement implementConstructor kk._build_class_runtime kk.decl._build_property_getter_body kk.decl._build_property_setter_body kk.decl._install_new_wrapper kk.decl._ns_snap kk.decl._rewrite_inherited kk.pascal._body kk.pascal._ctor_inherited kk.pascal._name_bare_inherited kk.register_static_methods kk.unit; new kk._fn_text kk._fn_text_close kk._fn_text_hold kk._fn_text_open kk._fn_text_release kk._fn_text_reset kk._fn_text_wopen kk._new_define kk._unit; new var __kk_ft (after a load W='' HOLD='')",
+            "load": "fresh kk.uses best of 3, interleaved with the pre-review code in one session (s): 5.2 dateutils 0.431 (pre 0.395), math 0.259 (0.240), thttpapplication 0.447 (0.423); 5.3 0.445 (0.389), 0.259 (0.234), 0.443 (0.410) - vs the numbers reported before the review (5.2 0.422/0.249/0.442, 5.3 0.407/0.243/0.443): +1..+9 %",
+            "dsl": "ms/class 5.2 defineClass 9.7, declarative 12.1, Pascal 19.5; 5.3 8.3, 9.6, 16.9",
+            "capture": "held (inside build) 0.455 / 0.425 ms, per-capture write 0.553 / 0.523 ms, $( ) 12.5 / 11.4 ms, 5.3 funsub 0.72 ms (5.2 / 5.3); the costs over the first version: -ef ~55 us, two marker writes ~60 us",
+            "suites": "kklass 762/762 (5.2 63-100 s, 5.3 61-89 s - machine load varied), kkore 698/698 (18-21 s), dateutils 444/444 (5.2 23.3 s, 5.3 19.4 s), math 181/181 (5.2 16.7 s, 5.3 15.0 s), kcl/tests 179/179 and thttpserver 497/497 both bashes",
+            "probes": "critic fifo, rnd, rmfail (fn) as given; childjunk, fdreuse, nested, rmfail adapted to the new state (scratchpad/w_p14/p14b/) - all as above, both bashes; k7 taint/taintf in kkore 016",
+            "leftovers": "0 kbool_fntext.* in the probe TMPDIR and the real TMPDIR; strays none both runtimes",
+            "not_run": "master sweep (supervisor); totals vs before P14: kklass +15, kkore +8"
+          }
+        },
+        "review_round_2": {
+          "finding": "supervisor 2026-10-17: the capture pattern MARKER\nNAME () \n*\nMARKER\n lets the * contain the marker: a writer that saw the in-flight marker (a child holding the inherited READ fd reopens the file through /proc/self/fd/R) appends `NAME () {forged}` + MARKER before the text -> extra top-level code eval'd. Boundary that matters: a child running as ANOTHER user (runuser/setpriv keep fds); same-user children are trusted",
+          "fix_marker": "kklass.sh kk._fn_text: after the frame match the text between the markers must not contain the marker (exactly twice; the pattern already anchors the read's end at the closing marker) else fallback; the not-a-function check (MARKER\nMARKER\n) moved before the match",
+          "fix_mode": "kklass.sh kk._fn_text_open: the scratch file is created under `umask 077` (0600) and the caller's umask restored at once. bash cannot read the umask without a fork, so `umask` writes it into a probe file NAME.u (created under the caller's own mask, holding only the mask, -e/-L/-f checked like the main name), read back with `read <file`, validated [0-7]+; one `command rm` deletes both files; a failed delete of either -> one kk.warn, off. Verified: umask 0002 / 0027 / 0000 restored exactly (145 F17). MSYS/Cygwin: both runtimes mount TMPDIR `noacl` - the POSIX mode is NOT stored (ls shows 0666&~umask of the VIEWING process: rw------- under umask 077, rw-r--r-- under 022, for the same file); the file gets the Windows ACL inherited from TMPDIR (icacls: SYSTEM, Administrators, the user - the per-user %TEMP%); documented (book, SECURITY.md, kklass.sh). Another-identity reopen via /proc/<pid>/fd could not be simulated on this machine (single user)",
+          "tests": "145 F16: a deterministic stand-in for the racing writer (a functrace DEBUG trap firing right before kk._fn_text's `declare -f`, reading the in-flight marker and appending `NAME () { echo INJECTED; }` + MARKER through /proc/$BASHPID/fd/R) -> refused, the text is $(declare -f)'s, in and outside a build (held write side); red on the round-1 code (bad text with INJECTED, o.m1 printed INJECTED, eval syntax error) and on the noMidCheck mutant. F17: umask kept (0027, 0000), nothing left (probe included); red on the no-restore mutant (0077 0077). 145 = 17 cases, 17/17 on 5.2.37 and 5.3.9",
+          "gate": {
+            "dump": "0 fn / 0 var diff lines vs HEAD, dateutils/math/thttpapplication, both bashes",
+            "forks": "0 subshells, one `command /usr/bin/rm` per unit load / Pascal DSL run (it now removes the file and its probe), both bashes",
+            "load": "fresh kk.uses best of 3 (s): 5.2 dateutils 0.487, math 0.293, thttpapplication 0.470; 5.3 0.458, 0.260, 0.445 - the machine was slower than in round 1 (the same code A/B'd: round-2 tree vs the tree without the marker-count check, interleaved, 5.2: 0.484/0.480, 0.296/0.290, 0.494/0.499 = within noise); the marker scan costs ~10-15 us per capture",
+            "suites": "kklass 764/764 on 5.2 (92 s, loaded machine) and 5.3 (63 s); extra on 5.2: kcl/tests 179/179, tfile 250/250, dateutils 444/444 (23.2 s)",
+            "leftovers": "0 kbool_fntext.* (and .u) in the probe TMPDIR and the real TMPDIR; strays none both runtimes"
+          }
+        },
+        "final_gate": "master sweep 2026-10-17 (supervisor): 5.2 30/30 8828 tests rc 0; 5.3 30/30 8829 rc 0 (5.3 sweep ~10 min, was ~33); no leftovers (kbool_fntext 0); strays none both runtimes"
       },
       "R5-research": {
         "name": "K2 research",

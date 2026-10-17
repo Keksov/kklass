@@ -178,13 +178,16 @@ destructor() {
 # ---- build: extract bodies from the real functions, then finalize ----------
 
 # Extract the bare body (statements between the braces) of a defined function.
-kk.pascal._body() {
-    local decl
-    decl="$(declare -f "$1")" || return 1
-    decl="${decl#*$'\n'}"        # drop the "name ()" line
-    decl="${decl#*$'\n'}"        # drop the "{" line
-    decl="${decl%$'\n'\}}"       # drop the trailing "}"
-    printf '%s' "$decl"
+# Round 5 / P14 (K1): the build path forks no `$( )` any more. These three
+# helpers return through the CALLER's `local __kk_btxt` (build declares it),
+# with every trailing newline stripped exactly as `$( )` stripped it; the
+# `declare -f` text itself comes from kk._fn_text (kklass.sh).
+kk.pascal._body() {   # FN -> __kk_btxt
+    kk._fn_text "$1" __kk_btxt || return 1
+    __kk_btxt="${__kk_btxt#*$'\n'}"        # drop the "name ()" line
+    __kk_btxt="${__kk_btxt#*$'\n'}"        # drop the "{" line
+    __kk_btxt="${__kk_btxt%$'\n'\}}"       # drop the trailing "}"
+    while [[ $__kk_btxt == *$'\n' ]]; do __kk_btxt=${__kk_btxt%$'\n'}; done
 }
 
 # Turn a BARE `inherited` (Pascal shorthand, no method name) in a method/destructor
@@ -201,7 +204,8 @@ kk.pascal._name_bare_inherited() {
     if [[ "$body" == *[$' \n\t']inherited ]]; then       # bare inherited as last statement
         body="${body%inherited}inherited ${method}"
     fi
-    printf '%s' "$body"
+    __kk_btxt=$body                                      # -> __kk_btxt
+    while [[ $__kk_btxt == *$'\n' ]]; do __kk_btxt=${__kk_btxt%$'\n'}; done
 }
 
 # In a CONSTRUCTOR body, `inherited` / `inherited <Ctor>` means "call the parent
@@ -215,7 +219,8 @@ kk.pascal._ctor_inherited() {
     if [[ "$body" == *[$' \n\t']inherited ]]; then
         body="${body%inherited}parent.constructor \"\$@\""
     fi
-    printf '%s' "$body"
+    __kk_btxt=$body                                      # -> __kk_btxt
+    while [[ $__kk_btxt == *$'\n' ]]; do __kk_btxt=${__kk_btxt%$'\n'}; done
 }
 
 build() {
@@ -247,8 +252,11 @@ build() {
     }
     local -n methods_ref="$methods_var"
     local -n abstract_ref="$abstract_var"
-    local m fn body
+    local m fn body __kk_btxt
 
+    # The write side of the capture pair is held for this loop only (one open
+    # per class; released on every way out — P14 review F2).
+    kk._fn_text_hold
     # Instance / static / destructor method bodies.
     for m in "${methods_ref[@]}"; do
         if [[ "${abstract_ref[$m]:-0}" == "1" ]]; then
@@ -257,11 +265,12 @@ build() {
         fn="${class_name}.${m}"
         if ! declare -F "$fn" >/dev/null; then
             echo "build: missing implementation function ${fn}()" >&2
+            kk._fn_text_release
             return 1
         fi
-        body="$(kk.pascal._body "$fn")"
-        body="$(kk.pascal._name_bare_inherited "$body" "$m")"
-        implement "${class_name}.${m}" "$body" || return 1
+        kk.pascal._body "$fn"; body=$__kk_btxt
+        kk.pascal._name_bare_inherited "$body" "$m"; body=$__kk_btxt
+        implement "${class_name}.${m}" "$body" || { kk._fn_text_release; return 1; }
         unset -f "$fn"                      # remove the authoring scratch function
     done
 
@@ -269,11 +278,12 @@ build() {
     local ctor_var="${class_name}_decl_constructor_name"
     local ctor="${!ctor_var:-}"
     if [[ -n "$ctor" ]] && declare -F "${class_name}.${ctor}" >/dev/null; then
-        body="$(kk.pascal._body "${class_name}.${ctor}")"
-        body="$(kk.pascal._ctor_inherited "$body" "$ctor")"
-        implementConstructor "$class_name" "$body" || return 1
+        kk.pascal._body "${class_name}.${ctor}"; body=$__kk_btxt
+        kk.pascal._ctor_inherited "$body" "$ctor"; body=$__kk_btxt
+        implementConstructor "$class_name" "$body" || { kk._fn_text_release; return 1; }
         unset -f "${class_name}.${ctor}"
     fi
+    kk._fn_text_release
 
     endImplementation "$class_name" || return 1
 
