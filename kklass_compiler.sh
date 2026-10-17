@@ -277,6 +277,7 @@ if ! declare -F kk._ckk_class >/dev/null; then
     fi
 fi
 kk._ckk_begin $(printf '%q' "$source_unit") $(printf '%q' "$site_ref") $(printf '%q' "$site_abs_ref")
+kk._ckk_format $__KK_CKK_FORMAT
 HEADER
 
     local class_name var_name fn_name site

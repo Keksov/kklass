@@ -576,9 +576,21 @@ kk._class_instances() {
 # from another file; nothing about the unit itself (registration, namespace)
 # is recorded here.
 
+# The cache FORMAT (round 5 / P15, DR16a): a cache is a verbatim dump of what
+# the runtime built, so a runtime change to what is dumped (P15: the static
+# method dispatchers gained the scope-isolation shadow) makes every older cache
+# stale. The compiler writes `kk._ckk_format N` right after `kk._ckk_begin`; a
+# cache without that line is format 1 (before P15). autoloadClasses rebuilds a
+# cache of another format (kk._ckk_file_format; with --no-compile it runs the
+# source instead); one sourced directly loads no class, says why once
+# (kk._ckk_class) and its `source` returns 1 (kk._ckk_end). Caches older than
+# uses U2b (no kk._ckk_begin at all) are not checked when sourced directly.
+declare -g __KK_CKK_FORMAT=2
+
 # kk._ckk_begin UNIT REL [ABS] — a compiled cache starts (see above).
 kk._ckk_begin() {
     local __kk_d=${BASH_SOURCE[1]-} __kk_found __kk_f="" __kk_r=${2-}
+    __KK_CKK_PATH=$__kk_d __KK_CKK_FMT=1 __KK_CKK_FMT_SAID=""
     [[ ${__KKLASS_TABLES[@]@a} == A ]] || kk._class_tables
     case $__kk_d in
         */*|*\\*) __kk_d=${__kk_d%[/\\]*} ;;
@@ -610,6 +622,30 @@ kk._ckk_begin() {
     return 0
 }
 
+# kk._ckk_format N — the cache being loaded has format N (written by the
+# compiler right after kk._ckk_begin).
+kk._ckk_format() {
+    __KK_CKK_FMT=${1-}
+    return 0
+}
+
+# kk._ckk_file_format FILE -> REPLY: the format of the cache FILE (1 when it
+# names none; empty + rc 1 when FILE cannot be read). Reads the header only
+# (the line follows kk._ckk_begin, within the first lines), no fork.
+kk._ckk_file_format() {
+    local __kk_l __kk_n=0
+    REPLY=""
+    [[ -r $1 ]] || return 1
+    REPLY=1
+    while (( __kk_n++ < 40 )) && IFS= read -r __kk_l; do
+        case $__kk_l in
+            "kk._ckk_format "*) REPLY=${__kk_l#kk._ckk_format }; return 0 ;;
+            "if kk._ckk_class "*) return 0 ;;
+        esac
+    done < "$1"
+    return 0
+}
+
 # kk._ckk_class CLASS SITE — rc 0: load CLASS's dump (its resolved site is kept
 # for kk._ckk_built); rc 1: skip it — already built from another place
 # (Duplicate identifier), from the same place (WARNING), or a verb / namespace
@@ -618,6 +654,13 @@ kk._ckk_class() {
     [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off kk._ckk_class "$@"; return; }   # exact names (K3)
     local __kk_site __kk_site_tty __kk_site_open __kk_taken_kind __kk_s=${2-}
     kk._is_ident "${1-}" || { echo "kklass: a compiled cache names an invalid class: '${1-}'" >&2; return 1; }
+    if [[ -n ${__KK_CKK_FMT-} && $__KK_CKK_FMT != "$__KK_CKK_FORMAT" ]]; then
+        if [[ -z ${__KK_CKK_FMT_SAID-} ]]; then
+            __KK_CKK_FMT_SAID=1
+            echo "kklass: the compiled cache '${__KK_CKK_PATH-}' has cache format $__KK_CKK_FMT, this kklass reads format $__KK_CKK_FORMAT (round 5 / P15: static methods isolate the caller's names); its classes are not loaded — recompile it: bash kklass_compiler.sh SOURCE CACHE (autoloadClasses without --no-compile rebuilds it)" >&2
+        fi
+        return 1
+    fi
     __kk_s=${__kk_s//$'\x1e'/${__KK_CKK_FILE-}}
     kk._class_verdict "$1" "$__kk_s" || return 1
     __KK_CKK_SITE=$__kk_site
@@ -633,10 +676,13 @@ kk._ckk_built() {
     _KKLASS_CLASS_CKK[$1]=1
 }
 
-# kk._ckk_end — the cache is loaded.
+# kk._ckk_end — the cache is loaded. rc 1 when its classes were refused for
+# their cache format (P15 review F6): `source old.ckk.sh || exit` stops.
 kk._ckk_end() {
-    unset __KK_CKK_FILE __KK_CKK_SITE __KK_CKK_UNIT
-    return 0
+    local __kk_rc=0
+    [[ -z ${__KK_CKK_FMT_SAID-} ]] || __kk_rc=1
+    unset __KK_CKK_FILE __KK_CKK_SITE __KK_CKK_UNIT __KK_CKK_PATH __KK_CKK_FMT __KK_CKK_FMT_SAID
+    return $__kk_rc
 }
 
 # Scratch global used by kk._find_method to return the resolving class
@@ -1221,12 +1267,19 @@ kk._prop_lazy() {   # INST CLASS PROP INIT SETTER [= VALUE]
     printf '%s\n' "${!__kk_lv:-}"
 }
 
+# The caller table of a capturing static dispatcher (P15, see
+# kk._class_static_api): no instance properties; it stays empty.
+declare -ga __kk_k2_none=()
+
 # Run BODY with the instance context in scope: this/__inst__/__class__, the
 # `state` nameref to the data array, one nameref per property (including
 # inherited ones; the list is the one of the instance class) and one per
 # static property (bound to the DEFINING class storage).
 kk._run_frame_body() {   # INST ACTIVE_CLASS BODY ARGS...
-    local __kk_inst="$1" __class__="$2" __kk_method_body="$3"
+    # __kk_self: the frame's instance for kk._invoke's own-instance skip (P15
+    # review round 2, N1) — private, unlike `this`, which user code may
+    # re-declare; static dispatchers shadow it.
+    local __kk_inst="$1" __class__="$2" __kk_method_body="$3" __kk_self="$1"
     shift 3
     local this="$__kk_inst"
     local __inst__="$__kk_inst"
@@ -1256,19 +1309,58 @@ kk._run_frame_body() {   # INST ACTIVE_CLASS BODY ARGS...
 # body must stay in its own function (kk._run_frame_body): a `return` inside
 # it must come back HERE so the frame is always popped.
 kk._invoke() {   # INST ACTIVE_CLASS BODY ARGS...
-    local __kk_inst="$1" __kk_active_class="$2" __kk_body="$3"
+    # Scope isolation (round 5 / P15, K2, DR16a): the CALLER's property and
+    # static-property names — its frame's __kk_props/__kk_sprops namerefs, seen
+    # here through dynamic scope — become plain unset locals of THIS frame, folded
+    # into its first `local` (one builtin call either way), one scope above the
+    # callee's own binds in kk._run_frame_body, which binds its own names over
+    # them (placed there, a shadow would collide with its `local -n state`,
+    # test 066). So a callee body neither reads nor writes a name it does not
+    # bind itself. No shadow when the callee's frame rebinds every caller name
+    # anyway:
+    #   - the caller's table is the one of the class that OWNS the body
+    #     (ACTIVE_CLASS; the callee instance is that class or a subclass: same
+    #     class, $this.m, another instance of the class);
+    #   - the callee is the caller's OWN instance (__kk_self, declared only by
+    #     kk._run_frame_body and shadowed empty by every static dispatcher —
+    #     not `this`, which a helper's `local this=$1` re-declares, review
+    #     round 2 N1): an inherited body on it, $this.m of a parent's method,
+    #     `inherited X` (review F5).
+    # Both comparisons fold case under the caller's nocasematch (review F1:
+    # case-twin classes Foo / foo and instances are legal, K3), so with
+    # nocasematch on (`a == A`) neither skips: the shadow is always correct,
+    # only slower. One `[[ ]]`: bash copies a function body on every call, so
+    # this test stays as short as it can (an exact `[` or a helper call here
+    # measured +10..+30 us). At the top level `-R __kk_props` is the whole cost.
+    if [[ -R __kk_props && ( ${!__kk_props} != "$2_class_properties" || a == A ) && ( ${__kk_self-} != "$1" || a == A ) ]]; then
+        local __kk_inst="$1" __kk_active_class="$2" __kk_body="$3" "${__kk_props[@]}" "${__kk_sprops[@]}"
+    else
+        local __kk_inst="$1" __kk_active_class="$2" __kk_body="$3"
+    fi
     shift 3
     local this="$__kk_inst"
     local __kk_caller_result="$RESULT"
     local __kk_return_set=0
     local __kk_return_value=""
-    local __kk_frame_id=${#__KLIB_FRAME_STACK[@]}
+    # `unset` isolation (P15 review F3, owner 2026-10-17): bash's `unset` of a
+    # local of a PREVIOUS scope removes it, so a callee's `unset y` dropped the
+    # shadow above and the next `y` reached the caller's nameref (unset+assign
+    # wrote the caller's property, a double unset destroyed it). With
+    # localvar_unset such an unset only marks the shadow unset. The OUTERMOST
+    # call (empty frame stack) turns it on when it is off and restores it after
+    # the body (a `return` in the body comes back here, so the restore always
+    # runs); every nested body, every static and every plain function called
+    # from them runs with it on. A caller that has it on keeps it
+    # (bash >= 5.0 has the option; kklass needs 5.1+ anyway: SRANDOM).
+    local __kk_frame_id=${#__KLIB_FRAME_STACK[@]} __kk_lvu=
+    (( __kk_frame_id )) || [[ :$BASHOPTS: == *:localvar_unset:* ]] || { shopt -s localvar_unset; __kk_lvu=1; }
     __KLIB_FRAME_STACK[__kk_frame_id]=$__kk_frame_id
     __KLIB_FRAME_INSTANCE[__kk_frame_id]="$__kk_inst"
     __KLIB_FRAME_CLASS[__kk_frame_id]="$__kk_active_class"
 
     kk._run_frame_body "$__kk_inst" "$__kk_active_class" "$__kk_body" "$@"
     local __kk_status=$?
+    [[ -z $__kk_lvu ]] || shopt -u localvar_unset
 
     unset '__KLIB_FRAME_STACK[$__kk_frame_id]' '__KLIB_FRAME_INSTANCE[$__kk_frame_id]' '__KLIB_FRAME_CLASS[$__kk_frame_id]'
     if (( __kk_return_set )); then
@@ -1483,6 +1575,21 @@ kk._class_static_api() {
     #     run it in a subshell and lose the state mutation, so callers do
     #     `Class.m >/dev/null; use "$REPLY"`. bash 5.3+ captures with a
     #     funsub (no fork); 5.2 uses a scratch file (as before).
+    #
+    # Scope isolation (round 5 / P15, K2, DR16a): a static method binds no
+    # instance, so called from a member body it would see — and write — the
+    # caller's properties, static properties and this / __inst__ / __class__ /
+    # state through bash's dynamic scope. Every dispatcher therefore starts by
+    # shadowing them with plain unset locals (only under a frame: at the top
+    # level `[[ -R __kk_props ]]` is the whole cost); the dummy `__kk_shd` keeps
+    # the list from ever being a bare `local`. The shadow comes BEFORE the
+    # static-property namerefs, which then convert a same-named shadow into the
+    # static's own nameref. A capturing dispatcher then names ITS statics as
+    # the caller table (`__kk_k2_none` = no instance properties), so its own
+    # callees shadow them in turn. Dumped into .ckk caches: a change here bumps
+    # __KK_CKK_FORMAT.
+    local __kk_k2sh='[[ -R __kk_props ]] && local __kk_shd "${__kk_props[@]}" "${__kk_sprops[@]}" this __inst__ __class__ state __kk_self'
+    local __kk_k2fat="local -n __kk_props=__kk_k2_none __kk_sprops=${class_name}_class_static_properties"
     local __kk_has_funsub=0
     if (( BASH_VERSINFO[0] > 5 || (BASH_VERSINFO[0] == 5 && BASH_VERSINFO[1] >= 3) )); then
         __kk_has_funsub=1
@@ -1491,6 +1598,7 @@ kk._class_static_api() {
     for sm in "${__kk_sa_meths[@]}"; do
         if (( ${#__kk_sa_props[@]} == 0 )); then
             eval "${class_name}.${sm}() {
+                    ${__kk_k2sh}
                     local __kk_return_set=0
                     local __kk_return_value=\"\"
                     local __kk_return_silent=1
@@ -1504,7 +1612,9 @@ kk._class_static_api() {
         elif (( __kk_has_funsub )); then
             # The assignment's status is the funsub's status = the body's.
             eval "${class_name}.${sm}() {
+                    ${__kk_k2sh}
                     ${static_namerefs}
+                    ${__kk_k2fat}
                     local __kk_return_set=0
                     local __kk_return_value=\"\"
                     local __kk_return_silent=1
@@ -1518,7 +1628,9 @@ kk._class_static_api() {
                 }"
         else
             eval "${class_name}.${sm}() {
+                    ${__kk_k2sh}
                     ${static_namerefs}
+                    ${__kk_k2fat}
                     local __kk_return_set=0
                     local __kk_return_value=\"\"
                     local __kk_return_silent=1
@@ -2324,10 +2436,16 @@ kk.register_static_methods() {
 
     defineClass "$class_name" "" "${class_args[@]}" || return 1
 
+    # The public PREFIX.NAME calls the registered body directly (no dispatcher),
+    # so it carries the dispatchers' scope-isolation shadow itself (round 5 /
+    # P15, DR16a: see kk._class_static_api).
     for method_name in "${method_names[@]}"; do
         public_name="${public_prefix}.${method_name}"
         impl_name="${public_prefix}.__impl_${method_name}"
-        eval "${public_name}() { ${impl_name} \"\$@\"; }"
+        eval "${public_name}() {
+            [[ -R __kk_props ]] && local __kk_shd \"\${__kk_props[@]}\" \"\${__kk_sprops[@]}\" this __inst__ __class__ state __kk_self
+            ${impl_name} \"\$@\"
+        }"
     done
 }
 

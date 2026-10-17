@@ -2827,31 +2827,126 @@ TK2.new o; o.v = hello; o.probe
 # bash 5.3.9:  len=5 copylen=5   -v=false   nelem=0
 ```
 
-### Trap: A Body Called From a Body Sees the Caller's Properties
+### Isolation Rule: A Body Sees Only Its Own Names
 
 Those namerefs are bash *locals*, and bash scopes locals **dynamically**: a
 function called from a member body sees every name the body has bound,
-unless it binds the same name itself. A member body of another class binds
-only *its own* class's members — so a **static method** (it binds no instance
-properties at all) or a method of **another class** that has no property `y`,
-called from an instance method of a class with a property `y`, sees the
-caller's `y` and **writes it** with a plain `y=…` (measured on bash 5.2.37 and
-5.3.9, round 4 critic C3; not fixed yet — a separate research round):
+unless it binds the same name itself. Up to round 5 / P15 this leaked: a
+**static method**, or a method of **another class** without a property `y`,
+called from an instance method of a class with a property `y`, read the
+caller's `y` and **wrote it** with a plain `y=…`, and a static method saw the
+caller's `this`, `__inst__`, `__class__` and `state` (so `$this.x` /
+`state[k]=…` in it acted on the CALLER's instance).
 
+Since P15 (decision DR16a, measured on bash 5.2.37 and 5.3.9) every member
+body is **isolated** from the kklass names of the body that called it:
+
+- a method / constructor / destructor / computed getter / lazy init of
+  **another class** — reached directly (`b.m`), through `.call`, `$t.m`,
+  `B.new`, `inherited` / `$this.parent` of another instance, or a chain of
+  such calls — neither reads nor writes the caller's **properties** or
+  **static properties**: the runtime declares them as unset locals of the
+  callee's frame before the callee binds its own (a name both classes have is
+  the callee's own);
+- a **static method** (and a `kk.register_static_methods` function) called
+  from a body sees none of the caller's properties, static properties,
+  `this`, `__inst__`, `__class__` or `state`; its own static properties stay
+  bound, and the bodies it calls in turn do not see them;
+- an `unset NAME` in such a callee only unsets its own (shadow) copy: it
+  neither reveals nor destroys the caller's NAME (`unset parts; read -r parts`,
+  `unset y; y=…`, a static's `unset this`). The outermost method call turns
+  bash's `localvar_unset` option on for the duration of the call (when it is
+  off) and restores it afterwards — also after `return N` or a failing body;
+  a caller that has it on keeps it. So every body, static method and **plain
+  function called from a method runs with `localvar_unset` semantics**: an
+  `unset` of a local of a calling function marks it unset instead of revealing
+  the next outer variable of that name. A static method called from the top
+  level runs as before;
+- a call whose callee frame binds every name of the caller anyway takes no
+  shadow at all: a body of the caller's own class (`$this.m`, another instance
+  of the class, a subclass instance) and a body on the caller's own instance
+  (`$this.m` of an inherited method, `inherited X`) — they see what they saw
+  before P15, at the cost of one name comparison (under the caller's
+  `shopt -s nocasematch` these calls take the shadow too: correct, only
+  slower). The own instance is recognised by a marker private to the
+  runtime, not by `this`: a helper's own `local this=$1` or a body's
+  `for this in …` does not weaken the isolation. The RESULT / REPLY / `$( )`
+  channels and everything a body binds itself are unchanged.
+
+**Cost** (owner decision DR16b): the isolation costs about **1.4 µs per
+property and static property of the CALLER** on a call of another class's
+method and about **1.1 µs per caller name** on a static method called from a
+method, plus the `localvar_unset` handling of every method call. Measured
+(P15 final form, bash 5.2.37 and 5.3.9, two in-process A/B runs each against
+the kklass before P15; µs added per call, ranges over the two runs per bash; the
+A/A control — the old code against itself — spread −10.6..+5.4 µs, apart from
+one −22 µs outlier on a 5.3 `$this.m` run). The base costs are ~190 µs (5.2) /
+~170 µs (5.3) for a method call and ~22..26 µs for a static call:
+
+| call | 5.2.37 | 5.3.9 |
+|---|---|---|
+| top level: `obj.m` | +24..+27 | +22..+23 |
+| top level: `obj.call m` | +28 | +27..+32 |
+| top level: a static method | +1.6..+2.1 | +1.2..+1.4 |
+| from a method: own class (`$this.m`, `$this.call m`, another instance) | +16..+23 | +11..+24 |
+| from a method: own instance, inherited body (6 names) | +15..+20 | +20..+24 |
+| from a method: own instance, inherited body (30 names) | +19..+29 | +18..+25 |
+| another class's method, caller with 6 names | +24..+33 | +19..+32 |
+| … 15 names | +38..+41 | +39..+40 |
+| … 30 names | +56..+59 | +57..+73 |
+| static method from a method, caller with 6 names | +19 | +16 |
+| … 15 names | +28..+29 | +24..+26 |
+| … 30 names | +43..+45 | +42..+44 |
+
+The top-level rows are mostly the `localvar_unset` switch (a `shopt` pair,
+paid once per outermost call); every nested method call pays the check
+(+3..+10 µs); the rest is one name comparison for own-class / own-instance
+calls and the caller's names for the others.
+
+What **cannot** be isolated (plain bash, unchanged by design): a **plain shell
+function** called from a body still sees and writes the body's properties, and
+a callee still sees and writes the **plain `local`s** of the body that called
+it (the caller's `local tmp`, a static method's own `local y`) — declare a
+callee's scratch variables `local` as usual. A bare `y=…` in a callee whose
+caller binds `y` now stays local to the callee (it is lost on return); called
+from the top level it is a global, as always. To write a **global** from a
+body, say so: `declare -g y=…` (a global that a caller's property hides cannot
+be READ from a callee — neither before P15, when the caller's property showed
+through, nor now).
+
+A property named like an **environment or shell variable** (`HOME`, `TZ`,
+`LANG`, …) is such a hiding name: inside the class's own bodies it is the
+property (and an exported one reaches external commands as the nameref's
+target NAME, not the value), and a callee of ANOTHER class or a static method
+called from them sees it UNSET — not the environment's value — so under
+`set -u` such a callee stops with "unbound variable". Do not name properties
+after variables the code (or a callee) reads from the environment.
+
+<!-- doctest -->
 ```bash
-defineClass SThin "" static_method bump 'y=fromStatic'
-defineClass B     "" method m 'y=fromB'
-defineClass A     "" property y method go1 'SThin.bump' method go2 'b.m'
+source /path/to/kbool/kbool.sh || exit
+kk.uses kklass || exit
+defineClass SThin "" static_method bump 'y=fromStatic' static_method peek 'echo "static sees y=${y-UNSET} this=${this-UNSET}"'
+defineClass B     "" method m 'y=fromB' method g 'declare -g y=global'
+defineClass A     "" property y method go1 'SThin.bump' method go2 'b.m' method go3 'SThin.peek' method go4 'b.g'
 A.new a; B.new b
-a.y = orig; a.go1; a.y     # -> fromStatic   (the static method wrote a.y)
-a.y = orig; a.go2; a.y     # -> fromB        (B's method wrote a.y)
-echo "${y-unset}"          # -> unset        (no global was created)
+a.y = orig; a.go1; a.y     # => orig
+a.go2; a.y                 # => orig
+a.go3                      # => static sees y=UNSET this=UNSET
+echo "${y-unset}"          # => unset
+a.go4; echo "$y"           # => global
+a.y                        # => orig
 ```
 
-The same holds for plain shell functions called from a body. Until this is
-closed: in a static method, or in a method that may be called from another
-class's method, declare every scratch variable `local` (`local y=…`), and do
-not rely on a bare name being "global" there.
+Compiled `.ckk` caches hold the static method dispatchers verbatim, so P15
+bumped the cache format: `autoloadClasses` rebuilds an older cache by itself,
+and an older cache sourced directly loads no class, says why and returns 1 from
+its `source` (recompile it with `bash kklass_compiler.sh SOURCE CACHE`);
+`autoloadClasses SOURCE --no-compile` runs the source instead of an older
+cache. Caches written before kklass learned to register cached classes (uses
+U2b, October 2026: they contain no `kk._ckk_begin` line) are NOT checked when
+sourced directly and still install the old, non-isolating static methods —
+recompile them.
 
 ---
 

@@ -101,11 +101,11 @@ else
     kt_test_fail "out='${o//$'\n'/|}' cache: $(head -c 200 "$stale_cache" | tr '\n' '|')"
 fi
 
-# A cache NEWER than the source and the framework is still used as is.
-cat > "$stale_cache" <<'EOF'
-#!/bin/bash
-echo CACHE-USED
-EOF
+# A cache NEWER than the source and the framework is still used as is — when it
+# names the current cache format (round 5 / P15: a cache without the
+# `kk._ckk_format N` line is format 1 and rebuilt; test 146 E1).
+ckk_fmt="$(sed -n "s/^declare -g __KK_CKK_FORMAT=//p" "$KKLASS_DIR/kklass.sh")"
+printf '#!/bin/bash\nkk._ckk_format %s\necho CACHE-USED\n' "$ckk_fmt" > "$stale_cache"
 touch -d '2099-01-01 00:00:00' "$stale_cache"
 o="$(cd "$W" && KKLASS_CKK_DIR="$W/ckk" bash -c 'source "$1/kklass_autoload.sh"; kkload "$2" 2>&1' _ "$KKLASS_DIR" "$W/stale.kk" 2>&1)"
 kt_test_start "C8 a cache newer than the source AND the framework is reused (no recompile)"

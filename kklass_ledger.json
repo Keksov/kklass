@@ -1022,7 +1022,7 @@
     ]
   },
   "round5": {
-    "status": "P13 + P14 DONE, committed 2026-10-17 (not pushed); next P15 (K2 = A5)",
+    "status": "ROUND 5 COMPLETE 2026-10-17: P13, P14, P15 committed (not pushed)",
     "plan": "PLAN.md # Round 5",
     "findings": {
       "K1": "class build forks: 741/493/495 per fresh dateutils/math/thttpapplication load, ~86% of 7-10 s; all avoidable (r5a)",
@@ -1040,7 +1040,8 @@
       "DR16a": "owner 2026-10-16: K2 = A5 full isolation",
       "DR17": "entry guard on public verbs; refuse unknown tokens",
       "DR18": "helpers via output vars, kk._fn_text held fd/funsub, new-wrapper from template; RESULT preserved",
-      "DR19": "49 examples + child loads canonical; normalised stdout+stderr gate"
+      "DR19": "49 examples + child loads canonical; normalised stdout+stderr gate",
+      "DR16b": "owner 2026-10-17 (after critic p15): F4 accept + document (full isolation stays; budget = ~1.4 us per caller property name cross-class, ~1.15 us for statics, stated in the book with 6/15/30 figures); F3 enable localvar_unset in the outermost kk._invoke; supervisor accepted F1 (nocasematch -> always shadow) and F5 (own instance via `this`)"
     },
     "phases": {
       "P13": {
@@ -1167,7 +1168,150 @@
       },
       "P15": {
         "name": "K2 A5",
-        "status": "planned"
+        "status": "done (committed 2026-10-17)",
+        "changes": {
+          "(a) kk._invoke (kklass.sh:1303)": "SUPERSEDED by review_round_1 (kklass.sh:1308/1330)",
+          "(b) static dispatchers (kk._class_static_api, kklass.sh:1522; __kk_k2sh/__kk_k2fat :1574-1575)": "every dispatcher (thin / 5.3 funsub / 5.2 file) starts with `[[ -R __kk_props ]] && local __kk_shd <caller props> <caller statics> this __inst__ __class__ state` BEFORE its static-property namerefs (a same-named shadow converts into the static's own nameref); a capturing (fat) one then binds `local -n __kk_props=__kk_k2_none __kk_sprops=<C>_class_static_properties` (global empty `__kk_k2_none`, kklass.sh:1272) so its own callees shadow its statics. kk._class_static_api is the single generation site (defineClass, declarative, Pascal, U20 re-source).",
+          "kk.register_static_methods (kklass.sh:2429)": "its public PREFIX.NAME calls the registered body directly (no dispatcher): it carries the same shadow line",
+          ".ckk cache format": "__KK_CKK_FORMAT=2 (kklass.sh:588); the compiler writes `kk._ckk_format N` right after kk._ckk_begin (kklass_compiler.sh:280; the begin line is unchanged, test 140 N13); kk._ckk_begin defaults a cache to format 1 (no line = before P15); kk._ckk_format (:627) sets it; kk._ckk_file_format FILE (:635, header read, no fork) -> autoloadClasses recompiles a cache of another format even when it is newer than source/kklass/compiler (kklass_autoload.sh:159, message '[autoload] cache format N is not this kklass's (2), recompiling'); a stale cache sourced DIRECTLY loads no class, one message naming the file (kk._ckk_class :657). kk._ckk_end unsets the new globals.",
+          "docs": "kklass_book.md:2830 'Isolation Rule: A Body Sees Only Its Own Names' replaces 'Trap: A Body Called From a Body Sees the Caller's Properties': what is isolated, what cannot be (plain functions, the caller's plain locals, a global hidden by a caller property cannot be read), `declare -g`; one doctest (142 now counts 12); cache-format paragraph",
+          "tests touched": "137_CompilerDump C8 'reused' fake cache now names the current format (it had none -> format 1 -> rebuilt); 142 count 11 -> 12"
+        },
+        "tests": {
+          "kklass 146_ScopeIsolation.sh (40)": "A1-A23 write+read of the caller's properties over every r5b path (thin/fat static, other class, 2-level chain, .call, $t.m, inherited/$this.parent of another instance, computed getter direct + $( ) + lazy init, constructor via B.new, A->thin static->method, kk.register_static_methods, A23 declarative classProcedure + Pascal static proc; A20 pins the static's OWN plain local as plain bash); B1-B6 caller static props both ways, statics never see this/__inst__/__class__/state (thin+fat), state[y]= in a static, fat static -> other static; C1 property named state; C2 set -u; C3/C4 RESULT/REPLY/capture channels; D1 declare -g escape + bare assignment callee-local; D2 plain fn + caller plain local unchanged; D3 same instance/parent/subclass callees; D4 fat static own statics; D5 skip path (P-owned body on a subclass instance); E1 old-format cache rebuilt by autoloadClasses (newer than everything), the rebuilt one isolates; E2 old-format cache sourced directly: not loaded, one message; current format loads"
+        },
+        "red_first": {
+          "146 vs HEAD (scratch HEAD tree w_p15/head) both bashes": "32 FAIL / 8 green of 40 on 5.2.37 and 5.3.9 (identical); green on HEAD by design = A13 (no global), A20 (a static's own plain local, plain bash), C3/C4 (channels), D2/D3/D4/D5 (unchanged behaviour, skip-path guard). Live: 40/40 both bashes"
+        },
+        "hot_path": {
+          "method": "in-process A/B (bench.sh): one shell, kk._invoke / ST.m / SF.m swapped by `source` between HEAD text (base), HEAD again (A/A) and live (new), order alternated per round, min over rounds; A: 6 props, B: 5 props; N=200, 16 rounds (5.2) / 12 (5.3)",
+          "5.2.37 run1 | run2 (us; A/A in brackets)": {
+            "top obj.m": "+5.1 [+2.8] | +1.5 [-0.1]",
+            "top obj.call m": "+1.5 [+2.8] | +3.8 [-3.1]",
+            "top thin static (budget <= +2)": "+1.3 [+0.2] | +1.7 [0.0]",
+            "$this.m same class": "+7.1 [-1.6] | +7.8 [-2.6]",
+            "$this.call m": "+5.6 [-1.0] | +11.1 [-1.8]",
+            "a2.m same class other instance": "+5.7 [+1.1] | +3.3 [-4.3]",
+            "$this.m inherited (owner = parent)": "+15.9 [-2.2] | +17.3 [-4.3]",
+            "b.m cross-class from a method (budget <= +25)": "+17.3 [-2.1] | +13.5 [-3.1]",
+            "thin static from a method (budget <= +23)": "+17.1 [-0.1] | +17.3 [0.0]",
+            "fat static (5.2 = file capture, ~21 ms/call)": "top -0.07 ms [-0.05 ms], from a method -0.01 ms [-0.17 ms] (run2; run1 A/A +-7 ms: the capture fork dominates, the few-us shadow is not resolvable)"
+          },
+          "5.3.9 run1 | run2 (us; A/A in brackets)": {
+            "top obj.m": "+9.9 [+3.8] | +1.4 [+2.1]",
+            "top obj.call m": "+1.3 [+0.1] | +0.9 [+0.3]",
+            "top thin static (budget <= +2)": "+1.4 [-0.1] | +1.4 [-0.1]",
+            "$this.m same class": "+5.4 [+2.0] | +6.1 [+1.1]",
+            "$this.call m": "+6.9 [-5.8] | +3.4 [-0.7]",
+            "a2.m same class other instance": "+6.9 [-2.0] | +2.2 [-3.5]",
+            "$this.m inherited (owner = parent)": "+13.3 [-1.4] | +18.2 [-0.9]",
+            "b.m cross-class from a method (budget <= +25)": "+19.3 [-4.2] | +15.8 [-3.4]",
+            "thin static from a method (budget <= +23)": "+15.1 [-0.3] | +15.5 [+0.3]",
+            "fat static (funsub, ~600 us/call)": "top -23.8 [+1.1] | +13.4 [+25.3]; from a method +10.5 [-55.6] | +42.0 [-27.0] (noise +-50 us)"
+          },
+          "verdict": "within the DR16a budget: cross-class +13.5..+19.3 (<= 25), static-from-method +15.1..+17.3 (<= 23), top-level static +1.3..+1.7 (<= 2); same-class +2..+11 us (1-5 %), 1-3x the A/A spread: the `[[ -R __kk_props && ${!__kk_props} != ... ]]` test of the skip path (critic F9 upper bound 8-13 us); an always-fold variant (no comparison, every name in the first local) was measured too: no better on same-class rows (5.3 +17..22 on $this.m), better on cross-class only",
+          "variants": "bench52_2/3, bench53_3: protoA5 form (instance-class test + second local) cross +25.8/+26.6 (5.2), v2 (owner test + second local), v3 (owner then instance test), v4 = adopted (owner test, folded), alw (always folded)"
+        },
+        "blast_radius": "{\"method\": \"protoD-style write logger in a PRIVATE copy (scratchpad w_p15/det): after every callee body kk._invoke and every static dispatcher log each caller-shadow name that became SET (a write that lands in the caller today); the log path hardwired (the ktests runner drops K2LOG from the environment: a first run logged nothing for that reason)\", \"kcl (27 suites, 6859 tests, bash 5.3.9)\": \"0 writes; every suite passes with the shadows on (a read of a caller name now gives empty and would have broken a test)\", \"kklass suite\": \"30 lines, all intended: test 146 (27 + 1 in its E1 child) and the book doctest of the isolation rule (2); the r5b false positive (024 StaticCounter, a fat static of the same class) no longer appears (a static-property nameref is skipped)\", \"grep\": \"no kklass/kkore/kcl code outside kklass.sh names __kk_props/__kk_sprops\"}",
+        "examples_gate": "{\"method\": \"w_p15/ex_run.sh + ex_gate.sh (P13 normaliser): all 49 examples, stdout + stderr + rc, each in its own cwd/HOME/TMPDIR, HEAD snapshot vs live\", \"5.2.37\": \"0 differences, all rc 0, no leftovers\", \"5.3.9\": \"0 differences, all rc 0, no leftovers\"}",
+        "gate": {
+          "kklass suite": "805/805 on 5.2.37 (88 s) and 5.3.9 (76 s)",
+          "kkore suite": "698/698 both bashes",
+          "kcl": "all 27 suites with a tests.sh (fpjson has none yet): 6859/6859 on both bashes, run twice (protoA5 form, then the adopted folded form)",
+          "master sweep": "not run (supervisor)"
+        },
+        "review_round_1": {
+          "critic": "scratchpad/critic_p15/REPORT.md (F1-F7, probes a1-a5, sp, m1, nc, ck)",
+          "F1 (skip rule folds case under the caller's nocasematch)": "kk._invoke's one test is now `[[ -R __kk_props && ( ${!__kk_props} != \"$2_class_properties\" || a == A ) && ( ${this-} != \"$1\" || a == A ) ]]` (kklass.sh:1330): under nocasematch (`a == A`) neither skip applies, the shadow is always taken (correct, slower). An exact `[` (critic m1) or a helper doing the exact checks was measured in the real call path: +10..+30 us on the cross-class and own-instance rows (bash copies a function body on every call, so every token of kk._invoke costs on every call) -> rejected. Test 146 A24 (case-twin classes I19Up / i19up under nocasematch).",
+          "F5 (own-instance inherited calls paid the cross-class cost)": "second skip: the callee is the caller's OWN instance, recognised by the caller frame's `this` (a static dispatcher shadows it empty -> shadow; same-instance -> the frame rebinds the instance class's whole table). Class-table comparison via `${!(${1}_class)}` measured +7..+15 us on every non-skip call -> `this` chosen; caveat documented in the book (never assign `this` in a body or a function it calls). Effect: $this.m of an inherited method / `inherited X`: 6-prop class +8.8..+11.0 us (was +13.7..+19.7), 30-prop subclass +13.0..+19.3 (was +29..+36.9). Test 146 D6 (critic a1 cases + own-instance $this.m / inherited of a parent body) pinned: green before and after (no semantic change).",
+          "F6 (--no-compile + old-format cache loaded nothing, rc 0; direct source rc 0)": "kklass_autoload.sh:130: in the --no-compile branch a cache of another format -> runtime mode (autoloadClasses_runtime_source) with '[autoload] cache format N is not this kklass's (2) and --no-compile keeps it, using runtime mode'; kk._ckk_end (kklass.sh:681) returns 1 when a class was refused for its format (`source old.ckk.sh || exit` stops); message now 'recompile it: bash kklass_compiler.sh SOURCE CACHE (autoloadClasses without --no-compile rebuilds it)'. Tests 146 E2 (rc 1), E3 (--no-compile runtime fallback isolates, cache neither loaded nor rebuilt).",
+          "F7 (pre-U2b caches not format-checked when sourced directly)": "book cache paragraph + kklass.sh:578 comment: caches with no kk._ckk_begin line are not checked when sourced directly — recompile them",
+          "F2 (property named like an env var hides it from other-class callees)": "book Isolation Rule paragraph (HOME, TZ, LANG; exported ones reach external commands as the nameref target NAME; under set -u such a callee aborts); no name refusal (as asked)",
+          "book": "kklass_book.md:2830 Isolation Rule: the 'unchanged' bullet rewritten to what is true (no shadow for own-class and own-instance calls; nocasematch takes the shadow; never assign `this`), env-var paragraph, cache paragraph (rc 1, --no-compile, pre-U2b caches)",
+          "tests": "146 now 43: + A24 (F1), D6 (F5, critic a1), E3 (F6); E2 expects rc 1. Red vs the pre-review tree (w_p15/pre: the handed-off kk._invoke / kk._ckk_end / autoload): A24, E2, E3 FAIL, 40 green (D6 green by design) on 5.2.37 and 5.3.9; live 43/43 both",
+          "hot_path_final": {
+            "method": "bench.sh in-process A/B (base = HEAD, A/A, new = live, p4 = the handed-off form); callers: A 6 props, W15 15, W30 30 (no statics); w30c = subclass of W30 calling an inherited method on itself",
+            "5.2.37 rf1 | rf2 (us)": {
+              "top obj.m": "+7.0 | +2.2",
+              "top obj.call m": "+7.7 | +0.6",
+              "top thin static (<= +2)": "+1.6 | +2.0",
+              "$this.m same class": "+8.1 | +13.7",
+              "$this.call m": "+11.8 | +10.6",
+              "a2.m other instance": "+13.6 | +9.7",
+              "$this.m inherited, 6 props": "+15.4 | +8.8 (p4 +14.3 | +13.7)",
+              "$this.m inherited, 30-prop subclass": "- | +19.3 (p4 +35.9)",
+              "b.m cross-class 6 | 15 | 30 caller props (<= +25 for 6)": "+22.2 | +34.9 | +56.4 ; +26.4 | +29.3 | +58.9",
+              "thin static from a method 6 | 15 | 30 (<= +23 for 6)": "+17.1 | +28.1 | +44.2 ; +17.5 | +27.3 | +42.6"
+            },
+            "5.3.9 rf1 | rf2 (us)": {
+              "top obj.m": "+1.2 | +4.9",
+              "top obj.call m": "+8.4 | +5.6",
+              "top thin static (<= +2)": "+1.4 | +2.1",
+              "$this.m same class": "+13.7 | +4.0",
+              "$this.call m": "+6.9 | +6.1",
+              "a2.m other instance": "+9.4 | +9.6",
+              "$this.m inherited, 6 props": "+8.6 | +11.0 (p4 +12.4 | +16.0)",
+              "$this.m inherited, 30-prop subclass": "+13.9 | +13.0 (p4 +36.9 | +29.0)",
+              "b.m cross-class 6 | 15 | 30": "+21.2 | +32.5 | +53.8 ; +16.4 | +30.3 | +51.8",
+              "thin static from a method 6 | 15 | 30": "+15.1 | +24.6 | +42.3 ; +15.3 | +26.0 | +43.1",
+              "fat static (funsub)": "top +5.4 | +4.3, from a method +41.8 | +34.2 (A/A +5.5 | +36.1)"
+            },
+            "per caller name (F4, owner)": "cross-class ~1.4 us/name, static-from-method ~1.15 us/name, both bashes; the DR16a budget (cross <= 25, static <= 23) holds for callers with up to ~10 names, a 30-name caller pays +52..+59 (cross) / +42..+44 (static)",
+            "A/A spread": "5.2 -7.6..+6.6, 5.3 -4.6..+7.4 (us)"
+          },
+          "owner_hold": {
+            "F3 localvar_unset (measured, NOT implemented)": {
+              "cheapest correct placement": "only the OUTERMOST kk._invoke (frame stack empty) turns it on and restores it after the body (`local __kk_frame_id=... __kk_lvu=`; `(( __kk_frame_id )) || [[ :$BASHOPTS: == *:localvar_unset:* ]] || { shopt -s localvar_unset; __kk_lvu=1; }` ... `[[ -z $__kk_lvu ]] || shopt -u localvar_unset` after kk._run_frame_body — a `return` in a body comes back to kk._invoke, so the restore always runs). Every nested body and every static called from a body then runs with it on; statics called from the top level need nothing (no caller frame to protect); `local -` does not cover shopt and BASHOPTS is read-only, so the save/restore is two `shopt` calls",
+              "closes": "critic a5 cases all closed (unset+assign, double unset, unset+read, static unset, static `unset this/state`), localvar_unset restored at the top level",
+              "cost 5.2 (bench52_lv)": "top-level method call +15.6 us (the shopt pair: obj.m +24.5 vs +8.9, obj.call +22.4 vs +3.8); nested calls +0..+10 (the test + text growth; within noise on several rows); statics unchanged",
+              "cost 5.3 (bench53_lv)": "top-level method call +17..+20 us (obj.m +23.3 vs +4.5); nested +0..+3 (noisy run, A/A up to +7)",
+              "every-call variant (every kk._invoke + every dispatcher)": "additionally +10..+12 us per top-level static call (5.2 +14.1 vs +1.9; 5.3 +11.8 vs +1.7) and +6 us per static from a method",
+              "behaviour": "outermost variant in a scratch tree (w_p15/lvt): kklass 808 + all 27 kcl suites = 7667/7667 on 5.2.37 AND 5.3.9, 0 failures (lv_gate.txt)",
+              "side effect": "plain shell functions called from a body also get localvar_unset semantics (an `unset` of a caller's local marks it unset instead of revealing the next outer one)"
+            },
+            "F4": "per-name cost above (hot_path_final)"
+          },
+          "gate": {
+            "kklass suite": "808/808 on 5.2.37 (70 s) and 5.3.9 (64 s)",
+            "kkore suite": "698/698 both",
+            "kcl": "27 suites 6859/6859 both bashes (kcl_gate3.txt)",
+            "examples": "49, out+err+rc 0 differences vs HEAD, no leftovers, both bashes (ex2/)",
+            "master sweep": "not run (supervisor)"
+          }
+        },
+        "owner_round": {
+          "F3 localvar_unset (kklass.sh kk._invoke, the lines after `local __kk_frame_id=... __kk_lvu=`)": "`(( __kk_frame_id )) || [[ :$BASHOPTS: == *:localvar_unset:* ]] || { shopt -s localvar_unset; __kk_lvu=1; }` before kk._run_frame_body, `[[ -z $__kk_lvu ]] || shopt -u localvar_unset` right after it (a `return` in a body comes back to kk._invoke, so the restore always runs). Only the OUTERMOST call (empty frame stack) switches; nested bodies, statics and plain functions called from bodies run with it on; a caller that has it on keeps it; a static called from the top level is unchanged. `builtin shopt ... 2>/dev/null` was measured first: +50 us per top-level call more (the /dev/null redirection) -> plain shopt (kklass needs bash 5.1+ anyway, localvar_unset exists since 5.0).",
+          "F4": "book Isolation Rule 'Cost' paragraph + table (6 / 15 / 30 caller names; own-class / own-instance; top-level method; top-level static)",
+          "book": "Isolation Rule: new bullet — a callee's `unset NAME` unsets only its own copy; localvar_unset during the outermost call, restored after (also after return N / a failing body), a caller with it on keeps it; plain functions called from a method run with localvar_unset semantics; Cost paragraph (DR16b)",
+          "tests": "146 §F (11): F1-F6 the critic a5 cases (unset+assign, double unset, unset+read in another class's method; unset+assign in a static from a method; a static's unset this / state / __inst__ / __class__), F7 off at the top level before/after, on inside a body after a nested call and in a plain function it calls, F8 restored after `return 7` (status 7), F9 set -e: a failing body under || restored with status 1, a body stopped by errexit in a subshell leaves the caller off, F10 a caller with it ON keeps it, F11 a top-level static is unchanged (off) and the method it calls restores it. Red before F3: F1-F7 FAIL, F8-F11 green (guards) on 5.2.37 and 5.3.9; after: 54/54 both",
+          "hot path with F3 (bench52_f3b / bench53_f3b; r1 = the review-round form without F3)": {
+            "5.2.37 new [r1] (us)": "top obj.m +29.9 [+15.3], top obj.call m +23.1 [+7.7], top thin static +2.3 [+2.2], $this.m +13.3 [+5.4], $this.call +26.0 [+14.9], a2.m +12.7 [+8.8], inherited own +23.8 [+14.3], cross 6/15/30 +34.5/+46.4/+69.6 [+27.3/+28.8/+48.4], static from a method 6/15/30 +21.1/+28.7/+45.0 [+17.9/+27.9/+44.9], 30-name inherited own +30.7 [+24.6]; A/A -13..+8.9 (busy machine)",
+            "5.3.9 new [r1] (us)": "top obj.m +26.6 [+12.4], top obj.call m +23.2 [+3.4], top thin static +1.6 [+1.6], $this.m +15.2 [+2.5], $this.call +15.2 [-0.5], a2.m +18.0 [+10.8], inherited own +21.9 [+15.8], cross 6/15/30 +32.8/+48.4/+62.3 [+29.8/+34.8/+65.1], static from a method 6/15/30 +16.6/+25.5/+40.8 [+15.3/+26.9/+43.6], 30-name inherited own +13.5 [+18.6]; A/A -10.7..+7.5",
+            "reading": "F3 costs ~+15..+20 us once per top-level method call (the shopt pair) and ~+3..+10 us per nested call (the frame test, the restore test and one more local name are copied and run on every call); statics unchanged"
+          },
+          "gate": {
+            "146": "54/54 on 5.2.37 and 5.3.9",
+            "kklass suite": "819/819 both bashes (68 s / 67 s)",
+            "kkore suite": "698/698 both",
+            "kcl": "27 suites 6859/6859 both bashes (kcl_gate4.txt)",
+            "examples": "49, out+err+rc 0 differences vs HEAD, all rc 0, no leftovers, both bashes (ex3/)",
+            "master sweep": "not run (supervisor)"
+          }
+        },
+        "review_round_2": {
+          "critic": "critic_p15/REPORT.md ROUND 2 (b1-b3.sh): F1/F3/F5/F6 closed",
+          "N1 (own-instance skip trusted `this`)": "a plain helper's `local this=$1`, a loop's `local this=$o`, a body's `for this in b` made a call on another instance skip the shadow (B wrote the caller's y). kk._run_frame_body now declares a private marker `__kk_self=\"$1\"` in its existing first `local` (no extra builtin); kk._invoke compares `${__kk_self-} != \"$1\"` instead of `${this-}`; every static dispatcher (__kk_k2sh) and kk.register_static_methods' public functions shadow __kk_self too (so a fat static calling a method on its caller's instance still hands its statics as the names to shadow). The book's 'never assign this' rule is gone (isolation no longer depends on it). .ckk format stays 2 (unreleased: format 2 exists only in this uncommitted P15). Tests 146 G1-G6 (b1 helper / loop / nameref / for-this / static with local this; fat static -> method on the caller's instance): G1, G2, G4 FAIL before, G3, G5, G6 green guards, both bashes; after 60/60 both.",
+          "N2 (book cost table predated F3)": "regenerated from the final form (bench52_n1a/b, bench53_n1a/b: two in-process A/B runs per bash, kk._invoke + kk._run_frame_body + ST.m + SF.m swapped): top obj.m 5.2 +23.9/+27.4, 5.3 +22.2/+23.4; obj.call 5.2 +27.5/+27.6, 5.3 +26.8/+32.0; top static 5.2 +1.6/+2.1, 5.3 +1.2/+1.4; own class ($this.m / $this.call / a2.m) 5.2 +20.4..21.5 / +18.3..22.7 / +15.5..16.9, 5.3 -2.3..10.8 (A/A -22 outlier) / +14.9..21.6 / +18.0..23.9; own-instance inherited 6 names 5.2 +14.7/+19.7, 5.3 +19.9/+23.5, 30 names 5.2 +19.4/+29.3, 5.3 +18.3/+25.0; cross 6/15/30 5.2 +24.4..32.6 / +38.1..40.6 / +55.5..58.5, 5.3 +19.2..31.9 / +38.6..40.0 / +56.6..73.4; static from a method 6/15/30 5.2 +18.5..18.7 / +28.4..29.1 / +43.0..45.2, 5.3 +15.9..16.3 / +24.0..26.0 / +41.8..44.0; A/A 5.2 -7.9..+4.5, 5.3 -10.6..+5.4 (one -22.0 outlier)",
+          "gate": {
+            "146": "60/60 on 5.2.37 and 5.3.9",
+            "kklass suite": "825/825 both bashes",
+            "kkore suite": "698/698 both",
+            "kcl": "all 27 suites 6859/6859 both bashes (kcl_gate5.txt)",
+            "examples": "49, out+err+rc 0 differences vs HEAD, all rc 0, no leftovers, both bashes (ex4/)",
+            "master sweep": "not run (supervisor)"
+          }
+        },
+        "final_gate": "master sweep 2026-10-17 (supervisor): 5.2 30/30 8889 tests rc 0; 5.3 30/30 8890 rc 0; no leftovers; strays none both runtimes"
       }
     },
     "critics": [

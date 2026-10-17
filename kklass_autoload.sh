@@ -125,6 +125,13 @@ autoloadClasses() {
             autoloadClasses_runtime_source "$source_file" "$runtime_file"
             return $?
         fi
+        # a cache of another format (round 5 / P15 review F6) would load no
+        # class: --no-compile does not rebuild it, so the source runs instead
+        if kk._ckk_file_format "$compiled_file" && [[ $REPLY != "$__KK_CKK_FORMAT" ]]; then
+            echo "[autoload] cache format $REPLY is not this kklass's ($__KK_CKK_FORMAT) and --no-compile keeps it, using runtime mode" >&2
+            autoloadClasses_runtime_source "$source_file" "$runtime_file"
+            return $?
+        fi
     elif [[ ! -f "$compiled_file" ]]; then
         needs_compilation=true
         echo "[autoload] Compiled file not found: $compiled_file" >&2
@@ -149,6 +156,12 @@ autoloadClasses() {
             # functions when sourced). `-nt` is a stat, no fork.
             needs_compilation=true
             echo "[autoload] kklass compiler/runtime is newer than the cache, recompiling" >&2
+        elif kk._ckk_file_format "$compiled_file" && [[ $REPLY != "$__KK_CKK_FORMAT" ]]; then
+            # The mtimes cannot tell a cache older than this kklass when the
+            # files were copied with their times kept (round 5 / P15, DR16a):
+            # the cache FORMAT it names can (header read, no fork).
+            needs_compilation=true
+            echo "[autoload] cache format $REPLY is not this kklass's ($__KK_CKK_FORMAT), recompiling" >&2
         else
             needs_compilation=false
         fi
