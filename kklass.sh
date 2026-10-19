@@ -756,8 +756,18 @@ kk.call_silent() {
 # How: the shell keeps two READ descriptors (R, R2) on one scratch file that
 # is already deleted. A capture appends
 #   MARKER / the `declare -f NAME` text / MARKER
-# to the file and reads back with `read -d '' <&R` exactly what was appended
-# (R's offset follows the end). The write side is opened through FDDIR/R
+# to the file and reads back with `read -N 16777216 <&R` exactly what was
+# appended (R's offset follows the end; the read ends at end of file). Round
+# 6 / P17 (E5, DR24): `read -N`, not `read -d ''` — on both MSYS bashes
+# `read -d ''` issues one read() per BYTE; `-N` on a regular file reads in
+# blocks (one capture inside a build: 6-line method 0.52 → 0.28 ms on 5.2,
+# 0.44 → 0.24 ms on 5.3; 60 lines 2.4 → 0.58 / 2.3 → 0.49 ms). Behaviour
+# difference: `-d ''` stopped at a NUL byte, `-N` drops NUL bytes (not
+# counted) and reads on. A `declare -f` text never holds a NUL, so only a
+# foreign writer could put one there, and its bytes still have to pass the
+# acceptance checks below; a text longer than 16777216 characters is not
+# read whole and falls back to `$( )` like any capture out of step (test 145
+# F19). The write side is opened through FDDIR/R
 # (FDDIR = /proc/PID/fd, else /dev/fd):
 # for the one command of each capture, or — between kk._fn_text_hold and
 # kk._fn_text_release, which `build` puts around its extraction loop — once
@@ -828,7 +838,7 @@ kk._fn_text() {   # NAME VAR
             { printf '%s\n' "$__kk_ft_m"; declare -f -- "$1"; printf '%s\n' "$__kk_ft_m"; } 2>&- >&"$__kk_ft_w"
         else
             { printf '%s\n' "$__kk_ft_m"; declare -f -- "$1"; printf '%s\n' "$__kk_ft_m"; } 2>/dev/null >>"${__kk_ft[8]}/$__kk_ft_r"
-        fi && { IFS= read -r -d '' -u "$__kk_ft_r" __kk_ft_t 2>&- || :; }
+        fi && { IFS= read -r -N 16777216 -u "$__kk_ft_r" __kk_ft_t 2>&- || :; }   # P17: -N (see above)
         if [[ $__kk_ft_t == "$__kk_ft_m"$'\n'"$__kk_ft_m"$'\n' ]]; then
             printf -v "$2" ''                    # NAME is not a function: what $( ) gave
             return 1

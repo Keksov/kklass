@@ -1321,7 +1321,7 @@
     ]
   },
   "round6": {
-    "status": "P16 DONE, committed 2026-10-19 (not pushed); next P17 (Pascal cost)",
+    "status": "ROUND 6 COMPLETE 2026-10-19: P16 + P17 committed (not pushed)",
     "plan": "PLAN.md # Round 6",
     "research": "scratchpad/research_r6/REPORT.md",
     "findings": {
@@ -1421,7 +1421,42 @@
       },
       "P17": {
         "name": "E5 Pascal cost",
-        "status": "planned"
+        "status": "done (committed 2026-10-19)",
+        "date": "2026-10-19",
+        "source": "critic_p17 attribution + patches A (read -N) and E (fast paths), supervisor decision under DR24; patch C (batch capture) rejected by the supervisor, not implemented",
+        "changes": {
+          "A read -N": "kklass.sh:841 kk._fn_text reads back with `IFS= read -r -N 16777216 -u R` instead of `read -d ''` (on both MSYS bashes `read -d ''` issues one read() per byte); every acceptance check unchanged (fresh SRANDOM marker exactly twice, `NAME () ` header, nothing after the closing marker, -ef checks, 256 KB reopen, F6 bounds). Comment kklass.sh:759-770 documents the NUL difference (`-d ''` stopped at a NUL, `-N` drops NULs uncounted and reads on — a declare -f text has none; foreign bytes still face the checks) and the cap (a text over 16777216 characters is read partially -> out of step -> `$( )` fallback)",
+          "S3 validator fast paths": "kklass_decl.sh:118-124 kk.decl._validate_ident and :166-171 kk.decl._validate_member return 0 right after the nocasematch guard for a non-empty valid name outside the reserved lists (the same predicates as kk._is_ident and the slow path's case lists); \"\", a missing argument (set -u abort kept) and every refusal take the old path with the old messages. kk.decl._validate_var unchanged: already a single case with `*) return 0`",
+          "S1/S2 no parent walk without inherited": "kklass_decl.sh:808-813 kk.decl._rewrite_inherited calls kk.decl._parent_of only when the body contains `inherited` (parent_class stays \"\"; no unset RESULT read under set -u); kklass_pascal.sh:200-209 kk.pascal._name_bare_inherited and :218-226 kk.pascal._ctor_inherited run their substitutions only when the body contains `inherited`; output identical",
+          "docs": "OPTIMIZATION.md new subsection 'Стоимость построения после раунда 6 / P17' (changes, NUL/cap difference, before/after table); kklass_book.md fork-free build paragraph gains the P17 numbers and the 16 M fallback; PLAN.md Round 6 status line"
+        },
+        "tests": {
+          "145 F18": "kk._fn_text uses read -N (structural) and texts > 64 KB (one 70 KB line, 2500 lines) round-trip equal to $(declare -f), 0 out-of-step captures, pair open, across the 256 KB reopen — red on HEAD (not-N)",
+          "145 F19": "a 16.8 M-character function: capture rc 0, text equal to $(declare -f), exactly one out-of-step capture (fallback), next capture in step, no scratch file left — red on HEAD (HEAD read it whole: fails 0/0)",
+          "145 + 147": "19/19 + 26/26 on 5.2.37 and 5.3.9"
+        },
+        "equivalence": {
+          "dump": "declare -f / declare -p after a fresh kk.uses of dateutils, math, thttpapplication vs a HEAD snapshot: 0 lines of difference outside the 6 changed functions (raw diff 50 lines, all inside them), var diff 0, kk._fn_text fails 0, both bashes (scratchpad w_p17/eqrun.sh)",
+          "validators": "48 names (empty, reserved, near-reserved case variants, globs, quotes, newline, non-ASCII, invalid UTF-8) x ident/member/static/var x 7 shell states (plain, nocasematch, set -u, LC_ALL=C, en_US.UTF-8, extglob/nullglob/failglob, posix) + no-argument calls: rc and stderr identical to HEAD, both bashes (611 refusals)",
+          "inherited": "defineClass / declarative / Pascal chain with bare, named, constructor, last-statement and $inherited-variable bodies, plain and set -u: output and generated functions identical to HEAD, both bashes",
+          "eqtext": "critic_p17 p/eqtext.sh (CR, raw CR, backslashes, heredocs, trailing newlines, invalid UTF-8, two 288 KB bodies, non-function) in 13 shell states: 0 mismatches, 0 out-of-step captures in every state, output identical to HEAD, both bashes"
+        },
+        "attack_probes": "w_p14/p14b (childjunk junk/inject/forge/readr/wfd, fdreuse, nested, rmfail plain/fn), critic_p14/p (childjunk x3, eqdbg, errtrap, fifo, nested, release, rmfn, rnd, fdreuse, rmfail x2) and critic_p17 p/f16b.sh (forge, forge2, nomark, junkend x J=1..4): 38 probes, normalised output identical to HEAD on both bashes and 5.2 == 5.3 (forged captures refused, fails=1, real bodies; nomark = the documented same-shell residual, unchanged); kill -9 of 20 loads at random times: 0 scratch files left, both. NB the critic_p14/p childjunk/fdreuse/nested/eqdbg scripts still read pre-round-2 variable names and are partly inert",
+        "measurements": {
+          "method": "interleaved HEAD snapshot / live tree, best of 5, quiet machine; DSL = 10 classes of 2 fields + 2 accessor properties + constructor + 5 methods (critic dsl.sh); kk.uses = fresh process, HOME/TMPDIR private",
+          "bash 5.2.37": "Pascal 19.2 -> 17.0 ms/class, declarative 11.4 -> 9.9, defineClass 9.5 -> 8.4; kk.uses dateutils 0.470 -> 0.365 s, math 0.275 -> 0.235 s, thttpapplication 0.487 -> 0.345 s",
+          "bash 5.3.9": "Pascal 17.0 -> 14.6 ms/class, declarative 9.6 -> 8.2, defineClass 8.0 -> 6.9; kk.uses dateutils 0.464 -> 0.361 s, math 0.276 -> 0.233 s, thttpapplication 0.480 -> 0.336 s",
+          "per capture (kk._fn_text, best of 5 x 300)": "5.2: 6-line method 579 -> 393 us outside a build, 517 -> 281 us inside; 60 lines 2390 -> 700 / 2380 -> 575 us. 5.3: 6 lines 533 -> 335 / 442 -> 238 us; 60 lines 2350 -> 586 / 2266 -> 488 us"
+        },
+        "gates": {
+          "kklass": "853/853 on 5.2.37 and 5.3.9",
+          "kkore": "698/698 both",
+          "kcl": "27 suites 6859/6859 both",
+          "doctests": "kklass 142 13/13 both after the book edit; kkore 015 inside the kkore suite",
+          "examples": "49/49 rc 0 plain and bash -u, both; normalised output identical to the HEAD snapshot, -u == plain, 5.2 == 5.3, no leftovers",
+          "master_sweep": "not run (per brief)"
+        },
+        "final_gate": "master sweep 2026-10-19 (supervisor): 5.2 30/30 8934 tests rc 0; 5.3 30/30 8935 rc 0; no leftovers; strays none both runtimes; batch capture (critic C) rejected by the supervisor under DR24"
       }
     }
   }

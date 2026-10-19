@@ -197,12 +197,14 @@ kk.pascal._body() {   # FN -> __kk_btxt
 # touching things like $inherited. `method` is the enclosing method's name.
 kk.pascal._name_bare_inherited() {
     local body="$1" method="$2"
-    body="${body// inherited;/ inherited ${method};}"
-    body="${body//$'\n'inherited;/$'\n'inherited ${method};}"
-    body="${body// inherited$'\n'/ inherited ${method}$'\n'}"
-    body="${body//$'\n'inherited$'\n'/$'\n'inherited ${method}$'\n'}"
-    if [[ "$body" == *[$' \n\t']inherited ]]; then       # bare inherited as last statement
-        body="${body%inherited}inherited ${method}"
+    if [[ $body == *inherited* ]]; then                  # P17 (E5): else nothing to rewrite
+        body="${body// inherited;/ inherited ${method};}"
+        body="${body//$'\n'inherited;/$'\n'inherited ${method};}"
+        body="${body// inherited$'\n'/ inherited ${method}$'\n'}"
+        body="${body//$'\n'inherited$'\n'/$'\n'inherited ${method}$'\n'}"
+        if [[ "$body" == *[$' \n\t']inherited ]]; then   # bare inherited as last statement
+            body="${body%inherited}inherited ${method}"
+        fi
     fi
     __kk_btxt=$body                                      # -> __kk_btxt
     while [[ $__kk_btxt == *$'\n' ]]; do __kk_btxt=${__kk_btxt%$'\n'}; done
@@ -213,11 +215,13 @@ kk.pascal._name_bare_inherited() {
 # with all current args forwarded.
 kk.pascal._ctor_inherited() {
     local body="$1" ctor="$2"
-    body="${body//inherited ${ctor}/parent.constructor \"\$@\"}"     # explicit form
-    body="${body// inherited;/ parent.constructor \"\$@\";}"
-    body="${body//$'\n'inherited;/$'\n'parent.constructor \"\$@\";}"
-    if [[ "$body" == *[$' \n\t']inherited ]]; then
-        body="${body%inherited}parent.constructor \"\$@\""
+    if [[ $body == *inherited* ]]; then                  # P17 (E5): else nothing to rewrite
+        body="${body//inherited ${ctor}/parent.constructor \"\$@\"}"     # explicit form
+        body="${body// inherited;/ parent.constructor \"\$@\";}"
+        body="${body//$'\n'inherited;/$'\n'parent.constructor \"\$@\";}"
+        if [[ "$body" == *[$' \n\t']inherited ]]; then
+            body="${body%inherited}parent.constructor \"\$@\""
+        fi
     fi
     __kk_btxt=$body                                      # -> __kk_btxt
     while [[ $__kk_btxt == *$'\n' ]]; do __kk_btxt=${__kk_btxt%$'\n'}; done

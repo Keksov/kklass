@@ -1182,10 +1182,18 @@ back — anything else (descriptors the caller reopened, data a process added)
 makes that capture a plain `$( )`. The same load takes ~0.45 s on both
 bashes (math ~0.27 s, thttpapplication ~0.46 s); per class (2 fields, 2
 accessor properties, a constructor, 5 methods) Pascal 486 → 17 ms,
-declarative 181 → 13 ms, `defineClass` 122 → 10 ms (bash 5.2, msys). The
-setup — one `rm`, the system one by absolute path — is paid once per shell
-(a subshell that builds a class opens its own pair), and again after ~256 KB
-of captured text. What it does and does not guarantee:
+declarative 181 → 13 ms, `defineClass` 122 → 10 ms (bash 5.2, msys).
+Round 6 / P17 kept every check of the capture (whose hardening had raised
+a Pascal class to ≈19 ms) and made it cheaper: it reads back with
+`read -N` (block reads — `read -d ''` read one byte per `read()` on msys; a
+text over 16 M characters is captured with `$( )` instead), the
+`inherited` rewrites skip the parent walk for a body without `inherited`,
+and a valid, unreserved name passes the name checks at once: Pascal 17.0,
+declarative 9.9, `defineClass` 8.4 ms per class on 5.2 (14.6 / 8.2 / 6.9 on
+5.3), a fresh `kk.uses dateutils` ≈0.36 s, math ≈0.23 s, thttpapplication
+≈0.34 s on both. The setup — one `rm`, the system one by absolute path — is
+paid once per shell (a subshell that builds a class opens its own pair), and
+again after ~256 KB of captured text. What it does and does not guarantee:
 
 - The name is `kbool_fntext.PID.<SRANDOM>.<SRANDOM>` (never your `$RANDOM`
   stream); a name where anything exists is skipped, the created descriptor

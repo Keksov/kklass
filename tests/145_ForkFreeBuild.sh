@@ -19,6 +19,9 @@
 #        growth); reloading kklass.sh closes the pair.
 #   C10  moving kk.decl._rewrite_inherited into the current shell must not
 #        clobber the caller's RESULT (kk.decl._parent_of answers in RESULT).
+#   F18-F19  round 6 / P17 (E5, DR24): the capture reads back with
+#        `read -N 16777216` (block reads) — big texts stay in step; a text
+#        over the cap falls back to `$( )`.
 # The fork counts run in a child bash under `set -x` with PS4 = $BASHPID: a
 # trace line of another pid is a subshell. Files live in $TMPD; kbool loads
 # with an empty, private config (HOME, __KK_CFG_ETC, no KBOOL_CONFIG).
@@ -382,6 +385,54 @@ EOF2
 case_run f17
 tmp_files
 if [[ $RC == 0 && "$OUT" == "0027 0000 left=0" && -z "$FILES" ]]; then kt_test_pass "kept"; else kt_test_fail "rc=$RC out=[$OUT] left=[$FILES] err=[${ERR:0:300}]"; fi
+
+# ===========================================================================
+# F18-F19 — round 6 / P17 (E5, DR24): the capture reads back with
+# `read -N 16777216` (block reads; `read -d ''` read one byte per read() on
+# MSYS). Every acceptance check stays; a text over the cap falls back.
+# ===========================================================================
+kt_test_start "F18 P17: kk._fn_text reads back with read -N; texts over 64 KB (one long line, many lines) round-trip in step (no out-of-step capture, the pair stays open), also after the 256 KB reopen"
+cat >"$TMPD/f18.sh" <<'EOF2'
+source "$KBOOL_ROOT/kbool.sh" && kk.uses kklass || exit 9
+out=""
+[[ $(declare -f kk._fn_text) == *'read -r -N 16777216 -u "$__kk_ft_r" __kk_ft_t'* ]] || out+=" not-N"
+printf -v line '%070000d' 7
+eval "f_long() { echo $line; }"
+body=""; for ((i = 0; i < 2500; i++)); do body+="echo line-$i 'x\\y' \"\$HOME\""$'\n'; done
+eval "f_many() { $body
+}"
+for n in f_long f_many f_long f_many f_long f_many; do
+    kk._fn_text "$n" v || out+=" rc-$n"
+    [[ $v == "$(declare -f "$n")" ]] || out+=" text-$n"
+done
+(( ${#v} > 65536 )) || out+=" short"
+echo "${out# }${out:+ }fails=${__kk_ft[4]} setups=${__kk_ft[5]} open=$([[ -n ${__kk_ft[1]} ]] && echo y || echo n)"
+EOF2
+case_run f18
+if [[ $RC == 0 && "$OUT" =~ ^fails=0\ setups=[2-9]\ open=y$ ]]; then kt_test_pass "in step"; else kt_test_fail "rc=$RC out=[$OUT] err=[${ERR:0:300}]"; fi
+
+kt_test_start "F19 P17: a text longer than the read -N cap (16777216 characters) is not taken half-read: one out-of-step capture, the \$( ) fallback gives the whole text (rc 0); the next capture is in step again"
+cat >"$TMPD/f19.sh" <<'EOF2'
+source "$KBOOL_ROOT/kbool.sh" && kk.uses kklass || exit 9
+g() { echo g; }
+kk._fn_text g v
+printf -v line '%065536d' 0; body=""
+for ((i = 0; i < 257; i++)); do body+="echo $line"$'\n'; done   # 257 long lines: > 16777216
+eval "f_huge() { $body
+}"; unset body line
+out=""
+kk._fn_text f_huge v || out+=" rc"
+ref=$(declare -f f_huge)
+(( ${#ref} > 16777216 )) || out+=" small"
+[[ $v == "$ref" ]] || out+=" text(${#v}/${#ref})"
+unset v ref
+f1=${__kk_ft[4]}
+kk._fn_text g v; [[ $v == "$(declare -f g)" ]] || out+=" text-g"
+echo "${out# }${out:+ }fails=$f1/${__kk_ft[4]} open=$([[ -n ${__kk_ft[1]} ]] && echo y || echo n)"
+EOF2
+case_run f19
+tmp_files
+if [[ $RC == 0 && "$OUT" == "fails=1/1 open=y" && -z "$FILES" ]]; then kt_test_pass "fell back"; else kt_test_fail "rc=$RC out=[$OUT] left=[$FILES] err=[${ERR:0:300}]"; fi
 
 cd / || :
 kt_test_log "145_ForkFreeBuild.sh completed"

@@ -115,6 +115,13 @@ kk.decl._ncm_off() {   # CMD... — run CMD with nocasematch off, restore it, ke
 
 kk.decl._validate_ident() {
     [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off kk.decl._validate_ident "$@"; return; }
+    # Fast path (round 6 / P17, E5): a valid, unreserved name returns
+    # here — the same predicates as kk._is_ident and the reserved list below
+    # (nocasematch is off past the guard); "" and every refusal go on below.
+    case ${1-} in
+        this|__inst__|__class__|RESULT|REPLY|IFS|__kk_*) ;;
+        *) [[ -n ${1-} && $1 != [!A-Za-z_]* && $1 != *[!A-Za-z0-9_]* && $1 != *[![:ascii:]]* ]] && return 0 ;;
+    esac
     local name="$1"
     local label="${2:-name}"
 
@@ -156,6 +163,12 @@ kk.decl._validate_ident() {
 # are class-level (Class.NAME) and are not checked here.
 kk.decl._validate_member() {
     [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off kk.decl._validate_member "$@"; return; }
+    # Fast path (P17, as in kk.decl._validate_ident): a valid name reserved
+    # neither there nor here returns at once; "" and every refusal go on.
+    case ${1-} in
+        call|delete|property|parent|new|this|__inst__|__class__|RESULT|REPLY|IFS|__kk_*) ;;
+        *) [[ -n ${1-} && $1 != [!A-Za-z_]* && $1 != *[!A-Za-z0-9_]* && $1 != *[![:ascii:]]* ]] && return 0 ;;
+    esac
     local name="$1"
     local label="${2:-member name}"
 
@@ -792,8 +805,12 @@ kk.decl._rewrite_inherited() {
     local parent_method=""
     local RESULT
 
-    kk.decl._parent_of "$class_name"
-    parent_class="$RESULT"
+    # P17 (E5): a body without `inherited` has nothing to rewrite — no parent
+    # walk (parent_class stays ""; RESULT is never read unset under set -u)
+    if [[ $method_body == *inherited* ]]; then
+        kk.decl._parent_of "$class_name"
+        parent_class="$RESULT"
+    fi
 
     while [[ -n "$parent_class" ]]; do
         parent_methods_var="${parent_class}_class_methods"
