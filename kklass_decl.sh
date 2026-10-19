@@ -21,6 +21,7 @@ kk.decl._remember_static_property() {
     }
     kk.decl._validate_ident "$class_name" "class name" || return 1
     kk.decl._validate_static "$property_name" "static property name" || return 1
+    kk.decl._validate_var "$property_name" "static property name" "$class_name" || return 1
     kk.decl._static_clash "$class_name" "$property_name" property || return 1
     kk.decl._prop_clash "$class_name" "$property_name" static || return 1
 
@@ -65,6 +66,7 @@ kk.decl._remember_lazy_property() {
     }
     kk.decl._validate_ident "$class_name" "class name" || return 1
     kk.decl._validate_member "$property_name" "lazy property name" || return 1
+    kk.decl._validate_var "$property_name" "lazy property name" "$class_name" || return 1
     kk.decl._validate_member "$init_method" "lazy init method name" || return 1
     kk.decl._prop_clash "$class_name" "$property_name" instance || return 1
 
@@ -201,6 +203,70 @@ kk.decl._validate_static() {
             ;;
     esac
     return 0
+}
+
+# Validate the name of a VARIABLE-LIKE member (round 6 / P16, finding E1,
+# decision DR20 b, narrowed by the owner 2026-10-18 after review): a property,
+# static property, lazy property or field is a variable of that name inside
+# every method body of the class (a nameref onto its storage), and the
+# methods of other classes / the static methods they call see it as an unset
+# shadow (the Isolation Rule). Refused are the names whose binding breaks or
+# changes bash or kklass itself — measured on bash 5.2.37 and 5.3.9:
+#   * bash's special variables — readonly (BASHOPTS SHELLOPTS EUID UID PPID
+#     BASH_VERSINFO: every method call prints an error), "may not be assigned"
+#     (FUNCNAME GROUPS BASH_ARGC/ARGV/LINENO/SOURCE), dynamic (SECONDS RANDOM
+#     SRANDOM EPOCH* LINENO BASHPID HISTCMD), written by bash or a builtin (_
+#     after every command, PIPESTATUS, DIRSTACK, OPTIND/OPTARG/OPTERR, MAPFILE,
+#     COPROC, COMPREPLY), BASH (kklass reads it), and the families BASH_*,
+#     COMP_*, READLINE_*;
+#   * the variables bash's own behaviour depends on: binding one hides the
+#     shell's value in the class's bodies (PATH: command lookup fails even
+#     with the property set; LANG / LC_*: the bodies run in the C locale;
+#     POSIXLY_CORRECT: posix mode is off; FUNCNEST: the limit is lifted;
+#     CDPATH, TMOUT, TIMEFORMAT, PS4: the global settings stop applying) —
+#     PATH EXECIGNORE HOME PWD OLDPWD CDPATH GLOBIGNORE GLOBSORT FIGNORE LANG
+#     LC_* TZ PS0-PS4 PROMPT_COMMAND POSIXLY_CORRECT FUNCNEST TIMEFORMAT TMOUT
+#     TMPDIR TEMP TMP (temp-path code reads all three: kcl tpath) and the
+#     seven history variables HISTCMD HISTCONTROL HISTFILE
+#     HISTFILESIZE HISTIGNORE HISTSIZE HISTTIMEFORMAT. (IFS and REPLY are
+#     refused by kk.decl._validate_ident already.)
+# Allowed: plain environment names (USER, LOGNAME, TERM, HOSTNAME, SHELL,
+# COLUMNS, LINES, MAIL, ENV — bash reads ENV only when an interactive shell
+# starts in posix mode —, OSTYPE, HISTORY, ...): the children of a method see
+# their real value (the binding is `local -n +x`); a callee of another class
+# sees them unset. Case-sensitive (`path`, `Home` are fine), nocasematch off
+# like the other validators; declaration only, not on the call path. Class and
+# method names are not checked; the raw builder kk._build_class_runtime
+# (internal) checks identifiers and the other validators' names only.
+kk.decl._validate_var() {   # NAME LABEL [CLASS]
+    [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off kk.decl._validate_var "$@"; return; }
+    local __kk_why="" __kk_use=""
+    case $1 in
+        BASH_*|COMP_*|READLINE_*)
+            __kk_why="names starting with BASH_, COMP_ or READLINE_ are bash's own variables (shell state, programmable completion, readline)" ;;
+        _|BASH|BASHOPTS|BASHPID|COMPREPLY|COPROC|DIRSTACK|EPOCHREALTIME|EPOCHSECONDS|EUID|FUNCNAME|GROUPS|HISTCMD|\
+        LINENO|MAPFILE|OPTARG|OPTERR|OPTIND|PIPESTATUS|PPID|RANDOM|SECONDS|SHELLOPTS|SRANDOM|UID)
+            __kk_why="$1 is one of bash's special variables (readonly, dynamic, or written by bash or a builtin): bound as a property it fails on every method call, is rewritten by bash, or loses its meaning" ;;
+        PATH|EXECIGNORE) __kk_use="command lookup" ;;
+        HOME) __kk_use="tilde expansion and cd" ;;
+        PWD|OLDPWD) __kk_use="the current directory and cd" ;;
+        CDPATH) __kk_use="cd" ;;
+        GLOBIGNORE|GLOBSORT) __kk_use="pathname expansion" ;;
+        FIGNORE) __kk_use="filename completion" ;;
+        LANG|LC_*) __kk_use="the locale (bound, it puts the class's bodies in the C locale)" ;;
+        TZ|TMPDIR|TEMP|TMP)
+            __kk_why="$1 is read by the code of the class's bodies and by the functions they call (time zone code, \${TMPDIR:-/tmp}, the TMPDIR / TEMP / TMP fallbacks of temp-path code such as kcl tpath): they would read the property, or nothing in the methods of other classes, instead of the shell's $1, while the children of the method keep the real one" ;;
+        PS0|PS1|PS2|PS3|PS4|PROMPT_COMMAND) __kk_use="the prompts and the set -x trace prefix" ;;
+        POSIXLY_CORRECT) __kk_use="posix mode (bound, it turns posix mode off in the class's bodies)" ;;
+        FUNCNEST) __kk_use="the function nesting limit (bound, it lifts the limit in the class's bodies)" ;;
+        TIMEFORMAT) __kk_use="the report of the time keyword" ;;
+        TMOUT) __kk_use="the timeout of read and select" ;;
+        HISTCONTROL|HISTFILE|HISTFILESIZE|HISTIGNORE|HISTSIZE|HISTTIMEFORMAT) __kk_use="the command history" ;;
+        *) return 0 ;;
+    esac
+    [[ -z $__kk_use ]] || __kk_why="bash uses $1 for ${__kk_use}, and in the class's bodies (and in the methods of other classes and the static methods they call) it would see the property or nothing instead of the shell's $1"
+    kk.decl._error "Reserved ${2:-member name}: '$1' (${3:+class '$3': }a property, static property, lazy property or field is a variable of that name inside every method body of the class, and ${__kk_why}; choose another name)"
+    return 1
 }
 
 # kk.decl._static_clash CLASS NAME KIND — KIND is property|method. rc 1 + error
@@ -1221,6 +1287,7 @@ kk.decl._field() {
         return 1
     }
     kk.decl._validate_member "$field_name" "field name" || return 1
+    kk.decl._validate_var "$field_name" "field name" "$class_name" || return 1
     kk.decl._prop_clash "$class_name" "$field_name" instance || return 1
 
     if [[ ${#KK_DECL_NEXT_MODIFIERS[@]} -gt 0 ]]; then
@@ -1247,6 +1314,7 @@ kk.decl._property() {
         return 1
     }
     kk.decl._validate_member "$property_name" "property name" || return 1
+    kk.decl._validate_var "$property_name" "property name" "$class_name" || return 1
     kk.decl._prop_clash "$class_name" "$property_name" instance || return 1
 
     if [[ ${#KK_DECL_NEXT_MODIFIERS[@]} -gt 0 ]]; then

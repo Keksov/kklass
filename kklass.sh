@@ -580,12 +580,14 @@ kk._class_instances() {
 # the runtime built, so a runtime change to what is dumped (P15: the static
 # method dispatchers gained the scope-isolation shadow) makes every older cache
 # stale. The compiler writes `kk._ckk_format N` right after `kk._ckk_begin`; a
-# cache without that line is format 1 (before P15). autoloadClasses rebuilds a
+# cache without that line is format 1 (before P15); format 2 = P15; format 3 =
+# round 6 / P16 (the fat static dispatchers bind their static properties
+# `local -n +x`, E1). autoloadClasses rebuilds a
 # cache of another format (kk._ckk_file_format; with --no-compile it runs the
 # source instead); one sourced directly loads no class, says why once
 # (kk._ckk_class) and its `source` returns 1 (kk._ckk_end). Caches older than
 # uses U2b (no kk._ckk_begin at all) are not checked when sourced directly.
-declare -g __KK_CKK_FORMAT=2
+declare -g __KK_CKK_FORMAT=3
 
 # kk._ckk_begin UNIT REL [ABS] — a compiled cache starts (see above).
 kk._ckk_begin() {
@@ -657,7 +659,7 @@ kk._ckk_class() {
     if [[ -n ${__KK_CKK_FMT-} && $__KK_CKK_FMT != "$__KK_CKK_FORMAT" ]]; then
         if [[ -z ${__KK_CKK_FMT_SAID-} ]]; then
             __KK_CKK_FMT_SAID=1
-            echo "kklass: the compiled cache '${__KK_CKK_PATH-}' has cache format $__KK_CKK_FMT, this kklass reads format $__KK_CKK_FORMAT (round 5 / P15: static methods isolate the caller's names); its classes are not loaded — recompile it: bash kklass_compiler.sh SOURCE CACHE (autoloadClasses without --no-compile rebuilds it)" >&2
+            echo "kklass: the compiled cache '${__KK_CKK_PATH-}' has cache format $__KK_CKK_FMT, this kklass reads format $__KK_CKK_FORMAT (format 2: round 5 / P15 scope isolation; format 3: round 6 / P16 export-safe static bindings); its classes are not loaded — recompile it: bash kklass_compiler.sh SOURCE CACHE (autoloadClasses without --no-compile rebuilds it)" >&2
         fi
         return 1
     fi
@@ -1195,7 +1197,9 @@ kk._property() {   # INST NAME [= VALUE]
         __kk_d["$2"]="$4"
     else
         # printf, not echo -e: values are data and must round-trip verbatim.
-        printf '%s\n' "${__kk_d["$2"]}"
+        # `-`: a declared, never-assigned property reads "" under set -u too
+        # (round 6 / P16, E3, DR22), as the serializers already do.
+        printf '%s\n' "${__kk_d["$2"]-}"
     fi
 }
 
@@ -1209,7 +1213,7 @@ kk._prop_plain() {   # INST CLASS PROP [= VALUE]
     if [[ "${4:-}" == "=" ]]; then
         __kk_d["$3"]="$5"
     else
-        printf '%s\n' "${__kk_d["$3"]}"
+        printf '%s\n' "${__kk_d["$3"]-}"    # `-`: set -u safe (DR22)
     fi
 }
 
@@ -1267,6 +1271,33 @@ kk._prop_lazy() {   # INST CLASS PROP INIT SETTER [= VALUE]
     printf '%s\n' "${!__kk_lv:-}"
 }
 
+# kk.frameReset — for an EXIT handler (round 6 / P16, finding E2, DR21). When
+# the shell exits through `set -e` inside a method body, bash unwinds the
+# body's locals but not kklass's frame stack (kk._invoke's pop never runs):
+# the EXIT trap then sees a STALE frame (a private method called from the
+# handler is not reported, the frames continue at 1) and localvar_unset still
+# on (an `unset` in the handler's code hides instead of revealing). The first
+# command of such a handler: `kk.frameReset`. It clears the three frame arrays
+# and turns localvar_unset off when the outermost kk._invoke turned it on
+# (__KK_LVU_OWN; a caller that had it on keeps it). A no-op (rc 0) when the
+# stack is empty or a body is still live in the dynamic scope (an explicit
+# `exit` in a body, a `set -u` abort and every call from a body run the trap
+# INSIDE that body: its frame is not stale). FUNCNAME keeps listing the dead
+# chain (bash's own). Not on the call hot path.
+kk.frameReset() {
+    (( ${#__KLIB_FRAME_STACK[@]} )) || return 0
+    [[ -R __kk_props ]] && return 0
+    __KLIB_FRAME_STACK=() __KLIB_FRAME_INSTANCE=() __KLIB_FRAME_CLASS=()
+    if [[ -n ${__KK_LVU_OWN-} ]]; then
+        shopt -u localvar_unset
+        __KK_LVU_OWN=
+    fi
+    return 0
+}
+# the owner flag is this shell's (R14): a value from the environment is dropped
+unset __KK_LVU_OWN
+declare -g __KK_LVU_OWN=
+
 # The caller table of a capturing static dispatcher (P15, see
 # kk._class_static_api): no instance properties; it stays empty.
 declare -ga __kk_k2_none=()
@@ -1275,29 +1306,43 @@ declare -ga __kk_k2_none=()
 # `state` nameref to the data array, one nameref per property (including
 # inherited ones; the list is the one of the instance class) and one per
 # static property (bound to the DEFINING class storage).
+# Every bind is `local -n +x` / `local +x` (round 6 / P16, E1, DR20 a, review
+# F2): bash gives a new local the EXPORT attribute of the visible variable of
+# the same name, and an exported nameref exports its TARGET NAME — without +x
+# a child of the body got `MYENV=inst_data[MYENV]` for an exported MYENV the
+# property hides (also a never-set property, and the children of another
+# class's callee), `state=inst_data`, `this=inst`. With +x a child sees the
+# global value. `set -a` (allexport) would export every bind anyway, and
+# kklass's private locals with them — `__kk_body`, the whole method body, in
+# every child's environment (review F1, critic r6b): the four callers of
+# kk._invoke (kk._exec, kk._call, kk._parent, kk._constructor_exec) start with
+# `[[ $- == *a* ]] && set +a` and keep the status in their first local
+# (`__kk_ax=$?`, 0 = it was on; every early return turns it back on); it is
+# turned back on here, right before the body, so the body runs with the
+# caller's allexport. One test + one arithmetic per call, no extra builtin.
 kk._run_frame_body() {   # INST ACTIVE_CLASS BODY ARGS...
     # __kk_self: the frame's instance for kk._invoke's own-instance skip (P15
     # review round 2, N1) — private, unlike `this`, which user code may
     # re-declare; static dispatchers shadow it.
-    local __kk_inst="$1" __class__="$2" __kk_method_body="$3" __kk_self="$1"
+    local +x __kk_inst="$1" __class__="$2" __kk_method_body="$3" __kk_self="$1"
     shift 3
-    local this="$__kk_inst"
-    local __inst__="$__kk_inst"
-    local -n state="${__kk_inst}_data"
+    local +x this="$__kk_inst" __inst__="$__kk_inst"
+    local -n +x state="${__kk_inst}_data"
     local __kk_cv="${__kk_inst}_class"
     local __kk_cls="${!__kk_cv:-}"
     local -n __kk_props="${__kk_cls}_class_properties"
     local __kk_p
     for __kk_p in "${__kk_props[@]}"; do
-        local -n "${__kk_p}=${__kk_inst}_data[${__kk_p}]"
+        local -n +x "${__kk_p}=${__kk_inst}_data[${__kk_p}]"
     done
     local -n __kk_sprops="${__kk_cls}_class_static_properties"
     if (( ${#__kk_sprops[@]} )); then
         local -n __kk_sowner="${__kk_cls}_class_static_property_owner"
         for __kk_p in "${__kk_sprops[@]}"; do
-            local -n "${__kk_p}=${__kk_sowner[$__kk_p]:-$__kk_cls}_static_${__kk_p}"
+            local -n +x "${__kk_p}=${__kk_sowner[$__kk_p]:-$__kk_cls}_static_${__kk_p}"
         done
     fi
+    (( __kk_ax )) || set -a
 
     eval "$__kk_method_body"
 }
@@ -1338,7 +1383,7 @@ kk._invoke() {   # INST ACTIVE_CLASS BODY ARGS...
         local __kk_inst="$1" __kk_active_class="$2" __kk_body="$3"
     fi
     shift 3
-    local this="$__kk_inst"
+    # (no `local this` here: kk._run_frame_body binds this, +x — review F2)
     local __kk_caller_result="$RESULT"
     local __kk_return_set=0
     local __kk_return_value=""
@@ -1352,15 +1397,18 @@ kk._invoke() {   # INST ACTIVE_CLASS BODY ARGS...
     # runs); every nested body, every static and every plain function called
     # from them runs with it on. A caller that has it on keeps it
     # (bash >= 5.0 has the option; kklass needs 5.1+ anyway: SRANDOM).
+    # __KK_LVU_OWN (round 6 / P16, DR21): set while the outermost call holds the
+    # option it turned on — kk.frameReset turns it off only then (a `set -e` exit
+    # inside a body skips the restore below; the EXIT handler calls it).
     local __kk_frame_id=${#__KLIB_FRAME_STACK[@]} __kk_lvu=
-    (( __kk_frame_id )) || [[ :$BASHOPTS: == *:localvar_unset:* ]] || { shopt -s localvar_unset; __kk_lvu=1; }
+    (( __kk_frame_id )) || [[ :$BASHOPTS: == *:localvar_unset:* ]] || { shopt -s localvar_unset; __kk_lvu=1; __KK_LVU_OWN=1; }
     __KLIB_FRAME_STACK[__kk_frame_id]=$__kk_frame_id
     __KLIB_FRAME_INSTANCE[__kk_frame_id]="$__kk_inst"
     __KLIB_FRAME_CLASS[__kk_frame_id]="$__kk_active_class"
 
     kk._run_frame_body "$__kk_inst" "$__kk_active_class" "$__kk_body" "$@"
     local __kk_status=$?
-    [[ -z $__kk_lvu ]] || shopt -u localvar_unset
+    [[ -z $__kk_lvu ]] || { shopt -u localvar_unset; __KK_LVU_OWN=; }
 
     unset '__KLIB_FRAME_STACK[$__kk_frame_id]' '__KLIB_FRAME_INSTANCE[$__kk_frame_id]' '__KLIB_FRAME_CLASS[$__kk_frame_id]'
     if (( __kk_return_set )); then
@@ -1377,7 +1425,8 @@ kk._invoke() {   # INST ACTIVE_CLASS BODY ARGS...
 # also what `$this.NAME` inside a body runs (R2_P8: the body text is no longer
 # rewritten into `.call NAME`), so a call is virtual as of `.new`.
 kk._exec() {   # INST METHOD OWNER ARGS...
-    local __kk_inst="$1" __kk_m="$2" __kk_owner="$3"
+    [[ $- == *a* ]] && set +a          # set -a: see kk._run_frame_body
+    local __kk_ax=$? __kk_inst="$1" __kk_m="$2" __kk_owner="$3"
     shift 3
     local __kk_bv="${__kk_owner}_method_body_${__kk_m}"
     local __kk_body="${!__kk_bv:-}"
@@ -1386,7 +1435,7 @@ kk._exec() {   # INST METHOD OWNER ARGS...
     # test only runs for an empty body, so the hot path keeps one expansion.
     if [[ -z "$__kk_body" && -z "${!__kk_bv+x}" ]]; then
         echo "Error: Method '$__kk_m' not found in class '$__kk_owner'" >&2
-        return 1
+        (( __kk_ax )) || set -a; return 1
     fi
     local __kk_np="${__kk_owner}_has_nonpublic"
     [[ "${!__kk_np:-1}" == "0" ]] || kk._warn_visibility "$__kk_owner" method "$__kk_m"
@@ -1422,7 +1471,8 @@ kk._find_method() {   # METHOD SEARCH_CLASS
 # resolved class is mapped to the DEFINING class so nested `inherited`
 # continues from the right level.
 kk._call() {   # INST METHOD ARGS...
-    local __kk_inst="$1" __kk_m="$2"
+    [[ $- == *a* ]] && set +a          # set -a: see kk._run_frame_body
+    local __kk_ax=$? __kk_inst="$1" __kk_m="$2"
     shift 2
     local __kk_cv="${__kk_inst}_class"
     local __kk_search="${!__kk_cv:-}"
@@ -1434,7 +1484,7 @@ kk._call() {   # INST METHOD ARGS...
         __kk_found="$__kk_find_class"
         if [[ -z "$__kk_found" ]]; then
             echo "Error: Method '$__kk_m' not found in class hierarchy" >&2
-            return 1
+            (( __kk_ax )) || set -a; return 1
         fi
         local __kk_ov="${__kk_found}_class_method_owner[${__kk_m}]"
         [[ -n "${!__kk_ov:-}" ]] && __kk_found="${!__kk_ov:-}"
@@ -1451,7 +1501,8 @@ kk._call() {   # INST METHOD ARGS...
 # `inherited` / $this.parent: STATIC resolution from the parent of the class
 # that owns the CURRENTLY RUNNING body (frame class), not of the instance.
 kk._parent() {   # INST METHOD ARGS...
-    local __kk_inst="$1" __kk_m="$2"
+    [[ $- == *a* ]] && set +a          # set -a: see kk._run_frame_body
+    local __kk_ax=$? __kk_inst="$1" __kk_m="$2"
     shift 2
     # Internal dispatch (see kk._call): result via RESULT, no echo.
     local __kk_return_silent=1
@@ -1469,7 +1520,7 @@ kk._parent() {   # INST METHOD ARGS...
     local __kk_parent_of="${!__kk_pv:-}"
     if [[ -z "$__kk_parent_of" ]]; then
         echo "Error: No parent class for '${__kk_active}'" >&2
-        return 1
+        (( __kk_ax )) || set -a; return 1
     fi
 
     local __kk_key="${__kk_active}_parent_${__kk_m}"
@@ -1480,7 +1531,7 @@ kk._parent() {   # INST METHOD ARGS...
         __kk_found="$__kk_find_class"
         if [[ -z "$__kk_found" ]]; then
             echo "Error: Parent method '$__kk_m' not found" >&2
-            return 1
+            (( __kk_ax )) || set -a; return 1
         fi
         local __kk_ov="${__kk_found}_class_method_owner[${__kk_m}]"
         [[ -n "${!__kk_ov:-}" ]] && __kk_found="${!__kk_ov:-}"
@@ -1496,10 +1547,11 @@ kk._parent() {   # INST METHOD ARGS...
 
 # Run the class constructor body (if any) in a frame of CLASS.
 kk._constructor_exec() {   # INST CLASS ARGS...
-    local __kk_inst="$1" __kk_cls="$2"
+    [[ $- == *a* ]] && set +a          # set -a: see kk._run_frame_body
+    local __kk_ax=$? __kk_inst="$1" __kk_cls="$2"
     shift 2
     local __kk_bv="${__kk_cls}_constructor_body"
-    [[ -n "${!__kk_bv:-}" ]] || return 0
+    [[ -n "${!__kk_bv:-}" ]] || { (( __kk_ax )) || set -a; return 0; }
     kk._invoke "$__kk_inst" "$__kk_cls" "${!__kk_bv:-}" "$@"
 }
 
@@ -1543,16 +1595,20 @@ kk._class_static_api() {
     local -n __kk_sa_meths="${class_name}_class_static_methods"
 
     # Static property accessors: Class.property = value / Class.property
+    # (`${1-}` / `${..-}`: set -u safe, round 6 / P16 review F3; dumped into
+    # .ckk caches, format 3)
     for sp in "${__kk_sa_props[@]}"; do
         static_owner="${__kk_sa_owner[$sp]:-$class_name}"
         eval "${class_name}.${sp}() {
-                if [[ \"\$1\" == \"=\" ]]; then
-                    ${static_owner}_static_${sp}=\"\$2\"
+                if [[ \"\${1-}\" == \"=\" ]]; then
+                    ${static_owner}_static_${sp}=\"\${2-}\"
                 else
-                    echo \"\${${static_owner}_static_${sp}}\"
+                    echo \"\${${static_owner}_static_${sp}-}\"
                 fi
             }"
-        static_namerefs+="local -n $sp=${static_owner}_static_${sp}; "
+        # +x: export-safe, as kk._run_frame_body's binds (round 6 / P16, E1);
+        # dumped into .ckk caches (format 3)
+        static_namerefs+="local -n +x $sp=${static_owner}_static_${sp}; "
     done
 
     # Static methods: Class.method args
@@ -1590,6 +1646,11 @@ kk._class_static_api() {
     # __KK_CKK_FORMAT.
     local __kk_k2sh='[[ -R __kk_props ]] && local __kk_shd "${__kk_props[@]}" "${__kk_sprops[@]}" this __inst__ __class__ state __kk_self'
     local __kk_k2fat="local -n __kk_props=__kk_k2_none __kk_sprops=${class_name}_class_static_properties"
+    # set -a (round 6 / P16, review F1): allexport would export the static-
+    # property namerefs with their TARGET NAMES (and the dispatcher's locals);
+    # it is off from here to the body call, which runs with the caller's
+    # allexport (__kk_sa = 0: it was on). Dumped into .ckk caches (format 3).
+    local __kk_k2a='[[ $- == *a* ]] && set +a; local __kk_sa=$?'
     local __kk_has_funsub=0
     if (( BASH_VERSINFO[0] > 5 || (BASH_VERSINFO[0] == 5 && BASH_VERSINFO[1] >= 3) )); then
         __kk_has_funsub=1
@@ -1613,11 +1674,13 @@ kk._class_static_api() {
             # The assignment's status is the funsub's status = the body's.
             eval "${class_name}.${sm}() {
                     ${__kk_k2sh}
+                    ${__kk_k2a}
                     ${static_namerefs}
                     ${__kk_k2fat}
                     local __kk_return_set=0
                     local __kk_return_value=\"\"
                     local __kk_return_silent=1
+                    (( __kk_sa )) || set -a
                     REPLY=\${ ${class_name}.__static_${sm} \"\$@\"; }
                     local __kk_status=\$?
                     if (( __kk_return_set )); then
@@ -1629,12 +1692,14 @@ kk._class_static_api() {
         else
             eval "${class_name}.${sm}() {
                     ${__kk_k2sh}
+                    ${__kk_k2a}
                     ${static_namerefs}
                     ${__kk_k2fat}
                     local __kk_return_set=0
                     local __kk_return_value=\"\"
                     local __kk_return_silent=1
                     local __kk_static_out=\"\${TMPDIR:-/tmp}/.kk_static_\${BASHPID}_\${RANDOM}\${RANDOM}\"
+                    (( __kk_sa )) || set -a
                     ${class_name}.__static_${sm} \"\$@\" >\"\$__kk_static_out\"
                     local __kk_status=\$?
                     REPLY=\"\$(<\"\$__kk_static_out\")\"

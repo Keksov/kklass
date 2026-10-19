@@ -986,6 +986,57 @@ Every static entry path applies these rules: `defineClass` `static_property` /
 `classFunction`, the Pascal `static var/proc/func`, `kk.register_static_methods`
 and `.kkp` `class var` / `class procedure` / `class function`.
 
+#### Reserved variable-like member names
+
+A property, static property, lazy property or field is a **variable** of
+that name inside every method body of its class (a nameref onto its storage,
+see "Trap: Inside a Body, a Property Is a Nameref"), and the methods of other
+classes and the static methods they call see it as an unset shadow (the
+Isolation Rule). So it cannot take a name whose binding **breaks or changes
+bash or kklass itself** (since round 6 / P16, decisions DR20 and the owner's
+narrowing of 2026-10-18; measured on bash 5.2.37 and 5.3.9):
+
+| Refused | Why (the message says it) |
+|---|---|
+| bash's special variables: `_ BASH BASHOPTS BASHPID COMPREPLY COPROC DIRSTACK EPOCHREALTIME EPOCHSECONDS EUID FUNCNAME GROUPS HISTCMD LINENO MAPFILE OPTARG OPTERR OPTIND PIPESTATUS PPID RANDOM SECONDS SHELLOPTS SRANDOM UID` | readonly (`BASHOPTS`, `EUID`, … print an error on every method call), "may not be assigned" (`FUNCNAME`, `GROUPS`, …), dynamic (`SECONDS`, `RANDOM`, `LINENO`, …), or written by bash or a builtin (`_` after every command, `PIPESTATUS`, `OPTIND`, `MAPFILE`, …); kklass itself reads `BASH` |
+| names starting with `BASH_`, `COMP_`, `READLINE_` | bash's own variables (shell state, programmable completion, readline) |
+| `PATH EXECIGNORE HOME PWD OLDPWD CDPATH GLOBIGNORE GLOBSORT FIGNORE LANG LC_* PS0 PS1 PS2 PS3 PS4 PROMPT_COMMAND POSIXLY_CORRECT FUNCNEST TIMEFORMAT TMOUT` and the seven history variables `HISTCMD HISTCONTROL HISTFILE HISTFILESIZE HISTIGNORE HISTSIZE HISTTIMEFORMAT` | bash's own behaviour depends on them, and bound as a property they hide the shell's value in the class's bodies: `PATH` — command lookup fails even with the property set; `LANG` / `LC_*` — the bodies run in the C locale; `POSIXLY_CORRECT` — posix mode is off; `FUNCNEST` — the limit is lifted; a global `CDPATH`, `TMOUT`, `TIMEFORMAT`, `PS4` stops applying |
+| `TZ`, `TMPDIR`, `TEMP`, `TMP` | read by the code of the bodies and the functions they call (time zone code, `${TMPDIR:-/tmp}`, the `TMPDIR` / `TEMP` / `TMP` fallbacks of temp-path code such as kcl `tpath`): they would read the property, or nothing in other classes' methods, while the children of the method keep the real value |
+| `IFS`, `REPLY` | refused by the general reserved names above |
+
+**Allowed:** plain environment and informational names — `USER`, `LOGNAME`,
+`TERM`, `HOSTNAME`, `SHELL`, `COLUMNS`, `LINES`, `MAIL`, `OSTYPE`, `ENV`
+(bash reads `ENV` only when an interactive shell starts in posix mode),
+`HISTORY`, `HISTOGRAM`, and any name of your own. Inside the class's bodies
+such a name is the property, the commands the body runs see the real value
+(the binding is export-safe, `local -n +x`), and a method of another class
+called from the body sees it unset. Code that is not a method sees the
+property too: a plain function called from the body, and the file-scope
+code of a unit that a body loads first with `kk.uses` (kcl `tpath` reads
+`$OSTYPE` when it loads; kbool's configuration lookup reads
+`$USERPROFILE`). Name such a property differently if the class's bodies
+load units or call such functions.
+
+The check is case-sensitive, as bash names are (`path`, `Home`, `tz`,
+`Lang` are fine, also under `shopt -s nocasematch`), and runs at the
+declaration only — the method call path carries no check. It applies on
+every declaration path: `defineClass` `property` / `static_property` /
+`lazy_property`, `defineSerializableClass`, the declarative `field` /
+`property` / `classVar`, the Pascal `var` / `static var` / `property`, `.kkp`
+fields, properties and `class var` — and so to every compiled `.ckk` cache
+(the compiler runs the source; a refused name compiles nothing). Class and
+**method** names are not variables and are not checked (`method PATH` is
+fine). The error names the class and the reason:
+
+```
+Reserved property name: 'PATH' (class 'Shell': a property, static property, lazy property or field is a variable of that name inside every method body of the class, and bash uses PATH for command lookup, and in the class's bodies (and in the methods of other classes and the static methods they call) it would see the property or nothing instead of the shell's PATH; choose another name)
+```
+
+A **readonly global** named like one of your properties (`readonly x=1`
+next to a class with a property `x`) cannot be caught at declaration: every
+method call of that class then fails with `local: x: readonly variable`.
+Do not make globals readonly under property names.
+
 #### A refused member fails its class
 
 A refused member name (any rule above, a non-identifier, an unsupported
@@ -2682,6 +2733,43 @@ cleanup() {
 trap cleanup EXIT
 ```
 
+### EXIT Handlers and `set -e`: kk.frameReset
+
+When the script stops through `set -e` **inside a method body** (a failing
+command in the body, not caught by `||` / `if`), bash unwinds the body's
+locals but kklass's own bookkeeping of the call never runs. The EXIT trap then
+starts with a **stale frame** (measured on bash 5.2.37 and 5.3.9, round 6 /
+E2): `${#__KLIB_FRAME_STACK[@]}` is 1, a private method called from the
+handler is not reported as an access from outside, and bash's
+`localvar_unset` option — which the outermost method call turns on for its
+duration (Isolation Rule) — is still on, so an `unset` in the handler's own
+helper functions hides a variable instead of revealing the outer one.
+
+Make `kk.frameReset` the **first command of such a handler** (round 6 / P16,
+DR21). It clears the stale frames and turns `localvar_unset` back off — only
+when kklass turned it on (a script that had it on keeps it). It is a no-op
+(rc 0) when nothing is stale: at the top level, inside a running body, and in
+an EXIT trap that runs inside the body — an explicit `exit` in a body and a
+`set -u` abort run the trap in the body's scope, where its frame is still
+live. Methods called from the handler work either way; `FUNCNAME` still lists
+the dead call chain (bash's own).
+
+```bash
+cleanup() {
+    kk.frameReset                  # first: drop what a set -e exit in a body left
+    user.delete 2>/dev/null || true
+}
+trap cleanup EXIT
+set -e
+user.save                          # a failing command in save's body ends the script here
+```
+
+On **bash 5.2** a `set -e` exit from a **nested** method call (a method
+called from a method body) may also print
+`pop_var_context: head of shell_variables not a function context` a few
+times. That is a bash 5.2 bug — plain nested functions that `eval` their
+body reproduce it without kklass — and it is harmless; bash 5.3 is silent.
+
 ### Error Handling
 
 ```bash
@@ -2814,7 +2902,37 @@ bash 5.2.37 and 5.3.9, round 2 / K2):
 - `unset v` inside a member deletes the instance's storage element (the
   property then reads as empty) — assign `v=""` to clear it;
 - these all work: `${v:1:2}`, `${v%x}`, `${v@Q}`, `${v^^}`, `v+=x`,
-  `printf -v v …`, `read -r v`.
+  `printf -v v …`, `read -r v`;
+- **`set -u`:** a declared property that was never assigned is UNSET, not
+  empty. The accessors `obj.v`, `obj.property v` and the static `Class.sp`
+  read it as `""` with rc 0 (round 6 / P16, DR22 and review F3), and the
+  serializers write it as empty, but a body reading it under `set -u` differs
+  between the bashes: `$v` aborts with "v: unbound variable" on **5.3.9** and
+  reads `""` on **5.2.37**, and arithmetic on it (`n=$((n+1))`) aborts on
+  **both** (`inst_data: unbound variable`). Write method code that may run
+  under `set -u` with a default: `"${v-}"` for text, `$(( ${n:-0} + 1 ))` for
+  numbers;
+- **exported variables:** every bind of a frame — the property and
+  static-property namerefs, `state`, `this`, `__inst__`, `__class__` — is
+  export-safe (`local -n +x` / `local +x`, round 6 / P16, DR20 a and review
+  F2), so a property that hides an exported variable of the same name does
+  not leak into the environment of the commands the body runs: they see the
+  variable's **global** value (before P16 an exported `MYENV` hidden by a
+  property reached them as `MYENV=inst_data[MYENV]` — the nameref's target
+  name — also when the property was never set, and in the children of another
+  class's callee; an exported `state` as `state=inst_data`). The same holds
+  under **`set -a`** (allexport): kklass turns it off while it sets up a call
+  and back on right before the body, so the body's own assignments are
+  exported as usual, and neither the binds nor kklass's private `__kk_*`
+  call locals are (review F1, critic r6b: before, the whole method body
+  reached every child's environment as `__kk_body`). Names bash
+  itself depends on are refused as member names (Reserved Member Names);
+- **a body cannot export a property:** `export v` is refused by bash
+  ("`inst_data[v]`: not a valid identifier") and `declare -x v=new` changes
+  what the body reads as `$v` but neither exports it nor updates the
+  property's storage (measured, both bashes). To hand a property to a
+  command, put it in that command's environment: `v="$v" cmd` or
+  `env v="$v" cmd`.
 
 ```bash
 defineClass TK2 "" property v method probe '
@@ -2914,13 +3032,16 @@ body, say so: `declare -g y=…` (a global that a caller's property hides cannot
 be READ from a callee — neither before P15, when the caller's property showed
 through, nor now).
 
-A property named like an **environment or shell variable** (`HOME`, `TZ`,
-`LANG`, …) is such a hiding name: inside the class's own bodies it is the
-property (and an exported one reaches external commands as the nameref's
-target NAME, not the value), and a callee of ANOTHER class or a static method
-called from them sees it UNSET — not the environment's value — so under
-`set -u` such a callee stops with "unbound variable". Do not name properties
-after variables the code (or a callee) reads from the environment.
+A property named like an **environment variable** is such a hiding name. The
+variables bash itself depends on (`PATH`, `HOME`, `TMPDIR`, `PWD`, `LANG`,
+`LC_*`, `TZ`, …) are refused as member names since round 6 / P16 (Reserved
+Member Names). Any other exported name a property hides (`USER`, `TERM`, an
+application's `MYENV`) is, inside the class's own bodies, the property; the
+external commands they run see the variable's global value (the binding is
+`local -n +x`, P16); and a callee of ANOTHER class or a static method called
+from them sees it UNSET — not the environment's value — so under `set -u` such
+a callee stops with "unbound variable". Do not name properties after
+variables the code (or a callee) reads from the environment.
 
 <!-- doctest -->
 ```bash
@@ -2939,7 +3060,9 @@ a.y                        # => orig
 ```
 
 Compiled `.ckk` caches hold the static method dispatchers verbatim, so P15
-bumped the cache format: `autoloadClasses` rebuilds an older cache by itself,
+bumped the cache format (to 2), and round 6 / P16 bumped it again (to 3: the
+dispatchers bind their static properties `local -n +x`):
+`autoloadClasses` rebuilds an older cache by itself,
 and an older cache sourced directly loads no class, says why and returns 1 from
 its `source` (recompile it with `bash kklass_compiler.sh SOURCE CACHE`);
 `autoloadClasses SOURCE --no-compile` runs the source instead of an older
@@ -3167,6 +3290,21 @@ internal, a malformed name never aborts the caller (`kk._class_derives_from
 ```bash
 kk.derivesFrom TCircle TShape && echo "a shape"
 ```
+
+### kk.frameReset
+
+For an EXIT handler (round 6 / P16): clear the method-call frames a `set -e`
+exit inside a body left behind and turn `localvar_unset` back off when the
+outermost method call had turned it on (see "EXIT Handlers and `set -e`").
+
+```bash
+kk.frameReset
+```
+
+Always rc 0, prints nothing. A no-op when the frame stack is empty or a body
+is still live in the dynamic scope (at the top level, inside a body, in an
+EXIT trap that an explicit `exit` in a body runs). A `localvar_unset` the
+script turned on itself is left on. Fork-free; not on the method call path.
 
 ### Identifier checks
 

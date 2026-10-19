@@ -381,7 +381,7 @@ Order: **ktests P3 → kklass P13 (hygiene) → P14 (class-build cost) → R5-re
 
 # Round 6 — the leftovers after Round 5 (2026-10-17)
 
-**Status: PLANNED, owner decisions taken (2026-10-17); research `scratchpad/research_r6/REPORT.md`; no code.**
+**Status: P16 DONE + COMMITTED 2026-10-19 (sweep 8932/8933); P17 planned. P16 DONE incl. review rounds 1-2 (2026-10-19, worker; uncommitted, awaiting review); P17 planned. Owner decisions taken (2026-10-17, DR20′ 2026-10-18); research `scratchpad/research_r6/REPORT.md`, review `scratchpad/critic_r6/REPORT.md`. P16: E1 export-safe binds (`local -n +x` / `local +x` for every property / static / `state` / `this` / `__inst__` / `__class__` bind, `set -a` suspended while a frame binds; .ckk format 3) + variable-like members named like bash's special variables, the `BASH_` / `COMP_` / `READLINE_` families or the variables bash's behaviour depends on (PATH, HOME, LANG / LC_*, TZ, TMPDIR, the seven history variables, …) refused at declaration with the class and a true reason (kk.decl._validate_var, every declaration path; USER / TERM / LOGNAME / HOSTNAME … allowed, DR20′); E2 public `kk.frameReset` (owner flag __KK_LVU_OWN); E3 accessor `-` defaults (instance and static), examples 04 34 38 40 run under `bash -u`; E4 `kklass/experimental/` removed (git rm, doc mentions only); E6 the two kcl PLAN.md passages corrected. Test 147 (26) red-first both bashes; kklass 851, kkore 698, 27 kcl suites 6859, doctests 142/015, 49 examples (+ `bash -u`) — all green on 5.2.37 and 5.3.9; hot path ≈ +0..+10 µs per method call for the review fixes on top of +0..+9 (6 names) / +12..+21 µs (30 names) for +x (ledger `round6.phases.P16`).**
 Owner 2026-10-17 (after Round 5 was pushed): "Plan Round 6 from open items". The ktests item S1
 is planned in `ktests/PLAN.md` "Round 6" (phase P4). Ledger: `kklass_ledger.json` key `round6`.
 
@@ -406,6 +406,7 @@ is planned in `ktests/PLAN.md` "Round 6" (phase P4). Ledger: `kklass_ledger.json
 | DR23 | E4: `kklass/experimental/` deleted after a reference check (grep all repos + docs). |
 | DR24 | E5: a critic attributes the extra ≈5 ms per Pascal class; fixed only if it does not weaken the P14 hardening. |
 | DR25 | (supervisor) E6: the two PLAN.md passages are corrected. |
+| DR20′ | (owner 2026-10-18, after the P16 review critic_r6) the refused list of DR20 (b) is NARROWED to the names whose binding breaks or changes bash or kklass itself: bash's special variables (readonly / dynamic / written by bash or a builtin, `BASH`), the families `BASH_` `COMP_` `READLINE_`, `PATH EXECIGNORE HOME PWD OLDPWD CDPATH GLOBIGNORE GLOBSORT FIGNORE LANG LC_* TZ TMPDIR PS0-PS4 PROMPT_COMMAND POSIXLY_CORRECT FUNCNEST TIMEFORMAT TMOUT` and the seven history variables (no `HIST` prefix); supervisor 2026-10-19 (critic r6b): also `TEMP TMP` (temp-path code such as kcl tpath reads them like TMPDIR). Allowed again: `USER LOGNAME TERM HOSTNAME COLUMNS LINES MAIL ENV HISTORY HISTOGRAM` and other plain environment names. Every message names the class and a true reason. Review fixes folded in P16: F1 `set -a` no longer exports the binds, F2 `state`/`this`/`__inst__`/`__class__` +x, F3 static accessor set -u safe. |
 
 ## R6.3 Phases
 

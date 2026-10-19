@@ -24,7 +24,7 @@ defineClass "Computer" "" \
 defineClass "ComputerBuilder" "" \
     "property" "computer" \
     "property" "counter" \
-    "method" "createComputer" 'counter=$((counter + 1)); local name="comp_$counter"; Computer.new "$name"; computer="$name"' \
+    "method" "createComputer" 'counter=$(( ${counter:-0} + 1 )); local name="comp_$counter"; Computer.new "$name"; computer="$name"' \
     "method" "setCPU" 'eval "$computer.cpu = \"\$1\""' \
     "method" "setRAM" 'eval "$computer.ram = \"\$1\""' \
     "method" "setStorage" 'eval "$computer.storage = \"\$1\""' \

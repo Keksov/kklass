@@ -14,7 +14,7 @@ echo
 defineClass "TestClass" "" \
     "property" "name" \
     "method" "greet" 'echo "Hello, I am $name"' \
-    "method" "getValue" 'echo "$value"' \
+    "method" "getValue" 'echo "${value-}"' \
     "method" "setName" 'name="$1"'
 
 # Create an instance

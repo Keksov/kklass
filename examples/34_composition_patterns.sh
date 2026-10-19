@@ -29,10 +29,10 @@ defineClass "Car" "" \
     "property" "model" \
     "property" "engine" \
     "property" "wheels" \
-    "method" "assemble" 'echo "Assembling $make $model"; Engine.new engine; Wheel.new wheel1; Wheel.new wheel2; Wheel.new wheel3; Wheel.new wheel4; engine.type = "V8"; engine.horsepower = "350"; wheel1.position = "front-left"; wheel2.position = "front-right"; wheel3.position = "rear-left"; wheel4.position = "rear-right"; wheel1.size = "18"; wheel2.size = "18"; wheel3.size = "18"; wheel4.size = "18"; engine="engine"; wheels="wheel1 wheel2 wheel3 wheel4"' \
-    "method" "start" 'echo "Starting $make $model"; $engine.start' \
-    "method" "drive" 'echo "Driving $make $model"; for wheel in $wheels; do $wheel.rotate; done' \
-    "method" "getInfo" 'echo "Car: $make $model"; $engine.getInfo; for wheel in $wheels; do $wheel.getInfo; done'
+    "method" "assemble" 'echo "Assembling ${make-} ${model-}"; Engine.new engine; Wheel.new wheel1; Wheel.new wheel2; Wheel.new wheel3; Wheel.new wheel4; engine.type = "V8"; engine.horsepower = "350"; wheel1.position = "front-left"; wheel2.position = "front-right"; wheel3.position = "rear-left"; wheel4.position = "rear-right"; wheel1.size = "18"; wheel2.size = "18"; wheel3.size = "18"; wheel4.size = "18"; engine="engine"; wheels="wheel1 wheel2 wheel3 wheel4"' \
+    "method" "start" 'echo "Starting ${make-} ${model-}"; $engine.start' \
+    "method" "drive" 'echo "Driving ${make-} ${model-}"; for wheel in $wheels; do $wheel.rotate; done' \
+    "method" "getInfo" 'echo "Car: ${make-} ${model-}"; $engine.getInfo; for wheel in $wheels; do $wheel.getInfo; done'
 
 # Create a car instance
 Car.new myCar

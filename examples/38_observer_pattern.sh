@@ -29,9 +29,9 @@ defineClass "AnalyticsTracker" "Observer" \
 defineClass "NewsPublisher" "" \
     "property" "name" \
     "property" "observers" \
-    "method" "addObserver" 'observers="$observers $1"' \
+    "method" "addObserver" 'observers="${observers-} $1"' \
     "method" "removeObserver" 'observers="${observers/ $1 / }"' \
-    "method" "notifyObservers" 'for observer in $observers; do $observer.update "$1"; done' \
+    "method" "notifyObservers" 'for observer in ${observers-}; do $observer.update "$1"; done' \
     "method" "publishNews" 'echo "[$name] Publishing news: $1"; $this.notifyObservers "$1"'
 
 echo "✓ Observer pattern classes defined"
@@ -55,9 +55,9 @@ tracker.name = "Analytics Service"
 echo "✓ Observers created"
 
 # Register observers with subject
-newsHub.addObserver "$emailNotifier"
-newsHub.addObserver "$logger"
-newsHub.addObserver "$tracker"
+newsHub.addObserver emailNotifier
+newsHub.addObserver logger
+newsHub.addObserver tracker
 
 echo "✓ Observers registered with publisher"
 
@@ -75,7 +75,7 @@ newsHub.publishNews "Observer pattern implemented in kklass"
 # Test observer removal
 echo
 echo "=== Testing Observer Removal ==="
-newsHub.removeObserver "$emailNotifier"
+newsHub.removeObserver emailNotifier
 echo "Removed email notifier"
 
 echo "Publishing after removing email notifier:"
