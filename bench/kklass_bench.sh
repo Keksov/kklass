@@ -12,7 +12,7 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$DIR/kklass.sh"
 source "$DIR/kklass_serializable.sh"
 
-now_us() { local t="${EPOCHREALTIME/./}"; NOW_US="${t#0}"; }
+now_us() { local t="${EPOCHREALTIME/[.,]/}"; NOW_US="${t#0}"; }
 # Function count: measured ONCE while the shell is still small, then derived
 # arithmetically. Enumerating the function table (`compgen -A function`,
 # forked or not) once the shell holds ~24k functions makes EVERY later

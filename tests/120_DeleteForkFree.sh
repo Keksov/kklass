@@ -14,7 +14,7 @@ kt_test_init "DeleteForkFree" "$(dirname "$0")" "$@"
 KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$KKLASS_DIR/kklass.sh"
 
-now_us() { local t="${EPOCHREALTIME/./}"; printf -v NOW_US '%d' "${t#0}"; }
+now_us() { local t="${EPOCHREALTIME/[.,]/}"; printf -v NOW_US '%d' "${t#0}"; }
 
 margs=()
 for i in 1 2 3 4 5 6 7 8 9 10; do margs+=(method "m$i" "echo m$i"); done
