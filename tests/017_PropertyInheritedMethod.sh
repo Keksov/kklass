@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # PropertyInheritedMethod
 # Auto-migrated from kklass test framework
 

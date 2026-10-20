@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Example 11: Property Inheritance
 # Demonstrates how properties are inherited from base classes to derived classes
 

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Round5Hygiene (kklass round 5 / P13; PLAN.md "# Round 5", findings K3, K3b,
 # K4, K5, K6; decisions DR17, DR14, DR15, DR19).
 #   K3/DR17  under the caller's `shopt -s nocasematch` every `[[ == ]]`, `case`

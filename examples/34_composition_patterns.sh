@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Example 34: Composition Patterns
 # Demonstrates objects containing other objects as properties (composition over inheritance)
 

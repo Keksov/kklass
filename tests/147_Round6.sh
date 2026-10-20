@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Round6 (kklass round 6 / P16; PLAN.md "# Round 6", findings E1, E2, E3;
 # owner decisions DR20, DR21, DR22; research scratchpad/research_r6).
 #   §A DR20 (a) export-safe binding: a property / static-property nameref is

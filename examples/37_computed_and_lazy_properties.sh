@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Example 37: Computed and Lazy Properties
 # Demonstrates computed properties (with getters/setters) and lazy-loaded properties
 

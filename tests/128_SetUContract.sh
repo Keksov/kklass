@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # SetUContract (kcl review 2026-09-06: findings G8-01 / G1-14, X-SETU; decision D7).
 #
 # `set -u` is a kcl-wide contract (D7): a kcl unit must be sourceable and usable

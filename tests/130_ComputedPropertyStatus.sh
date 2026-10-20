@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # ComputedPropertyStatus (kcl review found_in_P6: P6-F1).
 #
 # A method-backed computed property lost its getter's exit status: the

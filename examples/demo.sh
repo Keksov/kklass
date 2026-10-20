@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # demo.sh - Run all kklass examples sequentially
 
 # Colors for output (same approach as working test file)

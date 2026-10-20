@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Example 18: Method Calling Parent and Using Properties
 # Demonstrates methods that call parent methods while accessing instance properties
 

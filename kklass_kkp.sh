@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # kklass_kkp.sh — the .kkp (Pascal-like unit) translator. A TOOL, not a unit
 # (uses U3): executed as `bash kklass_kkp.sh IN.kkp OUT.sh` (a unit header's
 # top-level `return` would be an error there); it may also be sourced for its
@@ -333,7 +333,7 @@ kkp.compile() {
     : > "$output_file"
     if [[ -n "$__kkp_unit" ]]; then
         {
-            printf '#!/bin/bash\n'
+            printf '#!/usr/bin/env bash\n'
             kkp._boot_line; printf '\n'
             printf 'kk.unit %s || return $__kk_unit_rc\n' "$__kkp_unit"
             # the unit declares classes with the kklass DSL: it loads kklass
@@ -343,7 +343,7 @@ kkp.compile() {
         } > "$output_file"
         boot_done=1
     else
-        printf '#!/bin/bash\n# Generated from %s by kklass_kkp.sh\n\n' "$input_file" > "$output_file"
+        printf '#!/usr/bin/env bash\n# Generated from %s by kklass_kkp.sh\n\n' "$input_file" > "$output_file"
     fi
 
     local line_no=0

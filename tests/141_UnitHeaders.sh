@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # UnitHeaders — the kklass modules are units (kklass/USES_PLAN.md phase U3: §7.4
 # header shapes, P7, C13/P9 caches, C19 runtime dirs; found_in_U1a lint,
 # found_in_U2b cache prologue + source-unit registration).
@@ -82,7 +82,7 @@ kt_test_start "K1 the units carry the §7.4 relative header right after the sheb
 bad=""
 for u in "${UNITS[@]}"; do
     mapfile -t -n 3 h < "$KKLASS_DIR/$u.sh"
-    [[ "${h[0]}" == '#!/bin/bash' \
+    [[ "${h[0]}" == '#!/usr/bin/env bash' \
        && "${h[1]}" == '[[ ${__KK_UNITS[@]@a} == A* ]] || source "${BASH_SOURCE%'"$u"'.sh}../kbool.sh" || return' \
        && "${h[2]}" == "kk.unit $u || return \$__kk_unit_rc" ]] || bad+=" $u"
 done

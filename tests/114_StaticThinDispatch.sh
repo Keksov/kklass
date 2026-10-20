@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # StaticThinDispatch — regression tests for the thin (capture-free) static
 # dispatcher that classes WITHOUT static variables receive.
 #

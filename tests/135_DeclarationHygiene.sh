@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # DeclarationHygiene (round 3 / P11, findings M1-M3, decisions DR8 + DR9).
 #   M1/DR9  a static member can not take a name kklass generates at class level:
 #           new, constructor, __decl_new_impl, __static_*, __decl_* (and, for

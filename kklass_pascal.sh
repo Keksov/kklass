@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 [[ ${__KK_UNITS[@]@a} == A* ]] || source "${BASH_SOURCE%kklass_pascal.sh}../kbool.sh" || return
 kk.unit kklass_pascal || return $__kk_unit_rc
 # kklass_pascal.sh - Laconic Pascal-style front-end for kklass.

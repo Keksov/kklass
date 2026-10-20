@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # ReservedNames (P0 regression for F6 / decision D2, see PLAN.md).
 # Member names that would shadow the names a method body sees by contract
 # (this, __inst__, __class__, RESULT, REPLY, IFS) are REJECTED at declaration

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # LazyProperties
 # Auto-migrated from kklass test framework
 

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Example 16: Constructor Functionality
 # Demonstrates class constructors and initialization
 

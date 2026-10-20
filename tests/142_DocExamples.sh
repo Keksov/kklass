@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # DocExamples — the runnable examples of the kklass book (docs/kklass_book.md:
 # chiefly the chapter "Units and uses" and the getting-started / Pascal DSL
 # examples that show the canonical `source kbool.sh` + `kk.uses` loading) run

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # PascalDslContext — the Pascal-style DSL: per-instance context correctness.
 # Independent instances, cross-instance calls (frame restore), factory scopes,
 # caller-local shadowing, subshell isolation, shared static state.

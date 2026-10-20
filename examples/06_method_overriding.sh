@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Example 06: Method Overriding
 # Demonstrates how derived classes can override methods from their parent class
 

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Example 24: Auto-recompilation on Source Change
 # Demonstrates automatic recompilation when source files are modified
 

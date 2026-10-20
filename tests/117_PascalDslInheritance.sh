@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # PascalDslInheritance — the Pascal-style DSL: inheritance, `inherited` in
 # methods / constructors / destructors, constructor inheritance, func chains,
 # override guard and abstract resolution.

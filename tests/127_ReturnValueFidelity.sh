@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # ReturnValueFidelity (kcl review 2026-09-06: findings G1-13 / G2-03, X-ECHO).
 #
 # `kk._return` is the single value channel of the framework: every `func`, every

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Example 23: Using Cached Compiled Version
 # Demonstrates using cached compiled versions instead of recompiling
 

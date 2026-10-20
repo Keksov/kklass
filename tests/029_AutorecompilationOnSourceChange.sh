@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # AutorecompilationOnSourceChange
 # Auto-migrated from kklass test framework
 #

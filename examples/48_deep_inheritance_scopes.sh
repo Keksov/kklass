@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Example 48: Deep inheritance (4 levels) + independent instances across scopes
 #
 # Verifies that each instance keeps its OWN context — properties, `$this`,

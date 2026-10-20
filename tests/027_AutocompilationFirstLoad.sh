@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # AutocompilationFirstLoad
 # Auto-migrated from kklass test framework
 

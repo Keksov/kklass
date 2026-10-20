@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # ConstructorFunctionality
 # Auto-migrated from kklass test framework
 

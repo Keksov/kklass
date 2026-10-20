@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # KkpMultilineSignatures
 #
 # Hermetic since 2026-09-06 (kcl review "task 6" / decision R15): the autoload

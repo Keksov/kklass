@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # CompiledParity (P0 regression for F4, see PLAN.md).
 # The same scenario must print the same thing whether the classes are loaded in
 # runtime mode (source the .kk) or compiled mode (source the .ckk.sh produced by

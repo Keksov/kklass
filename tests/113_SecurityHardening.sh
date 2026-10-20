@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # SecurityHardening - regression guards for the kklass hardening:
 #   P1.1 identifier validation in kk._build_class_runtime (name injection)
 #   P1.4 property values round-trip verbatim (no echo -e mangling)

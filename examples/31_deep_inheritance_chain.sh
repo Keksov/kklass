@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Example 31: Deep Inheritance Chain with Properties
 # Demonstrates a deep inheritance hierarchy with properties at each level
 

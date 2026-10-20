@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Example 07: Parent Method Calls
 # Demonstrates how to call parent class methods from derived classes using $this.parent
 

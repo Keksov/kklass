@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # BuilderPattern
 # Auto-migrated from kklass test framework
 

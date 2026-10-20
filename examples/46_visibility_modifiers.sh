@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Example 46: Visibility Modifiers (private / protected / public)
 # Demonstrates access-control sections in the declarative (Pascal-style) API.
 # A private or protected member accessed from OUTSIDE its class emits a warning

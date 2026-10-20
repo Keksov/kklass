@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Example 40: Builder Pattern
 # Demonstrates step-by-step construction of complex objects
 

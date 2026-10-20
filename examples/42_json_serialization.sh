@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Example 42: JSON Serialization
 # Demonstrates JSON serialization using kklass_serializable.sh
 

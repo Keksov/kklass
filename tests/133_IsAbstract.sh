@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # IsAbstract (round 2 / R2_P9, finding K4, decision DR3).
 # Up to P9 there was no public way to ask "can CLASS.new succeed?": thttpserver
 # read the internal flag `${CLASS}_class_abstract` and called the

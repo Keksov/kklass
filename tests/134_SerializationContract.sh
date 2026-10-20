@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # SerializationContract (kklass round 3 / P10, findings S1 S1b S2 S3 S4,
 # decisions DR4 DR4b DR5 DR6 DR7).
 #

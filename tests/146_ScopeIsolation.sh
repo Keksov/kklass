@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # ScopeIsolation (kklass round 5 / P15; PLAN.md "# Round 5", findings K2, K2+;
 # decision DR16a = the owner's choice "A5 full isolation"; critic r5b p1/p2).
 # A member body binds its instance's properties as LOCAL namerefs and bash

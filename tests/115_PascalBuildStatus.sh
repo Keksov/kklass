@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # PascalBuildStatus — regression tests for the exit status of the Pascal DSL
 # `build` verb.
 #

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Example 28: Inheritance in Compiled Classes
 # Demonstrates that inheritance works correctly in compiled classes
 

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Example 22: Auto-compilation (First Load)
 # Demonstrates automatic compilation of .kk files on first load
 

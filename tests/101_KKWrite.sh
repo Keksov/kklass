@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # KKWrite
 # Auto-migrated from kklass test framework
 

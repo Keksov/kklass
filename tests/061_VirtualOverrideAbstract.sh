@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # VirtualOverrideAbstract
 
 KTESTS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../ktests" && pwd)"

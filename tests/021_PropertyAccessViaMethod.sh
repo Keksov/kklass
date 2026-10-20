@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # PropertyAccessViaMethod
 # Auto-migrated from kklass test framework
 

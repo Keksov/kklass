@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Example 47: Pascal-style DSL (kklass_pascal.sh)
 #
 # Write the class STRUCTURE first (Pascal "interface"), then the method BODIES as

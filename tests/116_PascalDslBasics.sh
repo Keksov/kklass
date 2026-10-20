@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # PascalDslBasics — the Pascal-style DSL front-end (kklass_pascal.sh), basics:
 # class ... end, var, proc, func, constructor, properties, visibility sections,
 # and build-time diagnostics. Companion examples: examples/47_pascal_dsl.sh.

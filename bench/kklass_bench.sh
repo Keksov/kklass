@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # kklass micro-benchmark (P0 baseline; re-run after every phase, see PLAN.md §3).
 # Measures, on a class with 2 properties + 10 methods:
 #   - .new per instance (first 50, then up to 1000 -> shows template eval cost)

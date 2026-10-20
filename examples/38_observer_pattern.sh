@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Example 38: Observer Pattern
 # Demonstrates event-driven programming with observers and notifications
 

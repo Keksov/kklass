@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
 # a `unit X;` file is a unit outside the kbool tree: it finds kbool.sh through

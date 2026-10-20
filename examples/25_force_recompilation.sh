@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Example 25: Force Recompilation
 # Demonstrates forcing recompilation of source files
 

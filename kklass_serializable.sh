@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 [[ ${__KK_UNITS[@]@a} == A* ]] || source "${BASH_SOURCE%kklass_serializable.sh}../kbool.sh" || return
 kk.unit kklass_serializable || return $__kk_unit_rc
 # kklass_serializable.sh - Serialization mixin for kklass

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Example 10: Method with Parameters
 # Demonstrates methods that accept parameters and perform calculations
 

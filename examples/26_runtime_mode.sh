@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Example 26: Runtime Mode (--no-compile)
 # Demonstrates runtime mode that skips compilation and uses direct interpretation
 

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # StaticMethodStatus (P0 regression for F5, see PLAN.md).
 # A static method on a class WITH static properties runs its body inside a
 # capture wrapper. Before the fix: on bash 5.2 (brace-group + scratch file)

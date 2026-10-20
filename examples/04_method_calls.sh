@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Example 04: Method Calls
 # Demonstrates calling methods on class instances
 

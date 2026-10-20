@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Example 32: Static/Class Methods and Properties
 # Demonstrates class-level methods and properties that belong to the class itself
 

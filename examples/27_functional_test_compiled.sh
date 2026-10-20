@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Example 27: Functional Test with Compiled Classes
 # Demonstrates functional testing of compiled classes
 

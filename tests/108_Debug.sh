@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Debug
 # Auto-migrated from kklass test framework
 

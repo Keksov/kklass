@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Example 20: Method with Multiple Parameters and Property Access
 # Demonstrates methods that accept multiple parameters and access instance properties
 

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Example 39: Strategy Pattern
 # Demonstrates encapsulating algorithms that can be swapped at runtime
 

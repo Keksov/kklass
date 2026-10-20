@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 [[ ${__KK_UNITS[@]@a} == A* ]] || source "${BASH_SOURCE%kklass_decl.sh}../kbool.sh" || return
 kk.unit kklass_decl || return $__kk_unit_rc
 # kklass_decl.sh — the declarative DSL of kklass (declareClass ... endClass,

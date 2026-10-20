@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Example 12: Property Access and Computation in Methods
 # Demonstrates how methods can access and perform computations with instance properties
 

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Example 01: Basic Class Creation
 # Demonstrates how to define a simple class with properties and methods
 

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # StaticInstanceClash (round 4 / P12, finding V1, decision DR10).
 #
 # Inside a member body every property of the instance AND every static

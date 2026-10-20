@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Example 17: Property Used in Inherited Method
 # Demonstrates accessing inherited properties within methods
 

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Example 02: Instance Creation
 # Demonstrates creating instances of classes and verifying their existence
 

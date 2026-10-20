@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # MethodCalls
 # Auto-migrated from kklass test framework
 

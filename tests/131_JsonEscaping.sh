@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # JsonEscaping (kklass round 2 / P7, finding K3, decision DR2).
 #
 # toJSON embedded property values UNESCAPED: a quote, a backslash or a newline

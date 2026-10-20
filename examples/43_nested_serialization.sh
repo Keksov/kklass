@@ -1,5 +1,5 @@
 
-#!/bin/bash
+#!/usr/bin/env bash
 # Example 43: Complex Object Serialization
 # Demonstrates serialization of nested objects using both string and JSON formats
 

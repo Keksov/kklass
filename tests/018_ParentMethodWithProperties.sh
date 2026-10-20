@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # ParentMethodWithProperties
 # Auto-migrated from kklass test framework
 

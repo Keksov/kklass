@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Example 29: Error Handling - Non-existent Method
 # Demonstrates error handling when calling non-existent methods
 

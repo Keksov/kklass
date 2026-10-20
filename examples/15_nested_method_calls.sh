@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Example 15: Nested Method Calls with $this
 # Demonstrates method chaining and nested method calls using $this
 

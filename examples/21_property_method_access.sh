@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Example 21: Property Access via .property Method
 # Demonstrates accessing properties using the .property method syntax
 

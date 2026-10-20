@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # BasicClassCreation
 # Auto-migrated from kklass test framework
 

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # KKWriteln
 # Auto-migrated from kklass test framework
 

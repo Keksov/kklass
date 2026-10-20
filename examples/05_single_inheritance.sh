@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Example 05: Single Inheritance
 # Demonstrates class inheritance where a derived class inherits from a base class
 

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # ClassDeclarationSites (uses phase U2a; kklass/USES_PLAN.md U20, U21, U23, U18',
 # C6, C14, P4).
 #   site   the declaration site of a class = the chain of FILE:LINE call

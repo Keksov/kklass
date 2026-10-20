@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Example 08: Multiple Inheritance Levels
 # Demonstrates a deep inheritance chain with multiple levels
 

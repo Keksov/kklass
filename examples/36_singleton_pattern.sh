@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Example 36: Singleton Pattern
 # Demonstrates ensuring only one instance of a class exists
 

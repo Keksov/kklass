@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # BuilderNamespace (kcl review 2026-09-06: finding G8-04, X-LOCALS).
 #
 # `defineClass` / `defineMethod` walk their member lists with loop variables that

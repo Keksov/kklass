@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # UsingCachedCompiledVersion
 # Auto-migrated from kklass test framework
 #

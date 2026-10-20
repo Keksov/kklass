@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # ForceRecompilation
 # Auto-migrated from kklass test framework
 #

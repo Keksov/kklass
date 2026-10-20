@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # FunctionalTestCompiled
 # Auto-migrated from kklass test framework
 

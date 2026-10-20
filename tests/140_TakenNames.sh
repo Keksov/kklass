@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # TakenNames (uses phase U2b; kklass/USES_PLAN.md U22 as amended by U40, U35,
 # U32, U36, U33, C13, P9, U11).
 #   U22/U40 a class or an instance may not take the name of a DECLARED function

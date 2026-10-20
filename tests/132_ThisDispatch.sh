@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # ThisDispatch (round 2 / R2_P8, finding K1, decision DR1 as amended 2026-10-01).
 # Up to P8 kklass rewrote the TEXT `$this.NAME` / `${this}.NAME` of every member
 # body (and of the constructor) into `$__inst__.call NAME`, for every method NAME

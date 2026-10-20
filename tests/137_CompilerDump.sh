@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # CompilerDump (round 4 / P12, finding C15, decision DR12).
 #   C6  The header heredoc of kklass_compiler.sh is UNQUOTED (it expands
 #       $KKLASS_COMPILER_DIR), and a comment line in it carried a backquoted
@@ -88,7 +88,7 @@ defineClass StaleK "" method hi 'echo fresh'
 EOF
 stale_cache="$W/ckk/stale.ckk.sh"
 cat > "$stale_cache" <<'EOF'
-#!/bin/bash
+#!/usr/bin/env bash
 echo STALE-CACHE-LOADED
 EOF
 touch -d '2001-01-01 00:00:00' "$W/stale.kk"

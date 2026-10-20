@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Example 30: Complex Property Names
 # Demonstrates using property names with underscores and numbers
 

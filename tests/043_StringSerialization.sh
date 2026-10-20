@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # StringSerialization
 # Auto-migrated from kklass test framework
 

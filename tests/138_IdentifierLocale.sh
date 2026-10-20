@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # IdentifierLocale, kklass side (round 4 / P12, findings L1 + L2, decision DR13).
 #   L2  round 3 / P11 put a `local LC_ALL=C` into kklass's kk._is_ident: under
 #       a UTF-8 caller locale every call paid ≈4.5× (kk.derivesFrom 70 -> 213

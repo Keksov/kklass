@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # NestedSerialization
 # Auto-migrated from kklass test framework
 

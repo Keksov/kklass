@@ -83,7 +83,7 @@ Create a file `hello_world.sh`:
 
 <!-- doctest -->
 ```bash
-#!/bin/bash
+#!/usr/bin/env bash
 # Load kbool, then the kklass unit
 source /path/to/kbool/kbool.sh || exit
 kk.uses kklass || exit
@@ -317,7 +317,7 @@ shell's function table. After `.delete` the name is free: `obj.anything` is
 ### Complete Example
 
 ```bash
-#!/bin/bash
+#!/usr/bin/env bash
 source /path/to/kbool/kbool.sh
 kk.uses kklass
 
@@ -1466,7 +1466,7 @@ bash kklass_compiler.sh my_classes.kk my_classes_compiled.sh
 **Step 3:** Use the compiled classes:
 
 ```bash
-#!/bin/bash
+#!/usr/bin/env bash
 source my_classes_compiled.sh
 
 Counter.new counter
@@ -1482,7 +1482,7 @@ counter.delete
 Autoloading automatically compiles and caches classes:
 
 ```bash
-#!/bin/bash
+#!/usr/bin/env bash
 source /path/to/kbool/kbool.sh
 kk.uses kklass_autoload
 
@@ -1642,7 +1642,7 @@ defineClass Employee Person \
 **Use with autoload (`main.sh`):**
 
 ```bash
-#!/bin/bash
+#!/usr/bin/env bash
 source /path/to/kbool/kbool.sh
 kk.uses kklass_autoload
 
@@ -1723,7 +1723,7 @@ calling file, like Pascal's `uses A, B;`.
 ```bash
 mkdir -p geo
 cat > geo/point.sh <<'EOF'
-#!/bin/bash
+#!/usr/bin/env bash
 [[ ${__KK_UNITS[@]@a} == A* ]] || source "${KBOOL_HOME-}/kbool.sh" || return 2
 kk.unit point || return $__kk_unit_rc
 kk.uses kklass_pascal || return
@@ -1736,7 +1736,7 @@ end
 build TPoint
 EOF
 cat > geo/segment.sh <<'EOF'
-#!/bin/bash
+#!/usr/bin/env bash
 [[ ${__KK_UNITS[@]@a} == A* ]] || source "${KBOOL_HOME-}/kbool.sh" || return 2
 kk.unit segment || return $__kk_unit_rc
 kk.uses kklass_pascal || return
@@ -1832,7 +1832,7 @@ runs the unit again instead of counting it complete.
 <!-- doctest -->
 ```bash
 cat > fake.sh <<'EOF'
-#!/bin/bash
+#!/usr/bin/env bash
 [[ ${__KK_UNITS[@]@a} == A* ]] || source "${KBOOL_HOME-}/kbool.sh" || return 2
 kk.unit fake || return $__kk_unit_rc
 defineClass TShape "" property area
@@ -1860,7 +1860,7 @@ class with its own name (kcl's `class dateutils` in the unit `dateutils`).
 <!-- doctest -->
 ```bash
 cat > TBox.sh <<'EOF'
-#!/bin/bash
+#!/usr/bin/env bash
 [[ ${__KK_UNITS[@]@a} == A* ]] || source "${KBOOL_HOME-}/kbool.sh" || return 2
 kk.unit TBox || return $__kk_unit_rc
 TBox.helper() { :; }
@@ -1914,7 +1914,7 @@ rebuilt from the edited file, without a WARNING:
 <!-- doctest -->
 ```bash
 cat > shape.sh <<'EOF2'
-#!/bin/bash
+#!/usr/bin/env bash
 [[ ${__KK_UNITS[@]@a} == A* ]] || source "${KBOOL_HOME-}/kbool.sh" || return 2
 kk.unit shape || return $__kk_unit_rc
 kk.uses kklass || return
@@ -1951,7 +1951,7 @@ else the configuration's `ckkdir` (`kk.config ckkdir`), else `./.ckk`.
 <!-- doctest -->
 ```bash
 cat > shapes.sh <<'EOF'
-#!/bin/bash
+#!/usr/bin/env bash
 [[ ${__KK_UNITS[@]@a} == A* ]] || source "${KBOOL_HOME-}/kbool.sh" || return 2
 kk.unit shapes || return $__kk_unit_rc
 kk.uses kklass_pascal || return
@@ -2846,7 +2846,7 @@ kkload "my_classes.kk"
 ### Document Your Classes
 
 ```bash
-#!/bin/bash
+#!/usr/bin/env bash
 # user_management.kk
 # User management system classes
 # Author: Your Name
@@ -3691,7 +3691,7 @@ kk.uses kklass_serializable   # Required! (it loads kklass too)
 #### Enable Bash Debugging
 
 ```bash
-#!/bin/bash
+#!/usr/bin/env bash
 set -x  # Enable debug output
 source /path/to/kbool/kbool.sh
 kk.uses kklass
@@ -3719,7 +3719,7 @@ declare -p MyClass_class_methods
 
 ```bash
 # Create minimal test case
-#!/bin/bash
+#!/usr/bin/env bash
 source /path/to/kbool/kbool.sh
 kk.uses kklass
 

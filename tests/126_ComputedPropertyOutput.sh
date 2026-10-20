@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # ComputedPropertyOutput (P0 regression for F7 / decision D1 as amended at P3).
 # A computed property follows the kk._return contract every kcl unit relies on
 # (pinned for tstopwatch by kcl/tstopwatch/tests/004_ZeroFork.sh):

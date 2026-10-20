@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Example 33: Introspection Capabilities
 # Demonstrates getting information about classes, instances, methods, and properties
 

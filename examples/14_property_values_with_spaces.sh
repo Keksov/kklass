@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Example 14: Property Values with Spaces
 # Demonstrates handling property values that contain spaces and special characters
 

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # DefaultExportEnvironment
 
 KTESTS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../ktests" && pwd)"

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Example 03: Property Assignment and Access
 # Demonstrates setting and getting property values on class instances
 

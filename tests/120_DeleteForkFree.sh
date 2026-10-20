@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # DeleteForkFree (P0 regression for F1 + F8, see PLAN.md).
 # .delete must (a) remove every per-instance function and the data/class vars,
 # (b) remove the lazy-property globals `inst_lazy_<p>` (F8), and (c) cost the

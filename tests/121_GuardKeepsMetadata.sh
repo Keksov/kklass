@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # GuardKeepsMetadata (P0 regression for F2 + F9, see PLAN.md).
 # F2: a REFUSED cross-file redefinition must leave the original class fully
 # intact — including the declarative metadata (abstract flag, member

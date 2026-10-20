@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Example 09: Resource Cleanup
 # Demonstrates proper cleanup of class instances and their associated functions
 

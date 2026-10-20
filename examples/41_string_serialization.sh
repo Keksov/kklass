@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Example 41: Serialization using String
 # Demonstrates using defineSerializableClass for automatic serialization
 

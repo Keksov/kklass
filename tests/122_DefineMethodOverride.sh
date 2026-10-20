@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # DefineMethodOverride (P0 regression for F3, see PLAN.md).
 # defineMethod/defineFunction on an EXISTING class must be able to override a
 # method the class INHERITED. Before the fix the instance-template wrapper and

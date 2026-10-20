@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Example 19: Dispatch semantics — virtual $this vs static $this.parent
 # All kklass dispatch is dynamic (the Delphi virtual+override model):
 #   - $this.method resolves from the INSTANCE's actual class, so subclass

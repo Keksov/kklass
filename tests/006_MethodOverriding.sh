@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # MethodOverriding
 # Auto-migrated from kklass test framework
 

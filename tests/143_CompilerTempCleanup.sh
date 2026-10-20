@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # CompilerTempCleanup (ktests round 5, E1 / DE1, 2026-10-16).
 #
 # kklass_compiler.sh translates a .kkp into a temporary folder made by a bare

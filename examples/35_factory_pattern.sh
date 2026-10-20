@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Example 35: Factory Pattern
 # Demonstrates creating objects through factory methods
 

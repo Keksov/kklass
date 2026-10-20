@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # ForkFreeBuild (kklass round 5 / P14; PLAN.md "# Round 5", findings K1/K1+,
 # decision DR18).
 #   K1   every class declaration forked: `$(kk.decl._rewrite_inherited …)` per

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Example 13: Multiple Instances of Same Class
 # Demonstrates creating and using multiple instances of the same class
 

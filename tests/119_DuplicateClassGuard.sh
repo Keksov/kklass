@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # DuplicateClassGuard - kklass refuses to build over a class name that a
 # DIFFERENT declaration site already registered (an accidental second definition,
 # or a user class colliding with a library one): "Duplicate identifier", rc 1, one
