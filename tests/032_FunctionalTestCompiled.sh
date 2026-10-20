@@ -18,6 +18,9 @@ TEST_NUM=$(basename "${BASH_SOURCE[0]}" | cut -d'_' -f1)
 # kklass/tests itself (round 5 review: the cache used to land in kklass/tests/.ckk)
 TEST_SCRIPT_DIR="$(cd "$(kt_fixture_tmpdir)" && pwd)"
 TEST_FILE="$TEST_SCRIPT_DIR/.ckk/test_${TEST_NUM}.kk"
+# this file tests the default placement ($(pwd)/.ckk): a caller's KKLASS_CKK_DIR
+# (a developer's, a ktests gate cell's) must not redirect it (found by gate G2)
+unset KKLASS_CKK_DIR
 
 # Setup: Ensure $TEST_FILE exists
 mkdir -p "$TEST_SCRIPT_DIR/.ckk"
