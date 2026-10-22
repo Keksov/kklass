@@ -768,7 +768,7 @@
   },
   "round3": {
     "status": "COMPLETE 2026-10-02 (ktests P1, kklass P10, P11 committed)",
-    "plan": "PLAN.md # Round 3",
+    "plan": "docs/dev/PLAN.md # Round 3",
     "order": "ktests P1 -> P10 -> P11",
     "findings": {
       "S1": "defineSerializableClass json builds a broken class rc 0; inline string copy drops inherited/lazy props",
@@ -924,7 +924,7 @@
   },
   "round4": {
     "status": "COMPLETE 2026-10-05 (ktests P2, kklass P12); N1/C5 -> USES_PLAN.md, C3 -> round 5",
-    "plan": "PLAN.md # Round 4",
+    "plan": "docs/dev/PLAN.md # Round 4",
     "order": "ktests P2 -> P12",
     "findings": {
       "V1": "static property hides same-named instance property in a body (22 combos, every path)",
@@ -1023,7 +1023,7 @@
   },
   "round5": {
     "status": "ROUND 5 COMPLETE 2026-10-17: P13, P14, P15 committed (not pushed)",
-    "plan": "PLAN.md # Round 5",
+    "plan": "docs/dev/PLAN.md # Round 5",
     "findings": {
       "K1": "class build forks: 741/493/495 per fresh dateutils/math/thttpapplication load, ~86% of 7-10 s; all avoidable (r5a)",
       "K2": "dynamic-scope leak, write+read, statics see caller this/state; nobody relies on it (r5b)",
@@ -1322,7 +1322,7 @@
   },
   "round6": {
     "status": "ROUND 6 COMPLETE 2026-10-19: P16 + P17 committed (not pushed)",
-    "plan": "PLAN.md # Round 6",
+    "plan": "docs/dev/PLAN.md # Round 6",
     "research": "scratchpad/research_r6/REPORT.md",
     "findings": {
       "E1": "property nameref hides exported var (children get TZ=e_data[TZ]); PATH/bash specials as property names",

@@ -1693,7 +1693,7 @@ loaded once per shell, has a unique name (its file stem), and names its
 dependencies with `kk.uses`. The unit system itself — header shapes,
 `kk.uses` lookup, configuration, projects — is described in the
 [kbool README](../../README.md) and the [kkore reference](../../kkore/README.md);
-the design and its reasons in [USES_PLAN.md](../USES_PLAN.md). This chapter is
+the design and its reasons in [USES_PLAN.md](dev/USES_PLAN.md). This chapter is
 what it means for classes: where a class is *declared*, what happens when the
 same class is declared again, which names are taken, and how compiled caches
 and `.kkp` units fit in.
