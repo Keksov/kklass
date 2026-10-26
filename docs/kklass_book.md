@@ -1714,7 +1714,7 @@ A direct `source kklass/kklass_pascal.sh` still works — its header loads
 ### Writing a Class Unit
 
 Give the file the header (the user form below; units inside the kbool tree use
-a relative path, see the [kbool README](../../README.md#units)), load the
+a relative path, see the [kbool reference](../../docs/reference.md#units)), load the
 kklass module it needs, then declare classes as usual. In the Pascal DSL,
 `uses A B …` is a synonym of `kk.uses A B …` that resolves names from the
 calling file, like Pascal's `uses A, B;`.
