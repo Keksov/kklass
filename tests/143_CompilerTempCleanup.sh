@@ -66,7 +66,9 @@ else
 fi
 
 kt_test_start "a compiler killed with TERM: the translation folder is removed, rc 143 [DE1]"
-k143_compile term 'sleep 20' timeout -s TERM --preserve-status 3
+# busybox's timeout has no --preserve-status and needs none: its exit status is the program's own (launch L3.5-3)
+K143_PS=( --preserve-status ); [[ "$(timeout --help 2>&1)" == *BusyBox* ]] && K143_PS=()
+k143_compile term 'sleep 20' timeout -s TERM "${K143_PS[@]}" 3
 if [[ "$RC" == 143 && -z "$LEFT" ]]; then
     kt_test_pass "rc 143, nothing left"
 else
@@ -86,8 +88,9 @@ fresh="kklass_compiler.$(bash -c 'echo $$').fresh"
 mkdir -p "$TMPD/drop/kklass_compiler.$$.keep" "$TMPD/drop/kklass_compiler.abc.keep" "$TMPD/drop/other"
 mkdir -p "$TMPD/drop/$fresh"
 : > "$TMPD/drop/kklass_compiler.$$.keep/f"
-[[ -n "$dropped" ]] && touch -d '2 hours ago' "$TMPD/drop/$dropped"
-touch -d '2 hours ago' "$TMPD/drop/kklass_compiler.$$.keep" "$TMPD/drop/kklass_compiler.abc.keep"
+[[ -n "$dropped" ]] && { printf -v _st '%(%Y%m%d%H%M.%S)T' $(( EPOCHSECONDS - 7200 )); touch -t "$_st" "$TMPD/drop/$dropped"; }
+printf -v _st '%(%Y%m%d%H%M.%S)T' $(( EPOCHSECONDS - 7200 ))
+touch -t "$_st" "$TMPD/drop/kklass_compiler.$$.keep" "$TMPD/drop/kklass_compiler.abc.keep"
 # a second, normal compile into the SAME TMPDIR (k143_compile would empty it)
 printf 'kk.unit Boom || return $__kk_unit_rc\n:\n' > "$TMPD/u/Boom.sh"
 ( cd "$TMPD" && env -u KBOOL_HOME -u USERPROFILE -u ProgramData -u PROGRAMDATA \

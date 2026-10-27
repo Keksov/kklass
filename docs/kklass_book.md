@@ -1922,7 +1922,7 @@ defineClass TShape "" property p
 EOF2
 source /path/to/kbool/kbool.sh || exit
 kk.uses shape || exit
-sed -i 's/property p/property q/' shape.sh      # edit the unit
+sed 's/property p/property q/' shape.sh > shape.new && mv shape.new shape.sh   # edit the unit
 kk.uses shape                                   # still loaded: a no-op
 kk.unit --forget shape; echo "forget: rc=$?"    # => forget: rc=0
 kk.uses shape || exit                           # runs again: TShape is rebuilt

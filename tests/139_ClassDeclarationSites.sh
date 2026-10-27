@@ -324,7 +324,7 @@ source "$KKLASS_DIR/kklass_pascal.sh"
 source "$TMPD/u/myu.sh"; echo "load=$?"
 TSu.new u1; u1.Who; echo "u1=$RESULT"
 kk._unit_classes myu; echo "classes=[$RESULT]"
-sed -i 's/v1/v2/' "$TMPD/u/myu.sh"
+sed 's/v1/v2/' "$TMPD/u/myu.sh" > "$TMPD/u/myu.sh.kt" && mv "$TMPD/u/myu.sh.kt" "$TMPD/u/myu.sh"
 source "$TMPD/u/myu.sh"; TSu.new u2; u2.Who; echo "u2=$RESULT"
 kk.unit --forget myu; echo "forget=$?"
 source "$TMPD/u/myu.sh" 2>"$TMPD/I.err2"; echo "reload=$?"
@@ -618,7 +618,7 @@ printf 'defineClass TKf "" method who '"'"'echo v1'"'"'\n' > "$TMPD/kf.sh"
 cat > "$TMPD/S22.sh" <<'EOF'
 source "$KKLASS_DIR/kklass.sh"
 source "$TMPD/kf.sh"; TKf.new k1
-sed -i 's/v1/v2/' "$TMPD/kf.sh"
+sed 's/v1/v2/' "$TMPD/kf.sh" > "$TMPD/kf.sh.kt" && mv "$TMPD/kf.sh.kt" "$TMPD/kf.sh"
 source "$TMPD/kf.sh" 2>/dev/null; TKf.new k2; echo "before=$(k2.who)"
 kk.class --forget TKf; echo "forget=$?"
 source "$TMPD/kf.sh" 2>"$TMPD/S22.err2"; echo "reload=$?"
@@ -641,8 +641,8 @@ cat > "$TMPD/S23.sh" <<'EOF'
 source "$KKLASS_DIR/kklass.sh"
 printf 'defineClass TQq "" property a\n' > "$TMPD/q.sh"
 VERBOSE_KKLASS=quiet
-source "$TMPD/q.sh"; source "$TMPD/q.sh" 2>"$TMPD/S23.e1"; echo "same=$? lines=$(wc -l <"$TMPD/S23.e1")"
-defineClass TQq "" property z 2>"$TMPD/S23.e2"; echo "dup=$? lines=$(wc -l <"$TMPD/S23.e2")"
+source "$TMPD/q.sh"; source "$TMPD/q.sh" 2>"$TMPD/S23.e1"; echo "same=$? lines=$(( $(wc -l <"$TMPD/S23.e1") ))"
+defineClass TQq "" property z 2>"$TMPD/S23.e2"; echo "dup=$? lines=$(( $(wc -l <"$TMPD/S23.e2") ))"
 unset VERBOSE_KKLASS
 source <(echo 'defineClass TQp "" property a')
 source <(echo 'defineClass TQp "" property b') 2>"$TMPD/S23.e3"; echo "procsub=$? props=${TQp_class_properties[*]} warn=$(grep -c WARNING "$TMPD/S23.e3")"

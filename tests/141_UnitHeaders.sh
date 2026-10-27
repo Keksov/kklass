@@ -179,7 +179,7 @@ cat > "$TMPD/K10.sh" <<'EOF'
 "$BASH" "$T/kklass/kklass_kkp.sh" >/dev/null 2>&1; echo "kkp-usage=$?"
 "$BASH" "$T/kklass/kklass_compiler.sh" >/dev/null 2>&1; echo "compiler-usage=$?"
 printf 'defineClass TCm "" property v method hi "echo hi-\\$v"\n' > cm.kk
-"$BASH" "$T/kklass/kklass_compiler.sh" cm.kk cm.ckk.sh >/dev/null 2>compile10.log; echo "compile=$? err=$(wc -c < compile10.log)"
+"$BASH" "$T/kklass/kklass_compiler.sh" cm.kk cm.ckk.sh >/dev/null 2>compile10.log; echo "compile=$? err=$(( $(wc -c < compile10.log) ))"
 grep -c '^        kk\.uses kklass || return$' cm.ckk.sh
 "$BASH" -c 'source "$1"; TCm.new o; o.v = 5; o.hi; echo "kklass=${__KK_UNITS[kklass]+registered}"' _ "$TMPD/cm.ckk.sh"
 "$BASH" -c 'source "$1/kklass/kklass_kkp.sh"; declare -F kkp.compile >/dev/null && echo "kkp sourced, kbool=${__KK_UNITS[@]@a}"' _ "$T"
@@ -310,11 +310,11 @@ check "K16 R7: a translated .kkp unit loads kklass itself (kk.uses kklass after 
 # R2 at the kklass level (critic broken2.sh): kklass.sh failing under kklass_pascal
 B2="$TMPD/brk"
 rm -rf "$B2"; cp -r "$T" "$B2"
-sed -i '4i return 6' "$B2/kklass/kklass.sh"
+{ head -n 3 "$B2/kklass/kklass.sh"; printf 'return 6\n'; tail -n +4 "$B2/kklass/kklass.sh"; } > "$B2/kklass/kklass.sh.kt" && mv "$B2/kklass/kklass.sh.kt" "$B2/kklass/kklass.sh"
 cat > "$TMPD/K17.sh" <<'EOF'
 source "$B2/kklass/kklass_pascal.sh" 2>/dev/null; echo "r1=$?"
 source "$B2/kklass/kklass_pascal.sh" 2>/dev/null; echo "r2=$? dsl=$(type -t class) core=$(type -t defineClass)"
-sed -i '4d' "$B2/kklass/kklass.sh"
+sed '4d' "$B2/kklass/kklass.sh" > "$B2/kklass/kklass.sh.kt" && mv "$B2/kklass/kklass.sh.kt" "$B2/kklass/kklass.sh"
 source "$B2/kklass/kklass_pascal.sh"; echo "r3=$? dsl=$(type -t class) core=$(type -t defineClass)"
 kk.uses kklass_pascal kklass; echo "uses=$?"
 EOF
