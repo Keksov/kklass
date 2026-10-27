@@ -715,4 +715,29 @@ kt_test_start "S24 R9 + U36: a .kkp loaded twice through autoload (runtime trans
 case_run S24
 if [[ "$OUT" == $'first=0 unit=registered\nsecond=0 warn=0\nb=7 total=2 a=5 sink=[]\nh-first=0\nh-second=0 warn=1\nd=4 total=2 c=3 sink=[]' ]]; then kt_test_pass "ok"; else kt_test_fail "out='${OUT//$'\n'/|}' err='$ERR'"; fi
 
+# ---------------------------------------------------------------------------
+# launch L3.5-7: where `<( )` is a FIFO (FreeBSD's pkg bash) `source <(…)` runs
+# TMPDIR/sh-np.XXXXXX — a new name each time, already unlinked while it is
+# sourced — the pseudo file "(process substitution)". Simulated here on every
+# bash: a file named sh-np.* that removes itself before it declares. Two
+# EXISTING regular files of that name stay two files.
+cat > "$TMPD/S25.sh" <<'EOF'
+source "$KKLASS_DIR/kklass.sh"
+printf 'defineClass TQf "" property a\n' > "$TMPD/sh-np.f1"
+printf 'defineClass TQf "" property b\n' > "$TMPD/sh-np.f2"
+source "$TMPD/sh-np.f1"; source "$TMPD/sh-np.f2" 2>"$TMPD/S25.e1"; echo "files=$? props=${TQf_class_properties[*]} dup=$(grep -c 'Duplicate identifier' "$TMPD/S25.e1")"
+printf 'rm -f -- "${BASH_SOURCE[0]}"\ndefineClass TQg "" property a\n' > "$TMPD/sh-np.g1"
+printf 'rm -f -- "${BASH_SOURCE[0]}"\ndefineClass TQg "" property b\n' > "$TMPD/sh-np.g2"
+source "$TMPD/sh-np.g1"; source "$TMPD/sh-np.g2" 2>"$TMPD/S25.e2"; echo "gone=$? props=${TQg_class_properties[*]} warn=$(grep -c WARNING "$TMPD/S25.e2") at=$(grep -cF '(process substitution):2' "$TMPD/S25.e2")"
+mkfifo "$TMPD/sh-np.h1" "$TMPD/sh-np-2"
+printf 'defineClass TQh "" property a\n' > "$TMPD/sh-np.h1" & w=$!
+source "$TMPD/sh-np.h1"; wait "$w"
+printf 'defineClass TQh "" property b\n' > "$TMPD/sh-np-2" & w=$!
+source "$TMPD/sh-np-2" 2>"$TMPD/S25.e3"; r=$?; wait "$w"
+echo "live=$r props=${TQh_class_properties[*]} warn=$(grep -c WARNING "$TMPD/S25.e3") at=$(grep -cF '(process substitution):1' "$TMPD/S25.e3")"
+EOF
+kt_test_start "S25 L3.5-7: a sourced sh-np.* / sh-np-N that is gone or a live FIFO (a FIFO process substitution) is the pseudo file '(process substitution)' — two of them are one site (WARNING, ignored); two existing regular files of that name are two sites (Duplicate)"
+case_run S25
+if [[ "$OUT" == $'files=1 props=a dup=1\ngone=0 props=a warn=1 at=1\nlive=0 props=a warn=1 at=1' ]]; then kt_test_pass "ok"; else kt_test_fail "out='${OUT//$'\n'/|}' err='$ERR'"; fi
+
 kt_test_log "139_ClassDeclarationSites.sh completed"

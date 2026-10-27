@@ -30,7 +30,10 @@ unset -f kk._kklass_dir
 # their file `environment` / `main`, 5.3 names it `$0`) — are the one pseudo
 # file "(no file)": judged by their line like any file. Leading positions inside
 # such functions are skipped like kklass's own frames, so both bashes give the
-# same site.
+# same site. A sourced `<( )` that is a FIFO (TMPDIR/sh-np.* or sh-np-*, a new
+# name each time: FreeBSD's pkg bash) is the pseudo file "(process
+# substitution)", so it is one site per line as /dev/fd/N is elsewhere
+# (launch L3.5-7).
 #
 # A class that is BUILT has a site (_KKLASS_CLASS_SITE). Declaring it again:
 #   * from another site          -> "kklass: Duplicate identifier: ..." naming
@@ -341,8 +344,19 @@ kk._class_site() {
             esac
         fi
         __started=1
+        # `source <( )` where the substitution is a FIFO (FreeBSD's pkg bash:
+        # TMPDIR/sh-np.XXXXXX, sh-np-N where bash has no mktemp(3); a NEW
+        # name each time and already unlinked while it is sourced — launch
+        # L3.5-7): the pseudo file "(process substitution)", judged by its
+        # line, as /dev/fd/N is where `<( )` is /dev/fd (two substitutions on
+        # one site are the same site there too). A regular file of that name
+        # that exists is a file.
+        if [[ ${__f##*/} == sh-np[.-]* ]] && { [[ ! -e $__f ]] || [[ -p $__f ]]; }; then
+            __f='(process substitution)'
+        fi
         case $__f in
             '') __a="" ;;
+            '(process substitution)') __a=$__f; __nofile=0 ;;
             /*|[A-Za-z]:[/\\]*) __a=$__f; __nofile=0 ;;
             *) __a=$PWD/$__f; __nofile=0 ;;
         esac
@@ -396,6 +410,7 @@ kk._class_site_text() {
         __f=${__p%:*} __f=${__f//\\//} __pre=""
         case $__f in
             '') __f="(no file)" ;;
+            '(process substitution)') ;;
             *)
                 [[ $__f == [A-Za-z]:/* ]] && { __pre=${__f:0:2}; __f=${__f:2}; }
                 __o=()
