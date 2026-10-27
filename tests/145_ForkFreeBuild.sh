@@ -35,6 +35,16 @@ KKLASS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 KBOOL_ROOT="$(cd "$KKLASS_DIR/.." && pwd)"
 source "$KKLASS_DIR/kklass_pascal.sh"
 
+# FT_OFF=1 where FDDIR is /dev/fd (FreeBSD's pkg bash, macOS): the fork-free
+# capture is OFF there by design (launch L3.5, PORTING H13 - /dev/fd/N is a
+# dup(N), and a writable inherited descriptor would let a child pwrite a
+# forged text between the markers in place; that race cannot be tested
+# deterministically). There the fast-path rows assert instead: the capture is
+# off (a child prints `off=1/[]`: switched off, no pair), the texts are
+# right, stderr is empty.
+kk145_f0() { :; }; kk._fn_text kk145_f0 kk145_v
+FT_OFF=""; [[ ${__kk_ft[8]} == /dev/fd ]] && FT_OFF=1
+
 TMPD="$(mktemp -d "${TMPDIR:-/tmp}/kk145.XXXXXX")" && TMPD="$(cd "$TMPD" && pwd)"
 mkdir -p "$TMPD/home" "$TMPD/etc" "$TMPD/tmp"
 kk145_cleanup() { rm -rf "$TMPD"; }
@@ -84,6 +94,7 @@ kk.register_static_methods F1Stat F1S F1Stat a b
 set +x
 F1Pas.new o 7; o.m1; o.f2; echo "f2=$RESULT"; F1S.a
 shopt -s nullglob dotglob; t=("$TMPDIR"/*); echo "tmp=${#t[@]}"
+[[ ${__kk_ft[8]} != /dev/fd ]] || echo "off=$(( __kk_ft[4] >= 99 ))/[${__kk_ft[1]-}]"
 EOF
 kt_test_start "F1 K1 defineClass, declarative, Pascal (accessors, ctor, inherited) and kk.register_static_methods fork no subshell"
 case_run f1
@@ -95,7 +106,9 @@ while IFS= read -r line; do
     [[ -n $main && $p != "$main" ]] && (( forks++ ))
 done <"$TMPD/f1.trace"
 want=$'pas\n1\nf2=7\na\ntmp=0'
-if [[ $RC == 0 && -n $main && $forks == 0 && "$OUT" == "$want" ]]; then kt_test_pass "0 forks"; else kt_test_fail "rc=$RC forks(lines)=$forks out=[$OUT] err=[${ERR:0:300}]"; fi
+if [[ -n $FT_OFF ]]; then
+    if [[ $RC == 0 && "$OUT" == "$want"$'\noff=1/[]' && -z "$ERR" ]]; then kt_test_pass "capture off (FDDIR /dev/fd): texts right, silent"; else kt_test_fail "rc=$RC out=[$OUT] err=[${ERR:0:300}]"; fi
+elif [[ $RC == 0 && -n $main && $forks == 0 && "$OUT" == "$want" ]]; then kt_test_pass "0 forks"; else kt_test_fail "rc=$RC forks(lines)=$forks out=[$OUT] err=[${ERR:0:300}]"; fi
 
 # ===========================================================================
 # F2 — RESULT survives implement / implementConstructor (critic r5a C10)
@@ -159,19 +172,25 @@ for ((k=0; k<6; k++)); do
 done
 r=0; p=0; for n in $ns; do (( n < p )) && r=1; p=$n; done   # the count restarted = reopened
 echo "len=${#want} bad=[$bad] reopened=$r setups=${__kk_ft[5]} ns=[$ns]"
+[[ ${__kk_ft[8]} != /dev/fd ]] || echo "off=$(( __kk_ft[4] >= 99 ))/[${__kk_ft[1]-}]"
 EOF
 case_run f5
 tmp_files
-if [[ $RC == 0 && "$OUT" == *"bad=[] reopened=1 setups=2 "* && -z "$FILES" ]]; then kt_test_pass "reopened"; else kt_test_fail "rc=$RC out=[$OUT] left=[$FILES] err=[${ERR:0:300}]"; fi
+if [[ -n $FT_OFF ]]; then
+    if [[ $RC == 0 && "$OUT" == *"bad=[] reopened=0 setups=0 "*$'\noff=1/[]' && -z "$FILES" && -z "$ERR" ]]; then kt_test_pass "capture off (FDDIR /dev/fd): texts right, silent"; else kt_test_fail "rc=$RC out=[$OUT] left=[$FILES] err=[${ERR:0:300}]"; fi
+elif [[ $RC == 0 && "$OUT" == *"bad=[] reopened=1 setups=2 "* && -z "$FILES" ]]; then kt_test_pass "reopened"; else kt_test_fail "rc=$RC out=[$OUT] left=[$FILES] err=[${ERR:0:300}]"; fi
 
 kt_test_start "F6 kk._fn_text in a subshell and in \$( ) opens its own pair; the parent's pair stays in step"
 kk._fn_text f3a v; r0=${__kk_ft[1]}; p0=${__kk_ft[0]}
 s1="$( kk._fn_text f3b v; [[ "$v" == "$(declare -f f3b)" ]] && echo ok; [[ ${__kk_ft[0]} != "$p0" && -n ${__kk_ft[1]} ]] && echo own )"
 ( kk._fn_text f3c v; [[ "$v" == "$(declare -f f3c)" ]] ) && s2=ok || s2=bad
 kk._fn_text f3d v; [[ "$v" == "$(declare -f f3d)" ]] && s3=ok || s3=bad
-if [[ $s1 == $'ok\nown' && $s2 == ok && $s3 == ok && ${__kk_ft[1]} == "$r0" && ${__kk_ft[0]} == "$p0" ]]; then kt_test_pass "in step"; else kt_test_fail "sub=[$s1] [$s2] parent=[$s3] r=$r0/${__kk_ft[1]}"; fi
+if [[ -n $FT_OFF ]]; then
+    if [[ $s1 == ok && $s2 == ok && $s3 == ok && -z ${__kk_ft[1]} && ${__kk_ft[4]} -ge 99 ]]; then kt_test_pass "capture off (FDDIR /dev/fd): texts right"; else kt_test_fail "sub=[$s1] [$s2] parent=[$s3] pair=[${__kk_ft[1]}] fails=${__kk_ft[4]}"; fi
+elif [[ $s1 == $'ok\nown' && $s2 == ok && $s3 == ok && ${__kk_ft[1]} == "$r0" && ${__kk_ft[0]} == "$p0" ]]; then kt_test_pass "in step"; else kt_test_fail "sub=[$s1] [$s2] parent=[$s3] r=$r0/${__kk_ft[1]}"; fi
 
 kt_test_start "F7 review F1: the caller reopened the numbers (R for writing its own file, R2 for its own input) -> nothing written into the caller's file, the caller's read still gets its first line, the text is right, a new pair"
+if [[ -n $FT_OFF ]]; then kt_test_pass "N/A where FDDIR is /dev/fd: no pair, no descriptors (the capture is off there, H13; see F20)"; else
 cat >"$TMPD/f7.sh" <<'EOF'
 source "$KBOOL_ROOT/kbool.sh" && kk.uses kklass_pascal || exit 9
 mkp() { eval "class $1
@@ -200,6 +219,7 @@ echo "held=[$(<"$TMPD/f7held.txt")] $t"
 EOF
 case_run f7
 if [[ $RC == 0 && "$OUT" == $'m1-of-F7B\nout=[] read=[caller-line-1] newpair=yes\nheld=[mine] ok' ]]; then kt_test_pass "caller untouched"; else kt_test_fail "rc=$RC out=[$OUT] err=[${ERR:0:300}]"; fi
+fi
 
 kt_test_start "F8 R14: __kk_ft* inherited from the environment (pid = this process, numbers 0/1) are ignored — no function text reaches stdout"
 cat >"$TMPD/f8.sh" <<'EOF'
@@ -242,12 +262,15 @@ kk._fn_text g v; [[ "$v" == "$want" ]] && t=ok || t=bad
 [[ -n ${__kk_ft[1]-} ]] && p=pair || p=nopair
 shopt -s nullglob dotglob; f=("$TMPDIR"/*); shopt -u nullglob dotglob
 echo "$t $p left=${#f[@]}"
+[[ ${__kk_ft[8]} != /dev/fd ]] || echo "off=$(( __kk_ft[4] >= 99 ))/[${__kk_ft[1]-}]"
 EOF
 case_run f10
 tmp_files
-if [[ $RC == 0 && "$OUT" == "ok pair left=0" && -z "$FILES" && -z "$ERR" ]]; then kt_test_pass "no leftover"; else kt_test_fail "rc=$RC out=[$OUT] left=[$FILES] err=[${ERR:0:300}]"; fi
+want="ok pair left=0"; [[ -n $FT_OFF ]] && want=$'ok nopair left=0\noff=1/[]'
+if [[ $RC == 0 && "$OUT" == "$want" && -z "$FILES" && -z "$ERR" ]]; then kt_test_pass "no leftover"; else kt_test_fail "rc=$RC out=[$OUT] left=[$FILES] err=[${ERR:0:300}]"; fi
 
 kt_test_start "F11 review F2: after a build no WRITE descriptor on the scratch file is left (the two kept ones refuse writes); a child appending junk, a whole fake capture or a forged one through the inherited descriptor injects nothing"
+if [[ -n $FT_OFF ]]; then kt_test_pass "N/A where FDDIR is /dev/fd: no pair, no descriptors (the capture is off there, H13; see F20)"; else
 cat >"$TMPD/f11.sh" <<'EOF'
 source "$KBOOL_ROOT/kbool.sh" && kk.uses kklass_pascal || exit 9
 mkp() { eval "class $1
@@ -272,6 +295,7 @@ mkp F11D; F11D.new o3; o3.m1
 EOF
 case_run f11
 if [[ $RC == 0 && "$OUT" == $'held=[] readonly=yes\nm1-of-F11B\nm1-of-F11C\nm1-of-F11D' ]]; then kt_test_pass "nothing injected"; else kt_test_fail "rc=$RC out=[$OUT] err=[${ERR:0:300}]"; fi
+fi
 
 kt_test_start "F12 review F4: opening the pair draws nothing from the caller's \$RANDOM (a seeded sequence is the same with and without a build)"
 cat >"$TMPD/f12.sh" <<'EOF'
@@ -285,10 +309,12 @@ end
 F12C.m1() { echo m1; }
 build F12C
 got="$RANDOM $RANDOM"
-[[ -n ${__kk_ft[1]} && $got == "$ref" ]] && echo same || echo "differs ref=$ref got=$got"
+[[ ( -n ${__kk_ft[1]} || ${__kk_ft[8]} == /dev/fd ) && $got == "$ref" ]] && echo same || echo "differs ref=$ref got=$got"
+[[ ${__kk_ft[8]} != /dev/fd ]] || echo "off=$(( __kk_ft[4] >= 99 ))/[${__kk_ft[1]-}]"
 EOF
 case_run f12
-if [[ $RC == 0 && "$OUT" == same ]]; then kt_test_pass "same"; else kt_test_fail "rc=$RC out=[$OUT] err=[${ERR:0:300}]"; fi
+want=same; [[ -n $FT_OFF ]] && want=$'same\noff=1/[]'
+if [[ $RC == 0 && "$OUT" == "$want" && ( -z $FT_OFF || -z "$ERR" ) ]]; then kt_test_pass "same"; else kt_test_fail "rc=$RC out=[$OUT] err=[${ERR:0:300}]"; fi
 
 kt_test_start "F13 review F5: functions named rm or /usr/bin/rm do not stand in for the system rm (command): the pair opens, no file is left"
 cat >"$TMPD/f13.sh" <<'EOF'
@@ -297,11 +323,13 @@ source "$KBOOL_ROOT/kbool.sh" && kk.uses kklass || exit 9
 g() { echo g; }
 kk._fn_text g v
 shopt -s nullglob dotglob; f=("$TMPDIR"/*); shopt -u nullglob dotglob
-[[ "$v" == "$(declare -f g)" && -n ${__kk_ft[1]} ]] && echo "ok left=${#f[@]}"
+[[ "$v" == "$(declare -f g)" && ( -n ${__kk_ft[1]} || ${__kk_ft[8]} == /dev/fd ) ]] && echo "ok left=${#f[@]}"
+[[ ${__kk_ft[8]} != /dev/fd ]] || echo "off=$(( __kk_ft[4] >= 99 ))/[${__kk_ft[1]-}]"
 EOF
 case_run f13
 tmp_files
-if [[ $RC == 0 && "$OUT" == "ok left=0" && -z "$FILES" ]]; then kt_test_pass "system rm"; else kt_test_fail "rc=$RC out=[$OUT] left=[$FILES] err=[${ERR:0:300}]"; fi
+want="ok left=0"; [[ -n $FT_OFF ]] && want=$'ok left=0\noff=1/[]'
+if [[ $RC == 0 && "$OUT" == "$want" && -z "$FILES" && ( -z $FT_OFF || -z "$ERR" ) ]]; then kt_test_pass "system rm"; else kt_test_fail "rc=$RC out=[$OUT] left=[$FILES] err=[${ERR:0:300}]"; fi
 
 kt_test_start "F14 review F6: a DEBUG trap capturing inside every capture: all texts right, the pair switches itself off after 3 failures, no descriptor leaks"
 cat >"$TMPD/f14.sh" <<'EOF'
@@ -367,7 +395,8 @@ F16C.new o; b=$(o.m1)
 echo "$a fired=$fired m1=[$b]"
 EOF2
 case_run f16
-if [[ $RC == 0 && "$OUT" == "ok fired=1 m1=[real-m1]" ]]; then kt_test_pass "refused"; else kt_test_fail "rc=$RC out=[$OUT] err=[${ERR:0:300}]"; fi
+want="ok fired=1 m1=[real-m1]"; [[ -n $FT_OFF ]] && want="ok fired=0 m1=[real-m1]"   # off: no capture in flight
+if [[ $RC == 0 && "$OUT" == "$want" ]]; then kt_test_pass "refused"; else kt_test_fail "rc=$RC out=[$OUT] err=[${ERR:0:300}]"; fi
 
 kt_test_start "F17 review P14 round 2: the scratch file is created under umask 077 and the caller's umask is restored (0027 and 0000 kept); its probe file is removed too"
 cat >"$TMPD/f17.sh" <<'EOF2'
@@ -376,15 +405,17 @@ g() { echo g; }
 out=""
 for m in 0027 0000; do
     umask "$m"; __kk_ft[4]=0; kk._fn_text_close; kk._fn_text g v
-    [[ $v == "$(declare -f g)" && -n ${__kk_ft[1]} ]] || out+=" text$m"
+    [[ $v == "$(declare -f g)" && ( -n ${__kk_ft[1]} || ${__kk_ft[8]} == /dev/fd ) ]] || out+=" text$m"
     out+=" $(umask)"
 done
 shopt -s nullglob dotglob; f=("$TMPDIR"/*); shopt -u nullglob dotglob
 echo "${out# } left=${#f[@]}"
+[[ ${__kk_ft[8]} != /dev/fd ]] || echo "off=$(( __kk_ft[4] >= 99 ))/[${__kk_ft[1]-}]"
 EOF2
 case_run f17
 tmp_files
-if [[ $RC == 0 && "$OUT" == "0027 0000 left=0" && -z "$FILES" ]]; then kt_test_pass "kept"; else kt_test_fail "rc=$RC out=[$OUT] left=[$FILES] err=[${ERR:0:300}]"; fi
+want="0027 0000 left=0"; [[ -n $FT_OFF ]] && want=$'0027 0000 left=0\noff=1/[]'
+if [[ $RC == 0 && "$OUT" == "$want" && -z "$FILES" && ( -z $FT_OFF || -z "$ERR" ) ]]; then kt_test_pass "kept"; else kt_test_fail "rc=$RC out=[$OUT] left=[$FILES] err=[${ERR:0:300}]"; fi
 
 # ===========================================================================
 # F18-F19 — round 6 / P17 (E5, DR24): the capture reads back with
@@ -407,9 +438,12 @@ for n in f_long f_many f_long f_many f_long f_many; do
 done
 (( ${#v} > 65536 )) || out+=" short"
 echo "${out# }${out:+ }fails=${__kk_ft[4]} setups=${__kk_ft[5]} open=$([[ -n ${__kk_ft[1]} ]] && echo y || echo n)"
+[[ ${__kk_ft[8]} != /dev/fd ]] || echo "off=$(( __kk_ft[4] >= 99 ))/[${__kk_ft[1]-}]"
 EOF2
 case_run f18
-if [[ $RC == 0 && "$OUT" =~ ^fails=0\ setups=[2-9]\ open=y$ ]]; then kt_test_pass "in step"; else kt_test_fail "rc=$RC out=[$OUT] err=[${ERR:0:300}]"; fi
+if [[ -n $FT_OFF ]]; then
+    if [[ $RC == 0 && "$OUT" == $'fails=99 setups=0 open=n\noff=1/[]' && -z "$ERR" ]]; then kt_test_pass "capture off (FDDIR /dev/fd): texts right, silent"; else kt_test_fail "rc=$RC out=[$OUT] err=[${ERR:0:300}]"; fi
+elif [[ $RC == 0 && "$OUT" =~ ^fails=0\ setups=[2-9]\ open=y$ ]]; then kt_test_pass "in step"; else kt_test_fail "rc=$RC out=[$OUT] err=[${ERR:0:300}]"; fi
 
 kt_test_start "F19 P17: a text longer than the read -N cap (16777216 characters) is not taken half-read: one out-of-step capture, the \$( ) fallback gives the whole text (rc 0); the next capture is in step again"
 cat >"$TMPD/f19.sh" <<'EOF2'
@@ -429,10 +463,42 @@ unset v ref
 f1=${__kk_ft[4]}
 kk._fn_text g v; [[ $v == "$(declare -f g)" ]] || out+=" text-g"
 echo "${out# }${out:+ }fails=$f1/${__kk_ft[4]} open=$([[ -n ${__kk_ft[1]} ]] && echo y || echo n)"
+[[ ${__kk_ft[8]} != /dev/fd ]] || echo "off=$(( __kk_ft[4] >= 99 ))/[${__kk_ft[1]-}]"
 EOF2
 case_run f19
 tmp_files
-if [[ $RC == 0 && "$OUT" == "fails=1/1 open=y" && -z "$FILES" ]]; then kt_test_pass "fell back"; else kt_test_fail "rc=$RC out=[$OUT] left=[$FILES] err=[${ERR:0:300}]"; fi
+want="fails=1/1 open=y"; [[ -n $FT_OFF ]] && want=$'fails=99/99 open=n\noff=1/[]'
+if [[ $RC == 0 && "$OUT" == "$want" && -z "$FILES" && ( -z $FT_OFF || -z "$ERR" ) ]]; then kt_test_pass "fell back"; else kt_test_fail "rc=$RC out=[$OUT] left=[$FILES] err=[${ERR:0:300}]"; fi
+
+# ===========================================================================
+# F20 - launch L3.5 (PORTING H13): where FDDIR is /dev/fd an open of
+# /dev/fd/N is a dup(N) with N's access mode (FreeBSD's pkg bash emulates
+# /dev/fd; macOS), so the append through the read-only R failed with EBADF on
+# every capture, and FreeBSD's stdio printed `kklass.sh: line 838: printf:
+# write error: Bad file descriptor` past the `2>&-` (red on kb-freebsd before
+# L3.5). Now the capture is off there: the `$( )` fallback, silently. Where
+# FDDIR is /proc/PID/fd the build and the free capture stay in step.
+# ===========================================================================
+kt_test_start "F20 L3.5 H13: a build (held write side) and a free capture (per-capture write side) give the right texts with an EMPTY stderr on every platform; in step where FDDIR is /proc/PID/fd, the capture off where it is /dev/fd"
+cat >"$TMPD/f20.sh" <<'EOF2'
+source "$KBOOL_ROOT/kbool.sh" && kk.uses kklass_pascal || exit 9
+class F20C
+  public
+    proc m1
+    func f1
+end
+F20C.m1() { echo m1; }
+F20C.f1() { RESULT=f1; }
+build F20C
+g() { echo g; }
+kk._fn_text g v; [[ $v == "$(declare -f g)" ]] && t=ok || t=bad
+F20C.new o; o.m1; o.f1; echo "f1=$RESULT"
+echo "$t fails=${__kk_ft[4]} open=$([[ -n ${__kk_ft[1]} ]] && echo y || echo n)"
+EOF2
+case_run f20
+tmp_files
+want=$'m1\nf1=f1\nok fails=0 open=y'; [[ -n $FT_OFF ]] && want=$'m1\nf1=f1\nok fails=99 open=n'
+if [[ $RC == 0 && "$OUT" == "$want" && -z "$ERR" && -z "$FILES" ]]; then kt_test_pass "right, silent${FT_OFF:+ (capture off: FDDIR /dev/fd)}"; else kt_test_fail "rc=$RC out=[$OUT] left=[$FILES] err=[${ERR:0:300}]"; fi
 
 cd / || :
 kt_test_log "145_ForkFreeBuild.sh completed"

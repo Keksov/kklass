@@ -783,6 +783,19 @@ kk.call_silent() {
 # could change the user's scripts anyway; the file is mode 0600 (below), so a
 # child running as ANOTHER user (runuser/setpriv keep descriptors) cannot
 # reopen it for writing.
+# Where FDDIR is /dev/fd the capture is OFF (launch L3.5, PORTING H13):
+# kk._fn_text_open refuses before it creates anything, and every capture is
+# the `$( )` fallback, silently. There an open of /dev/fd/N is a dup(N) that
+# keeps N's access mode (FreeBSD's pkg bash emulates /dev/fd itself, with or
+# without fdescfs; macOS's /dev/fd is a dup too), so the append through the
+# read-only R failed with EBADF on every capture (three out of step, then
+# off; FreeBSD's stdio even printed the `write error` past a `2>&-`). A
+# WRITABLE inherited descriptor is no way out: a child holding it (another
+# user too) could poll R for the in-flight marker and pwrite a whole forged
+# `NAME () {…}` between the two markers in place, before the read — the
+# markers stop an appending writer only. Builds there pay one `$( )` per
+# method (FreeBSD 15.1: 28-33 ms per 15-method class; a working capture
+# measured ~16 there).
 # Before every capture `-ef` checks that the descriptors are still one file:
 # a caller who reopened one of the numbers (`exec 11>file`) is never written
 # to or read from (F1) — the numbers are forgotten, not closed (they are the
@@ -834,11 +847,16 @@ kk._fn_text() {   # NAME VAR
     if [[ -n ${__kk_ft[1]} ]] || kk._fn_text_open; then
         local __kk_ft_r=${__kk_ft[1]} __kk_ft_w=${__kk_ft[6]}   # (a trap may change the state)
         __kk_ft_m="#kk_ft.$SRANDOM.$SRANDOM"
-        if [[ -n $__kk_ft_w ]]; then
-            { printf '%s\n' "$__kk_ft_m"; declare -f -- "$1"; printf '%s\n' "$__kk_ft_m"; } 2>&- >&"$__kk_ft_w"
-        else
-            { printf '%s\n' "$__kk_ft_m"; declare -f -- "$1"; printf '%s\n' "$__kk_ft_m"; } 2>/dev/null >>"${__kk_ft[8]}/$__kk_ft_r"
-        fi && { IFS= read -r -N 16777216 -u "$__kk_ft_r" __kk_ft_t 2>&- || :; }   # P17: -N (see above)
+        # one 2>/dev/null for the write and the read, never 2>&- (a libc may
+        # keep a failed error write and print it later: FreeBSD's does, H13);
+        # `|| :` — a redirection that cannot be opened must not end a set -e caller
+        {
+            if [[ -n $__kk_ft_w ]]; then
+                { printf '%s\n' "$__kk_ft_m"; declare -f -- "$1"; printf '%s\n' "$__kk_ft_m"; } >&"$__kk_ft_w"
+            else
+                { printf '%s\n' "$__kk_ft_m"; declare -f -- "$1"; printf '%s\n' "$__kk_ft_m"; } >>"${__kk_ft[8]}/$__kk_ft_r"
+            fi && { IFS= read -r -N 16777216 -u "$__kk_ft_r" __kk_ft_t || :; }   # P17: -N (see above)
+        } 2>/dev/null || :
         if [[ $__kk_ft_t == "$__kk_ft_m"$'\n'"$__kk_ft_m"$'\n' ]]; then
             printf -v "$2" ''                    # NAME is not a function: what $( ) gave
             return 1
@@ -927,7 +945,7 @@ kk._fn_text_close() {
 }
 
 # kk._fn_text_open — set up this shell's pair (see kk._fn_text); rc 1 = not
-# now (switched off, no rm, no SRANDOM, TMPDIR not writable, a name taken …):
+# now (switched off, FDDIR /dev/fd, no rm, no SRANDOM, TMPDIR not writable, a name taken …):
 # the capture falls back to `$( )`. The scratch file is created mode 0600
 # (`umask 077` around its creation): no other user can open it, not even
 # through a descriptor a privilege-dropping child inherited (round 2 of the
@@ -939,6 +957,10 @@ kk._fn_text_open() {
     local - __kk_ft_f __kk_ft_rm="" __kk_ft_w="" __kk_ft_x="" __kk_ft_y="" __kk_ft_p="" __kk_ft_u="" \
           __kk_ft_pc=0 __kk_ft_ok=0 __kk_ft_a=$SRANDOM __kk_ft_b=$SRANDOM
     (( __kk_ft[4] < 3 && __kk_ft[5] < 16 )) || return 1
+    if [[ ${__kk_ft[8]} == /dev/fd ]]; then                      # H13: off there (see kk._fn_text)
+        __kk_ft[4]=99
+        return 1
+    fi
     __kk_ft[5]=$(( __kk_ft[5] + 1 ))
     if [[ -z $__kk_ft_a || $__kk_ft_a == "$__kk_ft_b" ]]; then   # SRANDOM is not bash's (unset)
         __kk_ft[4]=99
