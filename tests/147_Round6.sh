@@ -370,6 +370,10 @@ check "B8" "body USER=propuser child=[TERM=globalterm USER=globaluser ] whoami-s
 # ===========================================================================
 # §C kk.frameReset (DR21)
 # ===========================================================================
+# bash 5.1 runs the EXIT trap of a `set -e` exit inside a function in that
+# function's scope (5.2+ unwinds it first; launch L4.3): there the body's frame
+# is live and kk.frameReset is the documented no-op, as for an explicit exit (C3)
+sete_scope=$("$BASH" -c 'f() { local v=in; false; }; trap '\''echo "${v-out}"'\'' EXIT; set -e; f')
 cat > "$TMPD/C1.sh" <<'EOF'
 source "$KBOOL_ROOT/kbool.sh"; kk.uses kklass
 declareClass A ""
@@ -407,6 +411,12 @@ after frames=0/0/0 lvu=off
 secret ran
 unset reveals x=[1]
 again rc=0 frames=0 lvu=off"
+[[ $sete_scope == in ]] && want="trap rc=1 frames=1 lvu=on
+reset rc=0
+after frames=1/1/1 lvu=on
+secret ran
+unset reveals x=[UNSET]
+again rc=0 frames=1 lvu=on"
 check "C1" "$want|rc=1" "$OUT|rc=$RC"
 
 cat > "$TMPD/C2.sh" <<'EOF'
@@ -422,7 +432,9 @@ a.boom
 EOF
 kt_test_start "C2 the caller had localvar_unset ON before the call (kklass did not turn it on): kk.frameReset clears the frame but leaves the option on; a method call in the handler works"
 case_run C2
-check "C2" "after frames=0 lvu=on|show frames=1|end frames=0 lvu=on|rc=1" "${OUT//$'\n'/|}|rc=$RC"
+want="after frames=0 lvu=on|show frames=1|end frames=0 lvu=on"
+[[ $sete_scope == in ]] && want="after frames=1 lvu=on|show frames=2|end frames=1 lvu=on"
+check "C2" "$want|rc=1" "${OUT//$'\n'/|}|rc=$RC"
 
 cat > "$TMPD/C3.sh" <<'EOF'
 source "$KBOOL_ROOT/kbool.sh"; kk.uses kklass

@@ -2760,7 +2760,10 @@ when kklass turned it on (a script that had it on keeps it). It is a no-op
 an EXIT trap that runs inside the body — an explicit `exit` in a body and a
 `set -u` abort run the trap in the body's scope, where its frame is still
 live. Methods called from the handler work either way; `FUNCNAME` still lists
-the dead call chain (bash's own).
+the dead call chain (bash's own). On bash 5.1 the EXIT trap of a `set -e` exit
+inside a method runs in the method's scope (5.2 and later unwind the body's
+locals first), so the frame is still live there and `kk.frameReset` is the
+documented no-op, as for an explicit `exit`.
 
 ```bash
 cleanup() {

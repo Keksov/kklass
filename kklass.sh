@@ -867,7 +867,8 @@ kk._fn_text() {   # NAME VAR
         # `|| :` — a redirection that cannot be opened must not end a set -e caller
         {
             if [[ -n $__kk_ft_w ]]; then
-                { printf '%s\n' "$__kk_ft_m"; declare -f -- "$1"; printf '%s\n' "$__kk_ft_m"; } >&"$__kk_ft_w"
+                # unquoted on purpose: bash 5.1 declare -f prints >&"W" as &> W (launch L4.3)
+                { printf '%s\n' "$__kk_ft_m"; declare -f -- "$1"; printf '%s\n' "$__kk_ft_m"; } >&$__kk_ft_w
             else
                 { printf '%s\n' "$__kk_ft_m"; declare -f -- "$1"; printf '%s\n' "$__kk_ft_m"; } >>"${__kk_ft[8]}/$__kk_ft_r"
             fi && { IFS= read -r -N 16777216 -u "$__kk_ft_r" __kk_ft_t || :; }   # P17: -N (see above)
@@ -996,7 +997,8 @@ kk._fn_text_open() {
     { exec {__kk_ft_p}>"$__kk_ft_f.u"; } 2>/dev/null || { __kk_ft[4]=$(( __kk_ft[4] + 1 )); return 1; }
     if [[ -f ${__kk_ft[8]}/$__kk_ft_p ]]; then                   # a regular file: created now
         __kk_ft_pc=1
-        umask >&"$__kk_ft_p"
+        # unquoted on purpose: bash 5.1 declare -f prints >&"W" as &> W (launch L4.3)
+        umask >&$__kk_ft_p
         { IFS= read -r __kk_ft_u <"$__kk_ft_f.u"; } 2>/dev/null || __kk_ft_u=""
     fi
     { exec {__kk_ft_p}>&-; } 2>/dev/null
