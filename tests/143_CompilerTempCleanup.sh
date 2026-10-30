@@ -67,13 +67,16 @@ fi
 
 kt_test_start "a compiler killed with TERM: the translation folder is removed, rc 143 [DE1]"
 # busybox's timeout has no --preserve-status and needs none: its exit status is the program's own (launch L3.5-3)
-K143_PS=( --preserve-status ); [[ "$(timeout --help 2>&1)" == *BusyBox* ]] && K143_PS=()
-k143_compile term 'sleep 20' timeout -s TERM "${K143_PS[@]}" 3
+if ! kt_need_timeout; then kt_test_pass "SKIP: $KT_TIMEOUT_WHY"
+else
+K143_PS=( --preserve-status ); [[ "$("$KT_TIMEOUT" --help 2>&1)" == *BusyBox* ]] && K143_PS=()
+k143_compile term 'sleep 20' "$KT_TIMEOUT" -s TERM "${K143_PS[@]}" 3
 if [[ "$RC" == 143 && -z "$LEFT" ]]; then
     kt_test_pass "rc 143, nothing left"
 else
     kt_test_fail "rc=$RC left='$LEFT'"
 fi
+fi   # kt_need_timeout
 
 # review R4: a translation folder whose cleanup never ran (a used unit that
 # drops the EXIT trap and exits; a SIGKILL) is swept by the NEXT compile: only

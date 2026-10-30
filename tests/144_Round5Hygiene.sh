@@ -173,15 +173,18 @@ else
 fi
 
 kt_test_start "H8 K3b defineClass: a token missing its arguments (method m / static_method s / static_property / constructor at the end) is refused (rc 2, named) instead of looping forever"
+if ! kt_need_timeout; then kt_test_pass "SKIP: $KT_TIMEOUT_WHY"
+else
 o=""
 for args in "method m" "static_method s" "static_property" "constructor" "lazy_property p"; do
     # shellcheck disable=SC2086
-    timeout 20 "$BASH" -c 'source "$1/kklass.sh" >/dev/null 2>&1; shift; defineClass H8X "" "$@"; echo "rc=$?"' _ "$KKLASS_DIR" $args >"$TMPD/h8.out" 2>"$TMPD/h8.err"
+    "$KT_TIMEOUT" 20 "$BASH" -c 'source "$1/kklass.sh" >/dev/null 2>&1; shift; defineClass H8X "" "$@"; echo "rc=$?"' _ "$KKLASS_DIR" $args >"$TMPD/h8.out" 2>"$TMPD/h8.err"
     t=$?
     o+="[$args] t=$t $(<"$TMPD/h8.out") $(grep -c "token '${args%% *}'" "$TMPD/h8.err");"
 done
 want="[method m] t=0 rc=2 1;[static_method s] t=0 rc=2 1;[static_property] t=0 rc=2 1;[constructor] t=0 rc=2 1;[lazy_property p] t=0 rc=2 1;"
 if [[ "$o" == "$want" ]]; then kt_test_pass "refused"; else kt_test_fail "'$o'"; fi
+fi   # kt_need_timeout
 
 kt_test_start "H8b K3b (review F7): an EMPTY word between tokens keeps HEAD's behaviour (skipped, rc 0, class built) in defineClass and kk._build_class_runtime; a non-empty unknown word next to it is still refused"
 defineClass H8bA "" property a "" method m 'echo m' "" 2>"$ERRF"; r1=$?
