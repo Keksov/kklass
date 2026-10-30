@@ -6,11 +6,11 @@ This directory contains comprehensive examples demonstrating the features and ca
 
 ### Run All Examples
 ```bash
-cd lib/kklass
+cd kklass       # from the root of a kbool checkout
 bash examples/demo.sh
 ```
 
-The demo script will run through all 48 examples sequentially, showing the progress and results. Use `bash examples/demo.sh --help` for more options.
+The demo script will run through all 48 examples sequentially, showing the progress and results. It takes no options.
 
 ### Example Runner Features
 
@@ -114,7 +114,7 @@ The easiest way to run all examples is using the provided demo script:
 
 ```bash
 # Make sure you're in the kklass directory
-cd lib/kklass
+cd kklass       # from the root of a kbool checkout
 
 # Run all examples (recommended)
 bash examples/demo.sh
@@ -139,7 +139,7 @@ To run individual examples:
 
 ```bash
 # Make sure you're in the kklass directory
-cd lib/kklass
+cd kklass       # from the root of a kbool checkout
 
 # Run a specific example
 bash examples/01_basic_class_creation.sh

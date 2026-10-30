@@ -64,7 +64,7 @@ Kklass is a comprehensive object-oriented programming (OOP) system for Bash that
 ### Installation
 
 kklass is one folder of the kbool tree (`kbool.sh`, `kkore/`, `kklass/`,
-`kcl/`, `ktests/` — see the [kbool README](../../README.md)); it is not
+`kcl/`, `ktests/` — see the [kbool README](https://github.com/Keksov/kbool/blob/main/README.md)); it is not
 installed on its own. Its modules are **units** loaded through kbool's
 `kk.uses`:
 
@@ -1693,7 +1693,7 @@ kbool has Pascal-like **units**: a file that starts with a two-line header is
 loaded once per shell, has a unique name (its file stem), and names its
 dependencies with `kk.uses`. The unit system itself — header shapes,
 `kk.uses` lookup, configuration, projects — is described in the
-[kbool README](../../README.md) and the [kkore reference](../../kkore/README.md);
+[kbool README](https://github.com/Keksov/kbool/blob/main/README.md) and the [kkore reference](https://github.com/Keksov/kkore/blob/main/README.md);
 the design and its reasons in [USES_PLAN.md](dev/USES_PLAN.md). This chapter is
 what it means for classes: where a class is *declared*, what happens when the
 same class is declared again, which names are taken, and how compiled caches
@@ -1715,7 +1715,7 @@ A direct `source kklass/kklass_pascal.sh` still works — its header loads
 ### Writing a Class Unit
 
 Give the file the header (the user form below; units inside the kbool tree use
-a relative path, see the [kbool reference](../../docs/reference.md#units)), load the
+a relative path, see the [kbool reference](https://github.com/Keksov/kbool/blob/main/docs/reference.md#units)), load the
 kklass module it needs, then declare classes as usual. In the Pascal DSL,
 `uses A B …` is a synonym of `kk.uses A B …` that resolves names from the
 calling file, like Pascal's `uses A, B;`.
