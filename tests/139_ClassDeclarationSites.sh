@@ -731,9 +731,15 @@ printf 'rm -f -- "${BASH_SOURCE[0]}"\ndefineClass TQg "" property b\n' > "$TMPD/
 source "$TMPD/sh-np.g1"; source "$TMPD/sh-np.g2" 2>"$TMPD/S25.e2"; echo "gone=$? props=${TQg_class_properties[*]} warn=$(grep -c WARNING "$TMPD/S25.e2") at=$(grep -cF '(process substitution):2' "$TMPD/S25.e2")"
 mkfifo "$TMPD/sh-np.h1" "$TMPD/sh-np-2"
 printf 'defineClass TQh "" property a\n' > "$TMPD/sh-np.h1" & w=$!
-source "$TMPD/sh-np.h1"; wait "$w"
+# an interrupted FIFO open (Darwin does not restart it after a SIGCHLD, L5.4-7): the writer is still blocked in
+# its open and nothing was read; retry the source once; the second stderr is the one checked
+source "$TMPD/sh-np.h1" 2>"$TMPD/S25.e4"; r=$?
+if (( r != 0 )) && grep -q 'Interrupted system call' "$TMPD/S25.e4"; then source "$TMPD/sh-np.h1" 2>"$TMPD/S25.e4"; fi
+cat "$TMPD/S25.e4" >&2; wait "$w"
 printf 'defineClass TQh "" property b\n' > "$TMPD/sh-np-2" & w=$!
-source "$TMPD/sh-np-2" 2>"$TMPD/S25.e3"; r=$?; wait "$w"
+source "$TMPD/sh-np-2" 2>"$TMPD/S25.e3"; r=$?
+if (( r != 0 )) && grep -q 'Interrupted system call' "$TMPD/S25.e3"; then source "$TMPD/sh-np-2" 2>"$TMPD/S25.e3"; r=$?; fi
+wait "$w"
 echo "live=$r props=${TQh_class_properties[*]} warn=$(grep -c WARNING "$TMPD/S25.e3") at=$(grep -cF '(process substitution):1' "$TMPD/S25.e3")"
 EOF
 kt_test_start "S25 L3.5-7: a sourced sh-np.* / sh-np-N that is gone or a live FIFO (a FIFO process substitution) is the pseudo file '(process substitution)' — two of them are one site (WARNING, ignored); two existing regular files of that name are two sites (Duplicate)"
