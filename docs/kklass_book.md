@@ -47,9 +47,10 @@ Kklass is a comprehensive object-oriented programming (OOP) system for Bash that
 
 ### System Requirements
 
-- Bash 4.3 or higher (for name references). Tested on 5.2 and 5.3. Static
+- Bash 5.1 or higher (`kbool.sh` refuses an older one). Tested on 5.1, 5.2 and
+  5.3 on Linux, FreeBSD, macOS and Windows (CI). Static
   methods of a class WITH static properties capture their output with a
-  fork-free function substitution on Bash 5.3+ and with a scratch file on 5.2;
+  fork-free function substitution on Bash 5.3+ and with a scratch file on 5.1/5.2;
   everything else (object creation, dispatch, property access, `.delete`,
   computed properties) is pure Bash with no fork on any version.
 - Standard Unix utilities: `stat` (autoloader freshness check), `mktemp` (only
