@@ -730,24 +730,32 @@ printf 'rm -f -- "${BASH_SOURCE[0]}"\ndefineClass TQg "" property a\n' > "$TMPD/
 printf 'rm -f -- "${BASH_SOURCE[0]}"\ndefineClass TQg "" property b\n' > "$TMPD/sh-np.g2"
 source "$TMPD/sh-np.g1"; source "$TMPD/sh-np.g2" 2>"$TMPD/S25.e2"; echo "gone=$? props=${TQg_class_properties[*]} warn=$(grep -c WARNING "$TMPD/S25.e2") at=$(grep -cF '(process substitution):2' "$TMPD/S25.e2")"
 mkfifo "$TMPD/sh-np.h1" "$TMPD/sh-np-2"
-# Darwin does not restart a FIFO open/read interrupted by a signal (L5.4-7; macOS CI: the reader AND the writer's
-# open saw EINTR, and a reader left without a live writer blocks forever): the writer retries its own open; the
-# reader re-sources while its writer lives, else with a fresh writer; at most 5 tries each; last stderr checked
-s25w() { ( for _ in 1 2 3 4 5; do { printf '%s\n' "$2" > "$1"; } 2>/dev/null && exit 0; done; exit 1 ) & w=$!; }
-s25w "$TMPD/sh-np.h1" 'defineClass TQh "" property a'
-for (( i = 0; i < 5; i++ )); do
-    source "$TMPD/sh-np.h1" 2>"$TMPD/S25.e4"; r=$?
-    (( r != 0 )) && grep -q 'Interrupted system call' "$TMPD/S25.e4" || break
-    kill -0 "$w" 2>/dev/null || { wait "$w" 2>/dev/null; s25w "$TMPD/sh-np.h1" 'defineClass TQh "" property a'; }
-done
-cat "$TMPD/S25.e4" >&2; wait "$w" 2>/dev/null
-s25w "$TMPD/sh-np-2" 'defineClass TQh "" property b'
-for (( i = 0; i < 5; i++ )); do
-    source "$TMPD/sh-np-2" 2>"$TMPD/S25.e3"; r=$?
-    (( r != 0 )) && grep -q 'Interrupted system call' "$TMPD/S25.e3" || break
-    kill -0 "$w" 2>/dev/null || { wait "$w" 2>/dev/null; s25w "$TMPD/sh-np-2" 'defineClass TQh "" property b'; }
-done
-wait "$w" 2>/dev/null
+# Darwin does not restart a FIFO open/read interrupted by a signal (L5.4-7: EINTR on the reader's open/read and
+# on the writer's open), and a reader or a writer left without its peer blocks forever (L5.4-14: macOS CI hung
+# 900 s in `wait` on a writer that retried its open after the reader had read EOF and gone; a `kill -0` check
+# cannot tell a live writer from an exited, unreaped one). So each try has ONE fresh writer (one open), always
+# reaped before the next try, and a watchdog that every 2 s opens the FIFO read-write and closes it again —
+# that releases a lone reader (EOF) or a lone writer (EPIPE) and takes no data — and after 30 s kills the
+# writer and this script with a message (a hang is a FAIL, never a cell TIMEOUT). The text's 2nd line
+# `s25got=$?` marks a delivered text and keeps its rc; at most 5 tries, the last try's stderr counts.
+s25src() {  # FIFO TEXT ERRFILE -> r (the text's rc; the last source's rc when it was never delivered)
+    local f=$1 i k w wd
+    for (( i = 1; i <= 5; i++ )); do
+        s25got=
+        ( printf '%s\ns25got=$?\n' "$2" > "$f" ) 2>/dev/null & w=$!
+        ( trap 'kill $sl 2>/dev/null; exit 0' TERM; sl=
+          for (( k = 0; k < 15; k++ )); do sleep 2 & sl=$!; wait "$sl"; : 2>/dev/null 1<>"$f"; done
+          echo "S25 watchdog: ${f##*/} still blocked after 30 s (try $i): writer and script killed" >&2
+          kill -KILL "$w" 2>/dev/null; kill -TERM $$ ) & wd=$!
+        source "$f" 2>"$3"; r=$?
+        wait "$w" 2>/dev/null
+        kill -TERM "$wd" 2>/dev/null; wait "$wd" 2>/dev/null
+        [[ -n $s25got ]] && { r=$s25got; break; }
+    done
+}
+s25src "$TMPD/sh-np.h1" 'defineClass TQh "" property a' "$TMPD/S25.e4"
+cat "$TMPD/S25.e4" >&2
+s25src "$TMPD/sh-np-2" 'defineClass TQh "" property b' "$TMPD/S25.e3"
 echo "live=$r props=${TQh_class_properties[*]} warn=$(grep -c WARNING "$TMPD/S25.e3") at=$(grep -cF '(process substitution):1' "$TMPD/S25.e3")"
 EOF
 kt_test_start "S25 L3.5-7: a sourced sh-np.* / sh-np-N that is gone or a live FIFO (a FIFO process substitution) is the pseudo file '(process substitution)' — two of them are one site (WARNING, ignored); two existing regular files of that name are two sites (Duplicate)"

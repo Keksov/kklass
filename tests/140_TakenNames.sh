@@ -153,6 +153,10 @@ measure() {   # -> T_NEW (us per .new, best of 3 x 300), T_DECL (us per defineCl
 measure a; n0=$T_NEW d0=$T_DECL
 for ((i = 0; i < 5000; i++)); do eval "zx$i.f() { :; }"; done
 measure b; n1=$T_NEW d1=$T_DECL
+# A-B-A: the 5000 removed, the baseline measured again — a loaded host (macOS CI
+# threaded: 205 -> 714 us) slows a window, not one side; the slower baseline counts
+for ((i = 0; i < 5000; i++)); do unset -f "zx$i.f"; done
+measure c; (( T_NEW > n0 )) && n0=$T_NEW; (( T_DECL > d0 )) && d0=$T_DECL
 echo "new: $n0 -> $n1 us, declare: $d0 -> $d1 us" >&2
 (( n1 * 10 <= n0 * 15 + 200 )) && echo "new not slower" || echo "new SLOWER $n0 -> $n1"
 (( d1 * 10 <= d0 * 15 + 200000 )) && echo "declare not slower" || echo "declare SLOWER $d0 -> $d1"
