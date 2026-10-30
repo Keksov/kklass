@@ -730,25 +730,24 @@ printf 'rm -f -- "${BASH_SOURCE[0]}"\ndefineClass TQg "" property a\n' > "$TMPD/
 printf 'rm -f -- "${BASH_SOURCE[0]}"\ndefineClass TQg "" property b\n' > "$TMPD/sh-np.g2"
 source "$TMPD/sh-np.g1"; source "$TMPD/sh-np.g2" 2>"$TMPD/S25.e2"; echo "gone=$? props=${TQg_class_properties[*]} warn=$(grep -c WARNING "$TMPD/S25.e2") at=$(grep -cF '(process substitution):2' "$TMPD/S25.e2")"
 mkfifo "$TMPD/sh-np.h1" "$TMPD/sh-np-2"
-printf 'defineClass TQh "" property a\n' > "$TMPD/sh-np.h1" & w=$!
-# an interrupted FIFO open or read (Darwin does not restart it after a SIGCHLD, L5.4-7): retry the source once
-# with a FRESH writer (the first one may have written and gone: a retry without a writer blocks forever, as one
-# macOS CI cell did); the second stderr is the one checked
-source "$TMPD/sh-np.h1" 2>"$TMPD/S25.e4"; r=$?
-if (( r != 0 )) && grep -q 'Interrupted system call' "$TMPD/S25.e4"; then
-    kill "$w" 2>/dev/null; wait "$w" 2>/dev/null
-    printf 'defineClass TQh "" property a\n' > "$TMPD/sh-np.h1" & w=$!
-    source "$TMPD/sh-np.h1" 2>"$TMPD/S25.e4"
-fi
-cat "$TMPD/S25.e4" >&2; wait "$w"
-printf 'defineClass TQh "" property b\n' > "$TMPD/sh-np-2" & w=$!
-source "$TMPD/sh-np-2" 2>"$TMPD/S25.e3"; r=$?
-if (( r != 0 )) && grep -q 'Interrupted system call' "$TMPD/S25.e3"; then
-    kill "$w" 2>/dev/null; wait "$w" 2>/dev/null
-    printf 'defineClass TQh "" property b\n' > "$TMPD/sh-np-2" & w=$!
+# Darwin does not restart a FIFO open/read interrupted by a signal (L5.4-7; macOS CI: the reader AND the writer's
+# open saw EINTR, and a reader left without a live writer blocks forever): the writer retries its own open; the
+# reader re-sources while its writer lives, else with a fresh writer; at most 5 tries each; last stderr checked
+s25w() { ( for _ in 1 2 3 4 5; do { printf '%s\n' "$2" > "$1"; } 2>/dev/null && exit 0; done; exit 1 ) & w=$!; }
+s25w "$TMPD/sh-np.h1" 'defineClass TQh "" property a'
+for (( i = 0; i < 5; i++ )); do
+    source "$TMPD/sh-np.h1" 2>"$TMPD/S25.e4"; r=$?
+    (( r != 0 )) && grep -q 'Interrupted system call' "$TMPD/S25.e4" || break
+    kill -0 "$w" 2>/dev/null || { wait "$w" 2>/dev/null; s25w "$TMPD/sh-np.h1" 'defineClass TQh "" property a'; }
+done
+cat "$TMPD/S25.e4" >&2; wait "$w" 2>/dev/null
+s25w "$TMPD/sh-np-2" 'defineClass TQh "" property b'
+for (( i = 0; i < 5; i++ )); do
     source "$TMPD/sh-np-2" 2>"$TMPD/S25.e3"; r=$?
-fi
-wait "$w"
+    (( r != 0 )) && grep -q 'Interrupted system call' "$TMPD/S25.e3" || break
+    kill -0 "$w" 2>/dev/null || { wait "$w" 2>/dev/null; s25w "$TMPD/sh-np-2" 'defineClass TQh "" property b'; }
+done
+wait "$w" 2>/dev/null
 echo "live=$r props=${TQh_class_properties[*]} warn=$(grep -c WARNING "$TMPD/S25.e3") at=$(grep -cF '(process substitution):1' "$TMPD/S25.e3")"
 EOF
 kt_test_start "S25 L3.5-7: a sourced sh-np.* / sh-np-N that is gone or a live FIFO (a FIFO process substitution) is the pseudo file '(process substitution)' — two of them are one site (WARNING, ignored); two existing regular files of that name are two sites (Duplicate)"
