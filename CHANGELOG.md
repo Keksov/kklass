@@ -1,15 +1,13 @@
 # Changelog — kklass
 
-> Draft (launch L6.7): reviewed before the first release (L8).
-
 kklass is the object system of kbool: classes, instances with dot notation,
 inheritance, properties, static members, serialization and a Pascal-style
-syntax, all in bash. There is no tag or release yet; this file groups the whole
+syntax, all in bash. This file groups the whole
 history by phase, newest first. The user guide is
 [docs/kklass_book.md](docs/kklass_book.md). Commit hashes in parentheses point
 at the change for readers who want the diff.
 
-## Unreleased — first public release (draft)
+## 0.1.0 — 2026-11-01
 
 ### Control bytes in method bodies on MSYS2 and Git-bash (2026-10-31, launch L7.2)
 
