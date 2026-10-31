@@ -132,9 +132,9 @@ grep '^kk._ckk_format ' "$c"
 grep -c 'local -n +x MYSTAT=F3S_static_MYSTAT' "$c"
 F3S.MYSTAT = sval; F3S.fat
 EOF
-kt_test_start "A4 a compiled cache is format 3 and holds the +x fat-static binding; its static's child sees the global value"
+kt_test_start "A4 a compiled cache is format 4 and holds the +x fat-static binding; its static's child sees the global value"
 case_run A4
-check "A4" "first=0|kk._ckk_format 3|1|fat child=[MYSTAT=gstat ]|rc=0" "${OUT//$'\n'/|}|rc=$RC"
+check "A4" "first=0|kk._ckk_format 4|1|fat child=[MYSTAT=gstat ]|rc=0" "${OUT//$'\n'/|}|rc=$RC"
 
 # a FORMAT-2 cache (P15's: fat bindings without +x), newer than source + kklass
 cat > "$TMPD/A5.sh" <<'EOF'
@@ -142,22 +142,22 @@ export KKLASS_CKK_DIR=$TMPD/ckk
 source "$KKLASS_DIR/kklass_autoload.sh"
 export MYSTAT=gstat
 c=$KKLASS_CKK_DIR/fmt3.ckk.sh
-sed -e 's/^kk._ckk_format 3$/kk._ckk_format 2/' -e 's/local -n +x /local -n /' "$c" > "$c.old"; mv "$c.old" "$c"; touch "$c"
+sed -e 's/^kk._ckk_format 4$/kk._ckk_format 2/' -e 's/local -n +x /local -n /' "$c" > "$c.old"; mv "$c.old" "$c"; touch "$c"
 autoloadClasses "$TMPD/fmt3.kk" 2>"$TMPD/A5.e"; echo "rc=$?"
 grep -c 'cache format 2 is not' "$TMPD/A5.e"
 grep '^kk._ckk_format ' "$c"
 F3S.MYSTAT = sval; F3S.fat
 EOF
-kt_test_start "A5 a format-2 cache is REBUILT by autoloadClasses (one message); the rebuilt one is format 3 and export-safe"
+kt_test_start "A5 a format-2 cache is REBUILT by autoloadClasses (one message); the rebuilt one is format 4 and export-safe"
 case_run A5
-check "A5" "rc=0|1|kk._ckk_format 3|fat child=[MYSTAT=gstat ]|rc=0" "${OUT//$'\n'/|}|rc=$RC"
+check "A5" "rc=0|1|kk._ckk_format 4|fat child=[MYSTAT=gstat ]|rc=0" "${OUT//$'\n'/|}|rc=$RC"
 
 cat > "$TMPD/A6.sh" <<'EOF'
 export KKLASS_CKK_DIR=$TMPD/ckk
 source "$KKLASS_DIR/kklass_autoload.sh"
 export MYSTAT=gstat
 c=$KKLASS_CKK_DIR/fmt3.ckk.sh
-sed -e 's/^kk._ckk_format 3$/kk._ckk_format 2/' -e 's/local -n +x /local -n /' "$c" > "$c.old"; mv "$c.old" "$c"; touch "$c"
+sed -e 's/^kk._ckk_format 4$/kk._ckk_format 2/' -e 's/local -n +x /local -n /' "$c" > "$c.old"; mv "$c.old" "$c"; touch "$c"
 autoloadClasses "$TMPD/fmt3.kk" --no-compile 2>"$TMPD/A6.e"; echo "rc=$?"
 grep -c 'runtime mode' "$TMPD/A6.e"
 grep '^kk._ckk_format ' "$c"

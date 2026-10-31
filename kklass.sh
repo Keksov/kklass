@@ -597,12 +597,15 @@ kk._class_instances() {
 # stale. The compiler writes `kk._ckk_format N` right after `kk._ckk_begin`; a
 # cache without that line is format 1 (before P15); format 2 = P15; format 3 =
 # round 6 / P16 (the fat static dispatchers bind their static properties
-# `local -n +x`, E1). autoloadClasses rebuilds a
+# `local -n +x`, E1); format 4 = launch L7.2-K (on a bash that drops raw CRs
+# when it parses — MSYS2/Cygwin — every raw CR in a dumped body is written as a
+# `$'\r'` word, kk._fn_text_cr; a format-3 cache from such a bash lost them).
+# autoloadClasses rebuilds a
 # cache of another format (kk._ckk_file_format; with --no-compile it runs the
 # source instead); one sourced directly loads no class, says why once
 # (kk._ckk_class) and its `source` returns 1 (kk._ckk_end). Caches older than
 # uses U2b (no kk._ckk_begin at all) are not checked when sourced directly.
-declare -g __KK_CKK_FORMAT=3
+declare -g __KK_CKK_FORMAT=4
 
 # kk._ckk_begin UNIT REL [ABS] — a compiled cache starts (see above).
 kk._ckk_begin() {
@@ -674,7 +677,7 @@ kk._ckk_class() {
     if [[ -n ${__KK_CKK_FMT-} && $__KK_CKK_FMT != "$__KK_CKK_FORMAT" ]]; then
         if [[ -z ${__KK_CKK_FMT_SAID-} ]]; then
             __KK_CKK_FMT_SAID=1
-            echo "kklass: the compiled cache '${__KK_CKK_PATH-}' has cache format $__KK_CKK_FMT, this kklass reads format $__KK_CKK_FORMAT (format 2: round 5 / P15 scope isolation; format 3: round 6 / P16 export-safe static bindings); its classes are not loaded — recompile it: bash kklass_compiler.sh SOURCE CACHE (autoloadClasses without --no-compile rebuilds it)" >&2
+            echo "kklass: the compiled cache '${__KK_CKK_PATH-}' has cache format $__KK_CKK_FMT, this kklass reads format $__KK_CKK_FORMAT (format 2: round 5 / P15 scope isolation; format 3: round 6 / P16 export-safe static bindings; format 4: CR-faithful method bodies on MSYS2/Cygwin); its classes are not loaded — recompile it: bash kklass_compiler.sh SOURCE CACHE (autoloadClasses without --no-compile rebuilds it)" >&2
         fi
         return 1
     fi
@@ -1042,6 +1045,105 @@ kk._fn_text_open() {
 # own; never trust a __kk_ft value that came from the environment (R14).
 if [[ ${__kk_ft[0]+${__kk_ft@a}} == a* && ${__kk_ft[0]} == "$BASHPID" ]]; then kk._fn_text_close; fi
 unset -v __kk_ft
+
+# ---------------------------------------------------------------------------
+# kk._fn_text_cr VAR — VAR holds a `declare -f` text (what kk._fn_text gives);
+# make it survive the re-parse (eval / source) kklass gives it (launch
+# L7.2-K). rc 0 = VAR can be re-parsed as it now is (changed or not); rc 1 =
+# no faithful rewrite was found and VAR is left as it was; rc 2 = VAR is not
+# an identifier or starts with this helper's own `__kk_fc`.
+#
+# Why: `declare -f` prints a word $'\r' (or $'a\rb', …) with its bytes RAW,
+# in the quoting the parser gave the translated word: inside a single-quoted
+# segment '…' (unquoted words, patterns, $( ), here-strings, the pattern of a
+# double-quoted ${x%…}) or bare inside a double-quoted ${x:-…} / ${x=…} /
+# ${x+…} / ${x?…} word. The MSYS2 and Cygwin bashes (5.2.37, 5.3.9 and Git
+# for Windows' 5.3.15 measured) DROP every raw CR byte of a text they parse —
+# eval, source and bash -c alike; no other byte 0x01..0x1F or 0x7F — so a
+# method body re-parsed from that text lost its CRs: `local cr=$'\r'` ran as
+# `local cr=''` and `[[ $x == *$'\r'* ]]` matched every string. Linux bash
+# keeps the raw CR; there this helper changes nothing.
+#
+# How: nothing to do when the text holds no CR or the parser keeps one (one
+# eval probe per call — no state, so nothing in the environment can switch
+# the probe off). Else each raw CR becomes an ANSI-C escape the parser turns
+# back into that CR in its context: '$'\r'' (close the quote, the escape,
+# reopen) inside a single-quoted segment, $'\r' in the ${x:-…} form. bash
+# itself decides which: the rewritten text is eval'd as the function
+# __kk_fc_probe, and its `declare -f` text must be exactly what that form
+# predicts — the original with the CR printed as ''<CR>'' for '$'\r'' (the
+# parser single-quotes the translated CR between the two quotes it closes
+# and reopens: 'a<CR>b' comes back as 'a''<CR>''b', the same word), as the
+# bare <CR> for $'\r'. The printer prints what was parsed, so a CR comes back
+# like that only where the escape was translated in a context that quotes
+# the same way: any other context prints the escape's text itself. First
+# every CR as '$'\r'' (one probe); if that is not the prediction, CR by CR
+# from the left, the CRs after the one being decided left out of both texts
+# (a dropped CR prints as if it had never been there). A CR neither form
+# reproduces leaves VAR unchanged (rc 1 — the CRs are dropped as before).
+# Each round trip of a rewritten text through `declare -f` and this helper
+# adds one '' pair per CR (the same word again). No $'\r' word in this body
+# (kklass_serializable.sh's rule): the CR comes from printf.
+kk._fn_text_cr() {   # VAR
+    case ${1-} in
+        ""|*[!A-Za-z0-9_]*|*[![:ascii:]]*|[0-9]*|__kk_fc*) return 2 ;;
+    esac
+    local __kk_fc_t=${!1} __kk_fc_cr __kk_fc_p=
+    printf -v __kk_fc_cr '\r'
+    [[ $__kk_fc_t == *"$__kk_fc_cr"* ]] || return 0
+    eval "__kk_fc_p='$__kk_fc_cr'"
+    [[ -z $__kk_fc_p ]] || return 0                       # the parser keeps a CR (Linux)
+    local __kk_fc_h=${__kk_fc_t%%$'\n'*}
+    [[ $__kk_fc_t == *$'\n'* && $__kk_fc_h == ?*' () ' && $__kk_fc_h != *"$__kk_fc_cr"* ]] || return 1
+    local __kk_fc_b=${__kk_fc_t#*$'\n'} __kk_fc_w __kk_fc_y __kk_fc_d __kk_fc_l __kk_fc_f __kk_fc_i __kk_fc_n
+    local __kk_fc_a=\'\$\'\\r\'\' __kk_fc_e=\$\'\\r\'      # '$'\r''  and  $'\r'
+    local __kk_fc_q="''$__kk_fc_cr''"                     # how '$'\r'' prints back
+    __kk_fc_w=${__kk_fc_b//"$__kk_fc_cr"/"$__kk_fc_a"}
+    if kk._fn_text_cr_try "$__kk_fc_w" "${__kk_fc_b//"$__kk_fc_cr"/"$__kk_fc_q"}"; then
+        printf -v "$1" '%s' "$__kk_fc_h"$'\n'"$__kk_fc_w"
+        return 0
+    fi
+    # CR by CR: the segments between the CRs, and the CR-less rest after each
+    local -a __kk_fc_s=() __kk_fc_r=()
+    __kk_fc_y=$__kk_fc_b
+    while [[ $__kk_fc_y == *"$__kk_fc_cr"* ]]; do
+        __kk_fc_s+=("${__kk_fc_y%%"$__kk_fc_cr"*}")
+        __kk_fc_y=${__kk_fc_y#*"$__kk_fc_cr"}
+    done
+    __kk_fc_s+=("$__kk_fc_y")
+    __kk_fc_n=${#__kk_fc_s[@]}
+    __kk_fc_r[__kk_fc_n-1]=""
+    for (( __kk_fc_i = __kk_fc_n - 2; __kk_fc_i >= 0; __kk_fc_i-- )); do
+        __kk_fc_r[__kk_fc_i]=${__kk_fc_s[__kk_fc_i+1]}${__kk_fc_r[__kk_fc_i+1]}
+    done
+    __kk_fc_d=${__kk_fc_s[0]} __kk_fc_l=${__kk_fc_s[0]}    # decided so far: rewritten / its print
+    for (( __kk_fc_i = 1; __kk_fc_i < __kk_fc_n; __kk_fc_i++ )); do
+        for __kk_fc_f in a e; do
+            if [[ $__kk_fc_f == a ]]; then __kk_fc_f=$__kk_fc_a __kk_fc_y=$__kk_fc_q
+            else __kk_fc_f=$__kk_fc_e __kk_fc_y=$__kk_fc_cr; fi
+            if kk._fn_text_cr_try "$__kk_fc_d$__kk_fc_f${__kk_fc_s[__kk_fc_i]}${__kk_fc_r[__kk_fc_i]}" \
+                                  "$__kk_fc_l$__kk_fc_y${__kk_fc_s[__kk_fc_i]}${__kk_fc_r[__kk_fc_i]}"; then
+                __kk_fc_d+=$__kk_fc_f${__kk_fc_s[__kk_fc_i]}
+                __kk_fc_l+=$__kk_fc_y${__kk_fc_s[__kk_fc_i]}
+                continue 2
+            fi
+        done
+        return 1
+    done
+    printf -v "$1" '%s' "$__kk_fc_h"$'\n'"$__kk_fc_d"
+    return 0
+}
+
+# kk._fn_text_cr_try BODY REF — rc 0 when BODY (a `declare -f` text without
+# its `NAME () ` line), eval'd as the function __kk_fc_probe, prints as REF.
+# The probe is removed again.
+kk._fn_text_cr_try() {   # BODY REF
+    local __kk_fc_v=
+    { eval "__kk_fc_probe () "$'\n'"$1"; } 2>/dev/null || { unset -f __kk_fc_probe; return 1; }
+    kk._fn_text __kk_fc_probe __kk_fc_v || return 1
+    unset -f __kk_fc_probe
+    [[ $__kk_fc_v == "__kk_fc_probe () "$'\n'"$2" ]]
+}
 
 # Final form of a member body: the text as written, plus the kk._return trailer
 # for a `function`. Result in METHOD_BODY.
@@ -2543,6 +2645,7 @@ kk.register_static_methods() {
         fi
 
         kk._fn_text "$public_name" method_decl          # no fork (P14)
+        kk._fn_text_cr method_decl || :                 # a $'\r' survives the eval (L7.2-K)
         method_decl="${method_decl#*$'\n'}"
         eval "${impl_name}() ${method_decl}"
         class_args+=("static_method" "$method_name" "${impl_name} \"\$@\"")

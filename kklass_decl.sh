@@ -530,6 +530,7 @@ kk.decl._ns_snap() {   # NS NAME
     [[ $__kk_nl${_KKLASS_SINK_NS[$1]-} != *"$__kk_nl$1.$2 ()"* ]] || return 0
     local __kk_fx
     kk._fn_text "$1.$2" __kk_fx                     # no fork (P14)
+    kk._fn_text_cr __kk_fx || :                     # a $'\r' survives the restore's eval (L7.2-K)
     _KKLASS_SINK_NS[$1]+=$__kk_nl$__kk_fx
 }
 

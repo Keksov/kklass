@@ -11,6 +11,17 @@ at the change for readers who want the diff.
 
 ## Unreleased — first public release (draft)
 
+### Control bytes in method bodies on MSYS2 and Git-bash (2026-10-31, launch L7.2)
+
+* **A `$'\r'` in a Pascal-DSL method body is a carriage return again** on MSYS2 and
+  Git-bash. Their bash drops every raw CR when it parses text, and `declare -f`
+  prints `$'\r'` as a raw CR, so every path that rebuilds a function from its text
+  (the Pascal DSL `build`, static method registration, namespace snapshots, compiled
+  caches) turned it into an empty string — `[[ $x == *$'\r'* ]]` then matched every
+  string. Such texts are now rewritten with `$'\r'` words before they are parsed
+  again; Linux, macOS and BSD are untouched. Test 149 pins all control bytes on
+  every path. The compiled-cache format is 4: older caches are rebuilt.
+
 ### Launch: CI and the bash 5.1 floor (2026-10-27 .. 2026-10-30, launch L3.5, L4.5, L5.4, L5.6, L5.7)
 
 * **Minimum bash is 5.1**: unquoted file-descriptor targets in the function-text

@@ -184,6 +184,7 @@ destructor() {
 # `declare -f` text itself comes from kk._fn_text (kklass.sh).
 kk.pascal._body() {   # FN -> __kk_btxt
     kk._fn_text "$1" __kk_btxt || return 1
+    kk._fn_text_cr __kk_btxt || :          # a $'\r' survives the re-parse (L7.2-K)
     __kk_btxt="${__kk_btxt#*$'\n'}"        # drop the "name ()" line
     __kk_btxt="${__kk_btxt#*$'\n'}"        # drop the "{" line
     __kk_btxt="${__kk_btxt%$'\n'\}}"       # drop the trailing "}"

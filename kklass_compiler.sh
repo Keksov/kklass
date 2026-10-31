@@ -280,7 +280,7 @@ kk._ckk_begin $(printf '%q' "$source_unit") $(printf '%q' "$site_ref") $(printf 
 kk._ckk_format $__KK_CKK_FORMAT
 HEADER
 
-    local class_name var_name fn_name site
+    local class_name var_name fn_name fn_text site
     local -a var_names fn_names
     for class_name in "${class_list[@]}"; do
         # this class's declaration site, the sourced file as the placeholder
@@ -314,8 +314,12 @@ HEADER
         while IFS= read -r fn_name; do
             [[ -n "$fn_name" ]] && fn_names+=("$fn_name")
         done < <(compgen -A function "${class_name}.")
+        # kk._fn_text = the `declare -f` text; kk._fn_text_cr writes a raw CR
+        # (a $'\r' word) so that sourcing the cache keeps it (L7.2-K)
         for fn_name in "${fn_names[@]}"; do
-            declare -f "$fn_name" >> "$output_file"
+            kk._fn_text "$fn_name" fn_text || continue
+            kk._fn_text_cr fn_text || :
+            printf '%s\n' "$fn_text" >> "$output_file"
         done
         printf 'kk._ckk_built %s\nfi\n' "$class_name" >> "$output_file"
     done
