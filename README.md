@@ -5,7 +5,7 @@
 kklass is an object-oriented programming system for Bash. It gives shell
 scripts classes and objects: properties and methods, single inheritance, dot
 notation such as `object.method` and `object.property`, static members,
-computed properties, compiled classes for faster execution, and serialization
+computed properties, compiled caches that load faster, and serialization
 of object state. A Pascal-flavoured `class ... end` syntax with real function
 bodies is part of it.
 
@@ -16,32 +16,59 @@ installed on its own: clone kbool
 
 ## A first class
 
+A class in the Pascal DSL: the structure first, the bodies as plain bash
+functions, then `build`:
+
 ```bash
-#!/usr/bin/env bash
-# Load kbool, then the kklass unit
 source /path/to/kbool/kbool.sh || exit
+kk.uses kklass_pascal || exit         # the Pascal DSL; it loads the kklass core itself
+
+class TCounter
+    public
+        var         Name
+        var         Count
+        constructor Create
+        proc        Add
+        func        Report
+end
+
+TCounter.Create() { Name="$1"; Count=0; }
+TCounter.Add()    { Count=$(( Count + ${1:-1} )); }
+TCounter.Report() { RESULT="$Name: $Count"; }
+build TCounter
+
+TCounter.new basket apples
+basket.Add
+basket.Add 2
+basket.Report; echo "$RESULT"         # => apples: 3
+basket.Count                          # => 3
+basket.Count = 10
+echo "$(basket.Report)"               # => apples: 10
+basket.delete
+```
+
+Its output:
+
+```
+apples: 3
+3
+apples: 10
+```
+
+A `func` answers in `$RESULT` and prints only inside `$( )`; reading a property
+(`basket.Count`) prints it; inside a body the fields are plain variables
+(`Name`, `Count`).
+
+The same kind of class can also be written in one call, with the bodies as
+strings:
+
+```bash
 kk.uses kklass || exit
-
-# Define a simple class
-defineClass "Greeter" "" \
-    "property" "name" \
-    "method" "greet" 'echo "Hello, $name!"'
-
-# Create an instance
+defineClass Greeter "" property name method greet 'echo "Hello, $name!"'
 Greeter.new greeter
-
-# Use the instance
 greeter.name = "World"
 greeter.greet            # => Hello, World!
-
-# Clean up
 greeter.delete
-```
-
-Output, run on Git-bash 5.3.15 and on MSYS2 bash 5.3.9:
-
-```
-Hello, World!
 ```
 
 ## Where to go next

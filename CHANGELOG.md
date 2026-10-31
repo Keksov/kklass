@@ -80,6 +80,13 @@ at the change for readers who want the diff.
 
 * Serialization: one generator per format, separator validation, and a defined
   `loadObjects` / `fromX` contract.
+* **Breaking** for saved data and serializer callers: `defineSerializableClass`
+  writes the full property list (inherited first, lazy and computed included), so
+  strings saved for a class with a parent or a lazy property must be re-saved;
+  `saveObjects` prefers `toJSON`; a direct `fromJSON` call sets `RESULT` to the
+  instance name instead of printing it; `fromString` refuses input that does not
+  start with the class prefix (round 2 already made `fromJSON` refuse a foreign
+  `__class__`).
 * **A refused member fails its class**: a bad member in an open class poisons it,
   `endClass` / `endImplementation` / Pascal `build` answer rc 1 naming class and
   member, and a refused redefinition keeps the old class intact.

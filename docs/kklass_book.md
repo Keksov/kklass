@@ -19,6 +19,7 @@
 12. [Best Practices](#best-practices)
 13. [API Reference](#api-reference)
 14. [Troubleshooting](#troubleshooting)
+15. [Internals](#internals)
 
 ---
 
@@ -41,8 +42,8 @@ Kklass is a comprehensive object-oriented programming (OOP) system for Bash that
 - **Better Code Organization**: Structure complex bash scripts with classes
 - **Reusability**: Write once, use everywhere
 - **Maintainability**: Clear separation of concerns
-- **Type Safety**: Method and property encapsulation
-- **Performance**: Compiled classes run faster than interpreted code
+- **Encapsulation**: visibility sections (`public`, `private`, `protected`)
+- **Performance**: compiled caches load faster
 - **Modern Patterns**: Implement design patterns in bash
 
 ### System Requirements
@@ -54,7 +55,7 @@ Kklass is a comprehensive object-oriented programming (OOP) system for Bash that
   everything else (object creation, dispatch, property access, `.delete`,
   computed properties) is pure Bash with no fork on any version.
 - Standard Unix utilities: `stat` (autoloader freshness check), `mktemp` (only
-  when compiling a `.kkp` unit), `rm` (the 5.2 static-method scratch file).
+  when compiling a `.kkp` unit), `rm` (the 5.1/5.2 static-method scratch file).
 - Optional: `md5sum`/`sha256sum` (only for some serialization examples)
 
 ---
@@ -910,7 +911,7 @@ error:
 
 Instance members — methods, properties, fields, lazy properties and their init
 methods, accessors — additionally cannot be named after the built-in instance
-functions, because every instance already carries them (since round 2 / R2_P8):
+functions, because every instance already carries them:
 
 | Name | Built-in it would collide with |
 |---|---|
@@ -920,9 +921,9 @@ functions, because every instance already carries them (since round 2 / R2_P8):
 | `parent` | `obj.parent NAME ...` / `$this.parent` (what `inherited` becomes) |
 | `new` | `Class.new` — the constructor verb |
 
-A member with one of these names used to be accepted and then either replaced
-the built-in or was silently replaced by it (`$this.delete` ran the user
-method while `obj.delete` destroyed the instance). Names that merely *start*
+Accepted, such a member would either replace the built-in or be silently
+replaced by it (`$this.delete` would run the user method while `obj.delete`
+destroys the instance). Names that merely *start*
 with one of them (`recall`, `delete2`, `parentId`, `callback`, `newest`) are
 fine. Static members (`classVar`, `static_method`, `classProcedure`, ...) are
 class-level and are not affected by this table — they have their own (below).
@@ -932,8 +933,8 @@ class-level and are not affected by this table — they have their own (below).
 A static member is the class-level function `CLASS.NAME` (a static property
 is its accessor, a static method its dispatcher). kklass generates a few
 class-level functions of its own for every class, so a static member cannot
-take their names (since round 3 / P11; before, such a member was silently lost
-with rc 0, or hijacked `.new`):
+take their names (accepted, such a member would be silently lost, or would
+hijack `.new`):
 
 | Name | Generated function it would collide with |
 |---|---|
@@ -953,12 +954,12 @@ Four more rules:
   share its name with an instance *method* (`CLASS.x` vs `obj.x`), and a static
   *method* also with an instance property — but a static *property* never with
   an instance property or field (next rule).
-- **An instance property and a static property cannot share a name** (since
-  round 4 / P12). Inside a member body both are the plain variable `x` — the
-  instance property a nameref onto the instance's storage, the static one a
-  nameref onto the class's — and the static one is bound last, so it *hid* the
-  instance property: `x=v` in a body wrote the static and the instance's `x`
-  never changed. Refused for every instance property kind (`property`,
+- **An instance property and a static property cannot share a name.** Inside
+  a member body both would be the plain variable `x` — the instance property a
+  nameref onto the instance's storage, the static one a nameref onto the
+  class's — and the static one is bound last, so it would *hide* the instance
+  property: `x=v` in a body would write the static and the instance's `x`
+  would never change. Refused for every instance property kind (`property`,
   `field`, Pascal `var`, `.kkp` field, lazy, computed / read-write) against
   every static property kind (`static_property`, `classVar`, Pascal
   `static var`, `.kkp` `class var`), own or inherited, in either declaration
@@ -994,8 +995,7 @@ that name inside every method body of its class (a nameref onto its storage,
 see "Trap: Inside a Body, a Property Is a Nameref"), and the methods of other
 classes and the static methods they call see it as an unset shadow (the
 Isolation Rule). So it cannot take a name whose binding **breaks or changes
-bash or kklass itself** (since round 6 / P16, decisions DR20 and the owner's
-narrowing of 2026-10-18; measured on bash 5.2.37 and 5.3.9):
+bash or kklass itself** (measured on bash 5.2.37 and 5.3.9):
 
 | Refused | Why (the message says it) |
 |---|---|
@@ -1042,7 +1042,7 @@ Do not make globals readonly under property names.
 
 A refused member name (any rule above, a non-identifier, an unsupported
 modifier, an `override` of a non-virtual method, ...) does not just print an
-error: it **poisons the class being declared** (since round 3 / P11). The
+error: it **poisons the class being declared**. The
 declaration verb returns 1 and records the member in `${CLASS}_decl_refused`;
 then
 
@@ -1061,8 +1061,7 @@ then
 
 The next `declareClass` of the same name clears the mark, so a corrected
 declaration builds normally; other classes in the same script are unaffected.
-Before P11 the class was silently built *without* the refused member, rc 0.
-Under `set -e` the refused verb itself already ends the script, as before.
+Under `set -e` the refused verb itself already ends the script.
 
 `state` is *not* reserved: it is the name of the data-array reference
 (`${state[key]}` reads any property by name, as `TCustomApplication` does), and
@@ -1073,22 +1072,22 @@ of the dispatcher are all `__kk_`-prefixed, so ordinary names such as
 ### Taken Class and Instance Names
 
 A class `X` and an instance `X` both create functions `X.*`, so some names are
-taken (uses phase U2b, USES_PLAN.md U22 / U35 / U40):
+taken:
 
 | Taken name | Why | As a class | As an instance (`T.new X`) |
 |---|---|---|---|
 | a DSL verb (`class`, `end`, `var`, `build`, `uses`, `declareClass`, `defineClass`, …) | it would shadow the DSL | refused | refused |
 | a built class | `X.new`, `X.<static>` | the site rules (*Duplicate identifier* from another place) | refused |
 | a **declared namespace** | someone's functions `X.*` | refused (unless declared by its owner) | refused |
-| a **live instance** (round 5 / P13) | the instance's functions `X.*` and variables `X_*` | refused (*Duplicate identifier*: `'X' is a live instance of class C`), on every path — `defineClass`, `declareClass`, Pascal `class`, a `.ckk` cache; free again after `X.delete` | re-created (`T.new X` again) |
+| a **live instance** | the instance's functions `X.*` and variables `X_*` | refused (*Duplicate identifier*: `'X' is a live instance of class C`), on every path — `defineClass`, `declareClass`, Pascal `class`, a `.ckk` cache; free again after `X.delete` | re-created (`T.new X` again) |
 
 A **live instance** is a name whose `X_class` names a registered class *and*
 whose `X_data` is an associative array — exactly what `CLASS.new X` creates
 and `X.delete` removes, of a class that is still registered (after `kk.class
 --forget C` the instances of C keep working but their names are no longer
 protected — the forget says so in a WARNING). A plain variable of yours that happens to be called
-`X_class` (`css_class=btn`) does not make `X` an instance: before round 5 it
-made `kk.unit css` / `kk.namespace css` refuse "an instance of btn".
+`X_class` (`css_class=btn`) does not make `X` an instance: `kk.unit css` and
+`kk.namespace css` still work.
 
 Declared namespaces are kkore's `kk kl ke kv kc`, kklass's `kkp`, the name of
 every unit (`kk.unit tlist` declares `tlist`) and every `kk.namespace X [Y …]`
@@ -1168,61 +1167,14 @@ runtime (the same declarative core that `defineClass` uses), and removes the
 scratch functions. Everything you know about instances, properties and dispatch
 still applies — the DSL changes how classes are *written*, not how they *run*.
 
-**Building a class forks nothing** (round 5 / P14). Up to round 5 every
-Pascal method cost four `$( )` subshells (the body extraction, its inner
-`declare -f`, the bare-`inherited` rewrite, the `inherited` → `$this.parent`
-rewrite of `implement`), every accessor property two, every class one — on
-msys/cygwin a fork costs 12–30 ms, so a fresh `kk.uses dateutils` (one class,
-185 methods) took ~10.5 s, ~86 % of it in forks. The string helpers now return
-through a variable and the one real capture, `declare -f`, goes through
-`kk._fn_text`: the shell keeps two READ descriptors on a scratch file that
-is deleted right after it is created; a capture appends a random marker, the
-`declare -f` text and the marker again (the write side is opened through
-`/proc/PID/fd` or `/dev/fd` for one `build` at most) and reads exactly that
-back — anything else (descriptors the caller reopened, data a process added)
-makes that capture a plain `$( )`. The same load takes ~0.45 s on both
-bashes (math ~0.27 s, thttpapplication ~0.46 s); per class (2 fields, 2
-accessor properties, a constructor, 5 methods) Pascal 486 → 17 ms,
-declarative 181 → 13 ms, `defineClass` 122 → 10 ms (bash 5.2, msys).
-Round 6 / P17 kept every check of the capture (whose hardening had raised
-a Pascal class to ≈19 ms) and made it cheaper: it reads back with
-`read -N` (block reads — `read -d ''` read one byte per `read()` on msys; a
-text over 16 M characters is captured with `$( )` instead), the
-`inherited` rewrites skip the parent walk for a body without `inherited`,
-and a valid, unreserved name passes the name checks at once: Pascal 17.0,
-declarative 9.9, `defineClass` 8.4 ms per class on 5.2 (14.6 / 8.2 / 6.9 on
-5.3), a fresh `kk.uses dateutils` ≈0.36 s, math ≈0.23 s, thttpapplication
-≈0.34 s on both. The setup — one `rm`, the system one by absolute path — is
-paid once per shell (a subshell that builds a class opens its own pair), and
-again after ~256 KB of captured text. What it does and does not guarantee:
-
-- The name is `kbool_fntext.PID.<SRANDOM>.<SRANDOM>` (never your `$RANDOM`
-  stream); a name where anything exists is skipped, the created descriptor
-  must be a regular file. noclobber alone refuses only an existing *regular*
-  file, hence those checks; a planted FIFO or device is never opened. A
-  `.u` probe next to it holds nothing but your umask (bash cannot read the
-  umask without a fork) and goes with the same `rm`.
-- The file is removed at once. If the `rm` fails (an ACL, a lock) that ONE
-  file stays, kklass says so on stderr (`kk.warn`) and the shell builds with
-  `$( )` from then on; three out-of-step captures or 16 setups in one shell
-  switch the fast path off too.
-- Processes started by the shell inherit the two read descriptors of the
-  deleted file, never a write descriptor kept open after a `build`. The trust
-  boundary is the USER: a child running as the same user could change your
-  scripts anyway — it can reopen the file and add data, but the per-capture
-  marker (it must occur exactly twice, nothing after it) makes the parent
-  notice and fall back, so it cannot make the parent read a forged function
-  text; it can read the function texts captured after it started. A child
-  running as ANOTHER user (`runuser`, `setpriv` keep descriptors) cannot open
-  the file for writing: it is created mode 0600 (`umask 077`, your umask is
-  restored right after). On MSYS/Cygwin `noacl` mounts (the default) the
-  POSIX mode is not stored; the file carries the Windows ACL of `$TMPDIR` —
-  keep `TMPDIR` private (the per-user `%TEMP%` is). A child keeps the (small,
-  capped) file allocated until it exits.
-- Opening the pair is not free of the caller's descriptor table: it takes
-  three numbers ≥ 10 for a moment and keeps two; a caller that reopens them
-  (`exec 12>file`) is detected before every capture and is never written to
-  or read from — the pair is simply forgotten.
+**Building a class forks nothing.** `build`, the declarative API and
+`defineClass` run inside your shell without `$( )` subshells, so even a large
+unit loads quickly: a fresh `kk.uses dateutils` (one class, 185 methods) takes
+about 0.36 s on Windows (msys), where a fork is expensive. Where the shell has no `/proc/PID/fd`
+(FreeBSD's pkg bash, which emulates `/dev/fd`), the one capture `build` needs —
+the `declare -f` text of a method — falls back to a plain `$( )`, silently.
+How the fork-free capture works and what it guarantees is described in
+[Internals: fork-free class building](#fork-free-class-building).
 
 ### Grammar Reference
 
@@ -1257,7 +1209,7 @@ Notes:
   NO static vars gets thin, capture-free static dispatchers (fast on every
   bash); a class WITH static vars needs stdout-capturing dispatchers so that
   `$(Class.method)` still persists mutations (funsub on bash 5.3+, a scratch
-  file on 5.2). Do not declare constants as `static var` — keep them as plain
+  file on 5.1/5.2). Do not declare constants as `static var` — keep them as plain
   file-scope globals (see kcl/tpath/tpath.sh for the worked example). In a
   unit, assign `readonly` constants once per process — wrap the assignments
   and the `readonly` statement in
@@ -1354,22 +1306,19 @@ Both call forms run the body in a frame of its defining class (so
 `function` callee prints its value — use `kk.call_silent "$__inst__" NAME`
 for an internal call whose `RESULT` is all you want.
 
-**The body text is never rewritten.** Up to round 2 / R2_P8 kklass replaced
-the *text* `$this.NAME` / `${this}.NAME` of every member and constructor body
-with `$__inst__.call NAME`, for every method NAME of the class — inside quoted
-strings too (`local s="$this.Home"` became `obj.call Home`) and as a prefix
-(with a method `count`, `$this.counter` became `.call counter`). That rewrite
-is gone: `"$this.Home"` is now the plain string `obj.Home`, the same as
+**The body text is never rewritten.** `$this.NAME` in a member or constructor
+body is plain bash: `"$this.Home"` is the string `obj.Home`, the same as
 `"$__inst__.Home"`, and a handler registered that way calls the method. An
 empty method body is a valid no-op through every call form (silent, rc 0).
 
-Compiled caches: until round 4 / P12 a `.ckk` file was rebuilt only when its
-`.kk`/`.kkp` source was newer (see [Autoloading](#autoloading-with-kklass_autoloadsh);
-now also when `kklass.sh` or the compiler is newer), so a cache compiled before
-R2_P8 could still hold `$__inst__.call NAME` bodies. They keep
-working — `.call` dispatch is unchanged — but keep the old quoted-text and
-prefix behaviour until the cache is rebuilt (`kkload FILE --force-compile`,
-or touch the source).
+Compiled caches made by an old kklass that still rewrote body text (it turned
+`$this.NAME` into `$__inst__.call NAME` for every method NAME of the class,
+inside quoted strings too and as a prefix: with a method `count`,
+`$this.counter` became `.call counter`) keep working — `.call` dispatch is
+unchanged — but keep that behaviour until the cache is rebuilt. The autoloader
+rebuilds a `.ckk` file when its `.kk`/`.kkp` source, `kklass.sh` or the
+compiler is newer (see [Autoloading](#autoloading-with-kklass_autoloadsh));
+`kkload FILE --force-compile` rebuilds it at once.
 
 ### Porting from defineClass
 
@@ -1417,9 +1366,9 @@ function (`.new`, `.constructor`, static accessors and methods) with
 `declare -f` — into one bash file. Loading that file is a plain `source`.
 
 - **Loads faster**: the class-definition code (parsing, inheritance
-  resolution, template generation, DSL processing) does not run again. Since
-  round 5 / P14 that code forks nothing (see *Pascal DSL*: ~0.45 s for 185
-  methods), so the gain is smaller than it was; the cache still skips it.
+  resolution, template generation, DSL processing) does not run again. That
+  code forks nothing (see *Pascal DSL*: ≈0.36 s for a class of 185 methods),
+  so the gain is modest; the cache still skips it.
 - **Identical behaviour**: there is no second code generator. Compiled classes
   use exactly the same `kk._*` runtime as classes defined at run time, so a
   runtime-vs-compiled parity test (`tests/123_CompiledParity.sh`) holds by
@@ -1433,9 +1382,8 @@ was sourced: every `X` with a function `X.new` *and* a table
 classes the input loaded itself (a compiled child needs them: its inherited
 methods resolve through them, so the file loads on its own). A function that
 is merely *named* `X.new` (a user factory, kkore's `kv.new`) is not a class
-and is not dumped (since round 4 / P12; before, every compile dumped a class
-"kv" — all ten `kv.*` functions — which then redefined kkore's when the
-compiled file was sourced), and neither is a class that was declared but
+and is not dumped (so a compiled file never redefines kkore's `kv.*`
+functions when it is sourced), and neither is a class that was declared but
 never built. The compile prints nothing on stderr when the input is clean.
 
 Compile files that only *define* classes; instances created inside the input
@@ -1506,8 +1454,7 @@ counter.delete
    runs never race on the same compiled file).
 2. **Subsequent Loads**: Uses cached compiled version
 3. **Smart Recompilation**: Recompiles if the source is newer than the cache,
-   and (since round 4 / P12) also when `kklass_compiler.sh` or `kklass.sh` is
-   newer than the cache — a cache is a dump of what the runtime built, so one
+   and also when `kklass_compiler.sh` or `kklass.sh` is newer than the cache — a cache is a dump of what the runtime built, so one
    made by an older compiler or runtime is stale too (two `-nt` stats, no
    fork; ≈0.4 ms on msys next to ≈0.26 s for a cached `kkload`)
 4. **Force Compilation**: `kkload "file.kk" --force-compile`
@@ -1775,7 +1722,7 @@ the site it was built from:
 |---|---|
 | **another site** — another file, another line, a wrapper function called twice | `kklass: Duplicate identifier: class 'X' is already declared at SITE; refusing to redeclare it at SITE` on stderr, rc 1. The built class is kept and **poisoned** against a rebuild from that block, the rest of the block (`end`, members, `build`, `endImplementation`) is swallowed silently with rc 1, and the unit being loaded is tainted (its next load runs it again) |
 | **the same site** — a file *without* a unit header sourced again, a loop, two declarations on one line, two different `source <(…)` declaring it on the same line (both are the file `/dev/fd/63`) | one `kklass: WARNING: class 'X' declared again from the same place (SITE); ignored, the class is not rebuilt` (silenced by `VERBOSE_KKLASS=quiet`), rc 0. The class is **not rebuilt**: instances, `defineMethod` changes and static values survive; the block is swallowed, and a swallowed Pascal `build` restores the static methods the re-run redefined and drops its body functions; `defineClass` is ignored as a whole. File-scope `defineMethod` / `addSerializable` calls of such a file still run |
-| **the unit's own file run again** — after `kk.unit --forget UNIT`, or because its earlier load was tainted (U42: a failed `kk.uses`, a *Duplicate identifier*, … inside it) | **rebuilt**, no WARNING: dropping the unit's registration drops the sites of every class it declared, so the run builds them from the file as it is now (an edited property list included) |
+| **the unit's own file run again** — after `kk.unit --forget UNIT`, or because its earlier load was tainted (a failed `kk.uses`, a *Duplicate identifier*, … inside it) | **rebuilt**, no WARNING: dropping the unit's registration drops the sites of every class it declared, so the run builds them from the file as it is now (an edited property list included) |
 | an **interactive prompt** (`$-` has `i`) and no file position at all | allowed: the class is rebuilt (a file sourced at a prompt is still checked; `bash -c`, `bash -s` and a pipe are files named "(no file)", judged by line) |
 
 A file **with** a unit header is not run twice while it is registered and
@@ -1885,7 +1832,7 @@ TBox.new uses; echo "instance named like a verb: rc=$?"   # => instance named li
 
 Neither deletes the class functions or any instance: they are development
 hatches for a prompt, not a reload. `kk.class --forget CLASS` prints one
-WARNING naming CLASS's live instances, if it has any (round 5 review F3):
+WARNING naming CLASS's live instances, if it has any:
 they keep working, but once their class is forgotten their names are no
 longer protected — a class may then be declared with an instance's name
 (see *Taken Class and Instance Names*); delete them first. A recompiled `.ckk` cache of a class that
@@ -1996,7 +1943,7 @@ unit header — and builds its classes there:
     TJob.new j; j.id = 7; echo "$(j.id)"'               # => 7
 ```
 
-`KKLASS_EXPORT_FUNCTIONS=1` is gone (round 5 / P13): it exported the public
+`KKLASS_EXPORT_FUNCTIONS=1` has been removed: it exported the public
 verbs but not the internals, the class functions or the registries, so a child
 could not even `declareClass`; a shell where it is still set gets one WARNING
 when kklass loads, and nothing is exported. kklass's tables are associative
@@ -2050,21 +1997,20 @@ defineSerializableClass "User" "" ":" "string" \
 
 `defineSerializableClass` is exactly `defineClass` followed by
 `addSerializable` — one generator per format, so `FORMAT=json` gives the class
-`toJSON`/`fromJSON` (before round 3 / P10 it silently built a class with empty
-`toString`/`fromString` bodies and no JSON methods). The four leading
+`toJSON`/`fromJSON`. The four leading
 arguments are mandatory; the format and the separator are checked **before**
 `defineClass` runs, so a refused call builds nothing (rc 1 and one `Error:`
 line on stderr).
 
-**Which properties are serialized (format change, round 3 / P10).** The
+**Which properties are serialized.** The
 fields are the class's full property list, `${CLASS}_class_properties`:
 **inherited properties first, then the class's own, lazy and computed ones
 included**, in definition order — the same list `addSerializable` and
 `toJSON` use. Earlier versions of `defineSerializableClass` wrote only the
 class's own `property` arguments (a child of a class with property `p0`
-serialized as `TChild:x` and lost `p0`). A string written by the old version
-for a class with a parent or a lazy property has a different field layout and
-must be re-saved.
+serialized as `TChild:x` and lost `p0`); a string they wrote for a class with
+a parent or a lazy property has a different field layout and must be re-saved
+(see the [CHANGELOG](../CHANGELOG.md)).
 
 ```bash
 defineClass TBase "" property p0
@@ -2228,34 +2174,31 @@ assigned until the whole input has been parsed) for: malformed JSON (unterminate
 string, missing `:` or value, trailing comma, text after the closing `}`), a
 nested object or array as a value, an unknown escape, `\u0000` (a NUL cannot
 live in a bash string), a lone surrogate, and a `"__class__"` mismatch (below).
-Nothing is printed on failure and `RESULT` is empty (it used to keep the
-caller's old value); with `VERBOSE_KKLASS=debug` exactly one `kk.debug` line
-goes to stderr. On success `fromJSON` returns through `RESULT` (round 3 / P10):
-a direct call prints **nothing** and sets `RESULT` to the instance name;
-inside `$( )` the name is printed once. (Before P10 a direct call printed the
-instance name on stdout and left `RESULT` empty.)
+Nothing is printed on failure and `RESULT` is empty; with
+`VERBOSE_KKLASS=debug` exactly one `kk.debug` line goes to stderr. On success
+`fromJSON` returns through `RESULT`: a direct call prints **nothing** and sets
+`RESULT` to the instance name; inside `$( )` the name is printed once.
 
-**`__class__` check (behaviour change, round 2 / P7).** Earlier versions
-ignored `"__class__"`, so another class's JSON loaded silently. `fromJSON` now
-accepts a `"__class__"` only if it names the receiving instance's own class or
-the class `addSerializable` was called on (which is what `toJSON` writes, also
-for subclasses that inherit the serializer). Anything else is rc 1. Input
-without `"__class__"` is still accepted.
+**`__class__` check.** `fromJSON` accepts a `"__class__"` only if it names
+the receiving instance's own class or the class `addSerializable` was called
+on (which is what `toJSON` writes, also for subclasses that inherit the
+serializer), so another class's JSON is never loaded silently. Anything else
+is rc 1. Input without `"__class__"` is accepted.
 
 ```bash
 Book.new b3
 b3.fromJSON '{"__class__":"Magazine","title":"x"}' || echo "refused"   # refused, b3 unchanged
 ```
 
-**Class-prefix check in the string format (round 3 / P10, review remark R2).**
+**Class-prefix check in the string format.**
 The string-format counterpart of the `__class__` rule: `fromString` accepts an
 input only if it starts with the class name `addSerializable` was called on
 followed by the separator — exactly what `toString` writes, so a subclass that
 inherits the serializer reads its own output. Anything else (another class's
 line, `CX:...` for class `C`, a bare `C`, a leading blank, no argument at all —
 also under `set -u`) is rc 1 with `RESULT=''`, nothing printed (one `kk.debug`
-line under `VERBOSE_KKLASS=debug`) and the instance untouched. Earlier versions
-split any input, so `Other:p:q` loaded into a `C` instance as `a=Other`.
+line under `VERBOSE_KKLASS=debug`) and the instance untouched: `Other:p:q`
+never loads into a `C` instance as `a=Other`.
 
 ```bash
 Product.new p2
@@ -2266,8 +2209,8 @@ p2.fromString "Other:x:y" || echo "refused"   # refused, p2 unchanged
 `toJSON` output never contains a raw newline, and `saveObjects` / `loadObjects`
 can keep their one-object-per-line file format for JSON objects with any
 values. `saveObjects` **prefers `toJSON`** when a class has both formats
-(round 3 / P10; it used to prefer `toString`, which does not escape, so a
-value holding a newline or the separator broke the file).
+(`toString` does not escape, so a value holding a newline or the separator
+would break the file).
 
 ### Mixed Format Serialization
 
@@ -2351,7 +2294,7 @@ rm contacts.dat
 instance: `toJSON` when the instance has it, else `toString`; an instance with
 neither gets a `Warning:` line on stderr and is skipped.
 
-**`loadObjects FILE CLASS ARRAY_NAME`** — the contract (round 3 / P10):
+**`loadObjects FILE CLASS ARRAY_NAME`** — the contract:
 
 * every non-blank line becomes a **new** instance `CLASS_loaded_<n>`; a name
   that is already a live instance is skipped, so a second call never re-uses
@@ -2747,15 +2690,14 @@ trap cleanup EXIT
 When the script stops through `set -e` **inside a method body** (a failing
 command in the body, not caught by `||` / `if`), bash unwinds the body's
 locals but kklass's own bookkeeping of the call never runs. The EXIT trap then
-starts with a **stale frame** (measured on bash 5.2.37 and 5.3.9, round 6 /
-E2): `${#__KLIB_FRAME_STACK[@]}` is 1, a private method called from the
+starts with a **stale frame** (measured on bash 5.2.37 and 5.3.9):
+`${#__KLIB_FRAME_STACK[@]}` is 1, a private method called from the
 handler is not reported as an access from outside, and bash's
 `localvar_unset` option — which the outermost method call turns on for its
 duration (Isolation Rule) — is still on, so an `unset` in the handler's own
 helper functions hides a variable instead of revealing the outer one.
 
-Make `kk.frameReset` the **first command of such a handler** (round 6 / P16,
-DR21). It clears the stale frames and turns `localvar_unset` back off — only
+Make `kk.frameReset` the **first command of such a handler**. It clears the stale frames and turns `localvar_unset` back off — only
 when kklass turned it on (a script that had it on keeps it). It is a no-op
 (rc 0) when nothing is stale: at the top level, inside a running body, and in
 an EXIT trap that runs inside the body — an explicit `exit` in a body and a
@@ -2905,7 +2847,7 @@ Inside a member body every property / field / `var` of the instance is a
 local nameref onto one element of the instance's storage
 (`local -n v="${inst}_data[v]"`). Reading and assigning work as with a plain
 variable, but a few expansions see the nameref, not the value (measured on
-bash 5.2.37 and 5.3.9, round 2 / K2):
+bash 5.2.37 and 5.3.9):
 
 - `${#v}` is **0 on bash 5.2.37** (correct on 5.3.9) — take a length from a
   local copy: `local c="$v"; n=${#c}`;
@@ -2917,7 +2859,7 @@ bash 5.2.37 and 5.3.9, round 2 / K2):
   `printf -v v …`, `read -r v`;
 - **`set -u`:** a declared property that was never assigned is UNSET, not
   empty. The accessors `obj.v`, `obj.property v` and the static `Class.sp`
-  read it as `""` with rc 0 (round 6 / P16, DR22 and review F3), and the
+  read it as `""` with rc 0, and the
   serializers write it as empty, but a body reading it under `set -u` differs
   between the bashes: `$v` aborts with "v: unbound variable" on **5.3.9** and
   reads `""` on **5.2.37**, and arithmetic on it (`n=$((n+1))`) aborts on
@@ -2926,18 +2868,15 @@ bash 5.2.37 and 5.3.9, round 2 / K2):
   numbers;
 - **exported variables:** every bind of a frame — the property and
   static-property namerefs, `state`, `this`, `__inst__`, `__class__` — is
-  export-safe (`local -n +x` / `local +x`, round 6 / P16, DR20 a and review
-  F2), so a property that hides an exported variable of the same name does
-  not leak into the environment of the commands the body runs: they see the
-  variable's **global** value (before P16 an exported `MYENV` hidden by a
-  property reached them as `MYENV=inst_data[MYENV]` — the nameref's target
-  name — also when the property was never set, and in the children of another
-  class's callee; an exported `state` as `state=inst_data`). The same holds
+  export-safe (`local -n +x` / `local +x`), so a property that hides an
+  exported variable of the same name does not leak into the environment of
+  the commands the body runs: they see the variable's **global** value, never
+  the nameref's target name (`MYENV=inst_data[MYENV]`). The same holds
   under **`set -a`** (allexport): kklass turns it off while it sets up a call
   and back on right before the body, so the body's own assignments are
   exported as usual, and neither the binds nor kklass's private `__kk_*`
-  call locals are (review F1, critic r6b: before, the whole method body
-  reached every child's environment as `__kk_body`). Names bash
+  call locals are (the method body text never reaches a child's
+  environment). Names bash
   itself depends on are refused as member names (Reserved Member Names);
 - **a body cannot export a property:** `export v` is refused by bash
   ("`inst_data[v]`: not a valid identifier") and `declare -x v=new` changes
@@ -2961,15 +2900,15 @@ TK2.new o; o.v = hello; o.probe
 
 Those namerefs are bash *locals*, and bash scopes locals **dynamically**: a
 function called from a member body sees every name the body has bound,
-unless it binds the same name itself. Up to round 5 / P15 this leaked: a
-**static method**, or a method of **another class** without a property `y`,
-called from an instance method of a class with a property `y`, read the
-caller's `y` and **wrote it** with a plain `y=…`, and a static method saw the
-caller's `this`, `__inst__`, `__class__` and `state` (so `$this.x` /
-`state[k]=…` in it acted on the CALLER's instance).
+unless it binds the same name itself. Left at that, a **static method**, or a
+method of **another class** without a property `y`, called from an instance
+method of a class with a property `y`, would read the caller's `y` and **write
+it** with a plain `y=…`, and a static method would see the caller's `this`,
+`__inst__`, `__class__` and `state` (so `$this.x` / `state[k]=…` in it would
+act on the CALLER's instance).
 
-Since P15 (decision DR16a, measured on bash 5.2.37 and 5.3.9) every member
-body is **isolated** from the kklass names of the body that called it:
+So every member body is **isolated** from the kklass names of the body that
+called it (measured on bash 5.2.37 and 5.3.9):
 
 - a method / constructor / destructor / computed getter / lazy init of
   **another class** — reached directly (`b.m`), through `.call`, `$t.m`,
@@ -2991,24 +2930,24 @@ body is **isolated** from the kklass names of the body that called it:
   function called from a method runs with `localvar_unset` semantics**: an
   `unset` of a local of a calling function marks it unset instead of revealing
   the next outer variable of that name. A static method called from the top
-  level runs as before;
+  level is not affected;
 - a call whose callee frame binds every name of the caller anyway takes no
   shadow at all: a body of the caller's own class (`$this.m`, another instance
   of the class, a subclass instance) and a body on the caller's own instance
-  (`$this.m` of an inherited method, `inherited X`) — they see what they saw
-  before P15, at the cost of one name comparison (under the caller's
+  (`$this.m` of an inherited method, `inherited X`) — they see the caller's
+  names, at the cost of one name comparison (under the caller's
   `shopt -s nocasematch` these calls take the shadow too: correct, only
   slower). The own instance is recognised by a marker private to the
   runtime, not by `this`: a helper's own `local this=$1` or a body's
   `for this in …` does not weaken the isolation. The RESULT / REPLY / `$( )`
   channels and everything a body binds itself are unchanged.
 
-**Cost** (owner decision DR16b): the isolation costs about **1.4 µs per
+**Cost:** the isolation costs about **1.4 µs per
 property and static property of the CALLER** on a call of another class's
 method and about **1.1 µs per caller name** on a static method called from a
 method, plus the `localvar_unset` handling of every method call. Measured
-(P15 final form, bash 5.2.37 and 5.3.9, two in-process A/B runs each against
-the kklass before P15; µs added per call, ranges over the two runs per bash; the
+(bash 5.2.37 and 5.3.9, two in-process A/B runs each against kklass without
+the isolation; µs added per call, ranges over the two runs per bash; the
 A/A control — the old code against itself — spread −10.6..+5.4 µs, apart from
 one −22 µs outlier on a 5.3 `$this.m` run). The base costs are ~190 µs (5.2) /
 ~170 µs (5.3) for a method call and ~22..26 µs for a static call:
@@ -3038,19 +2977,18 @@ function** called from a body still sees and writes the body's properties, and
 a callee still sees and writes the **plain `local`s** of the body that called
 it (the caller's `local tmp`, a static method's own `local y`) — declare a
 callee's scratch variables `local` as usual. A bare `y=…` in a callee whose
-caller binds `y` now stays local to the callee (it is lost on return); called
+caller binds `y` stays local to the callee (it is lost on return); called
 from the top level it is a global, as always. To write a **global** from a
 body, say so: `declare -g y=…` (a global that a caller's property hides cannot
-be READ from a callee — neither before P15, when the caller's property showed
-through, nor now).
+be READ from a callee).
 
 A property named like an **environment variable** is such a hiding name. The
 variables bash itself depends on (`PATH`, `HOME`, `TMPDIR`, `PWD`, `LANG`,
-`LC_*`, `TZ`, …) are refused as member names since round 6 / P16 (Reserved
-Member Names). Any other exported name a property hides (`USER`, `TERM`, an
-application's `MYENV`) is, inside the class's own bodies, the property; the
-external commands they run see the variable's global value (the binding is
-`local -n +x`, P16); and a callee of ANOTHER class or a static method called
+`LC_*`, `TZ`, …) are refused as member names (Reserved Member Names). Any
+other exported name a property hides (`USER`, `TERM`, an application's
+`MYENV`) is, inside the class's own bodies, the property; the external
+commands they run see the variable's global value (the binding is
+`local -n +x`); and a callee of ANOTHER class or a static method called
 from them sees it UNSET — not the environment's value — so under `set -u` such
 a callee stops with "unbound variable". Do not name properties after
 variables the code (or a callee) reads from the environment.
@@ -3071,15 +3009,14 @@ a.go4; echo "$y"           # => global
 a.y                        # => orig
 ```
 
-Compiled `.ckk` caches hold the static method dispatchers verbatim, so P15
-bumped the cache format (to 2), and round 6 / P16 bumped it again (to 3: the
-dispatchers bind their static properties `local -n +x`):
-`autoloadClasses` rebuilds an older cache by itself,
+Compiled `.ckk` caches hold the static method dispatchers verbatim, so the
+cache format carries a version (now 3: isolating dispatchers that bind their
+static properties `local -n +x`): `autoloadClasses` rebuilds an older cache by itself,
 and an older cache sourced directly loads no class, says why and returns 1 from
 its `source` (recompile it with `bash kklass_compiler.sh SOURCE CACHE`);
 `autoloadClasses SOURCE --no-compile` runs the source instead of an older
-cache. Caches written before kklass learned to register cached classes (uses
-U2b, October 2026: they contain no `kk._ckk_begin` line) are NOT checked when
+cache. Caches written before kklass learned to register cached classes
+(before October 2026: they contain no `kk._ckk_begin` line) are NOT checked when
 sourced directly and still install the old, non-isolating static methods —
 recompile them.
 
@@ -3121,10 +3058,9 @@ is left open, and a refused redefinition keeps the already-built class intact
 are exact: `PROPERTY` is not `property`, also under `shopt -s nocasematch`) or
 a token **missing its arguments** (`method m` without a body) returns **2**
 with `defineClass: unknown token 'T' in the declaration of class 'X' …` /
-`… token 'T' … is missing its arguments …`, and the class is not built (round
-5 / P13; before, an unknown token was dropped silently and a missing body
-looped forever). An EMPTY word between tokens is skipped, as before (an optional
-argument passed as `"$x"` while empty). The low-level `kk._build_class_runtime`
+`… token 'T' … is missing its arguments …`, and the class is not built. An
+EMPTY word between tokens is skipped (an optional argument passed as `"$x"`
+while empty). The low-level `kk._build_class_runtime`
 refuses the same way, also under nocasematch.
 
 **Example:**
@@ -3274,8 +3210,7 @@ Silent on every path (also under `VERBOSE_KKLASS=debug`), fork-free, safe
 under `set -eu` when called from an `if`, `||` or `!`. A hostile name such as
 `'a[$(cmd)]'` is refused with rc 2 before any expansion. The identifier check
 is exact in every locale and shell option (see *Identifier checks* below) and
-leaves the caller's `BASH_REMATCH` untouched (since round 3 / P11; it used a
-`[[ =~ ]]` before). "Concrete" therefore is rc 1 — not "rc ≠ 0":
+leaves the caller's `BASH_REMATCH` untouched. "Concrete" therefore is rc 1 — not "rc ≠ 0":
 
 ```bash
 if kk.isAbstract "$cls" || (( $? != 1 )); then
@@ -3305,7 +3240,7 @@ kk.derivesFrom TCircle TShape && echo "a shape"
 
 ### kk.frameReset
 
-For an EXIT handler (round 6 / P16): clear the method-call frames a `set -e`
+For an EXIT handler: clear the method-call frames a `set -e`
 exit inside a body left behind and turn `localvar_unset` back off when the
 outermost method call had turned it on (see "EXIT Handlers and `set -e`").
 
@@ -3323,37 +3258,36 @@ script turned on itself is left on. Fork-free; not on the method call path.
 Every name kklass turns into a variable or function name — class, member and
 instance names (`defineClass` and the other builders, `CLASS.new`), and the
 arguments of `kk.isAbstract` / `kk.derivesFrom` / `loadObjects` — must be an
-ASCII identifier `[A-Za-z_][A-Za-z0-9_]*`. Since round 3 / P11 one helper,
-`kk._is_ident NAME` (rc 0/1, silent, fork-free), makes that check
-everywhere. Since round 4 / P12 it lives in kkore (`kkore/klib.sh`, which
-kklass sources first; kkore's `kk._outName` and `kc.alias` follow the same
-rule): the range glob plus a `*[![:ascii:]]*` guard, and under
-`shopt -s nocasematch` the check runs with nocasematch switched off and the
-caller's setting restored. It is exact in every locale × `globasciiranges` ×
-`nocasematch` combination and never touches `BASH_REMATCH`. The `[[ =~ ]]` it
-replaced overwrote the caller's `BASH_REMATCH` on every `.new`, and under
-`shopt -s nocasematch` in a UTF-8 locale accepted the Turkish dotless `ı` /
-dotted `İ` — whose later indirect expansion aborted the caller's whole
-command (`kk.derivesFrom ı X`, `defineClass ı`) or produced a half-made
-instance (`CLASS.new ı`). (Round 3 got exactness from a function-local
-`LC_ALL=C`, which cost ≈4.5× under a UTF-8 caller locale — `kk.derivesFrom`
-70 → 213 µs; the helper no longer touches the locale.)
+ASCII identifier `[A-Za-z_][A-Za-z0-9_]*`. One helper, `kk._is_ident NAME`
+(rc 0/1, silent, fork-free), makes that check everywhere. It lives in kkore
+(`kkore/klib.sh`, which kklass sources first; kkore's `kk._outName` and
+`kc.alias` follow the same rule): the range glob plus a `*[![:ascii:]]*`
+guard, and under `shopt -s nocasematch` the check runs with nocasematch
+switched off and the caller's setting restored. It is exact in every locale ×
+`globasciiranges` × `nocasematch` combination, never touches the locale and
+never touches `BASH_REMATCH`. (A `[[ =~ ]]` check would overwrite the caller's
+`BASH_REMATCH` on every `.new`, and under `shopt -s nocasematch` in a UTF-8
+locale accepts the Turkish dotless `ı` / dotted `İ` — whose later indirect
+expansion aborts the caller's whole command (`kk.derivesFrom ı X`,
+`defineClass ı`) or produces a half-made instance (`CLASS.new ı`). A
+function-local `LC_ALL=C` would be exact too, but costs ≈4.5× under a UTF-8
+caller locale — `kk.derivesFrom` 70 → 213 µs.)
 
 The reserved names (the tables in [Reserved Member Names](#reserved-member-names))
 are case-sensitive, as bash names are: under `nocasematch` a property
 `result`, a method `Delete` or a static method `New` is accepted, `RESULT`,
 `delete` and `new` are still refused.
 
-**`nocasematch` and names (round 5 / P13).** Under the caller's
+**`nocasematch` and names.** Under the caller's
 `shopt -s nocasematch` every bash comparison folds case — a quoted right-hand
-side of `[[ == ]]` too, and `case` and `${x//pat/}` — so kklass used to answer
-`kk.derivesFrom Foo foo` with 0, let a class `foo` touch a private member of
-`Foo` without a warning, drop a property `A` declared next to `a`, take
-`PROPERTY` for `property` and rewrite a Pascal body's `echo Inherited;`. Every
-public verb (all three DSLs, `defineClass` / `defineMethod` / …, the
+side of `[[ == ]]` too, and `case` and `${x//pat/}` — so unguarded, kklass
+would answer `kk.derivesFrom Foo foo` with 0, let a class `foo` touch a
+private member of `Foo` without a warning, drop a property `A` declared next
+to `a`, take `PROPERTY` for `property` and rewrite a Pascal body's
+`echo Inherited;`. Every public verb (all three DSLs, `defineClass` / `defineMethod` / …, the
 serializable and autoload verbs, `kk.derivesFrom`, `kk.isAbstract`,
 `kk.class`, a compiled cache's class check) and the runtime check of a
-non-public access now start with an entry guard: with nocasematch on they run
+non-public access start with an entry guard: with nocasematch on they run
 with it switched off and give the caller's setting back. Class, member and
 token names are therefore always exact. Cost: with nocasematch OFF there is
 none worth measuring — one `[[ ]]` / `case` probe per verb (≈1–2 µs on MSYS,
@@ -3364,8 +3298,8 @@ the visibility check with nocasematch off: such calls are ≈20 % slower (bash
 5.2 ≈830 → ≈1000 µs, 5.3 ≈720 → ≈870 µs); public members and `.new` are
 unaffected. `uses` is `kk.uses`, which has its own guard.
 
-`CLASS.new` itself carries an inline copy of the rule (the hottest path: in
-round 3 the function call plus two locale switches cost ~18 µs per `.new` on
+`CLASS.new` itself carries an inline copy of the rule (the hottest path: a
+function call plus two locale switches would cost ~18 µs per `.new` on
 bash 5.2): an explicit-letter glob — every allowed character listed, no
 ranges, so it is matched by character equality in every locale — and
 `kk._is_ident` only when `shopt -s nocasematch` is on (its case folding is the
@@ -3545,8 +3479,8 @@ bash kklass_compiler.sh INPUT.kk OUTPUT.sh
 **Returns:** rc 0 and the summary lines on success. The `Classes:` line lists the
 built classes that were dumped (see [Why Compile?](#why-compile)).
  rc 1 and nothing written
-when sourcing the input fails, when no class was built, or (since round 3 /
-P11) when any class of the input refused a member — the error names each such
+when sourcing the input fails, when no class was built, or when any class of
+the input refused a member — the error names each such
 class and member.
 
 **Example:**
@@ -3757,7 +3691,7 @@ obj.delete
 - Check examples in `kklass/examples/` (run them all with `bash examples/demo.sh`)
 - Review the test suite in `kklass/tests/` (numbered `NNN_*.sh` files, run via `bash tests/tests.sh`)
 - Search for similar patterns in examples
-- Verify Bash version: `bash --version` (need 4.3+)
+- Verify Bash version: `bash --version` (need 5.1 or later)
 
 ---
 
@@ -3790,6 +3724,73 @@ Kklass brings powerful object-oriented programming to Bash, enabling:
 - **Autoloader**: `kklass/kklass_autoload.sh`
 - **Serialization**: `kklass/kklass_serializable.sh`
 - **`.kkp` unit translator**: `kklass/kklass_kkp.sh`
+
+---
+
+## Internals
+
+Implementation notes for readers who want to know how kklass does what the
+chapters above promise. Nothing here is needed to use kklass.
+
+### Fork-free class building
+
+Building a class runs no `$( )`. The string helpers of the builders return
+through a variable, and the one real capture, `declare -f`, goes through
+`kk._fn_text`: the shell keeps two READ descriptors on a scratch file that
+is deleted right after it is created; a capture appends a random marker, the
+`declare -f` text and the marker again (the write side is opened through
+`/proc/PID/fd` or `/dev/fd` for one `build` at most) and reads exactly that
+back — anything else (descriptors the caller reopened, data a process added)
+makes that capture a plain `$( )`. It reads back with `read -N` (block reads —
+`read -d ''` reads one byte per `read()` on msys; a text over 16 M characters
+is captured with `$( )` instead), the `inherited` rewrites skip the parent
+walk for a body without `inherited`, and a valid, unreserved name passes the
+name checks at once.
+
+What that saves: with forks, every Pascal method cost four `$( )` subshells
+(the body extraction, its inner `declare -f`, the bare-`inherited` rewrite,
+the `inherited` → `$this.parent` rewrite of `implement`), every accessor
+property two, every class one. On msys/cygwin a fork costs 12–30 ms, so a
+fresh `kk.uses dateutils` (one class, 185 methods) took ~10.5 s, ~86 % of it
+in forks. Without them, per class (2 fields, 2 accessor properties, a
+constructor, 5 methods): Pascal 486 → 17.0 ms, declarative 181 → 9.9 ms,
+`defineClass` 122 → 8.4 ms on bash 5.2 (14.6 / 8.2 / 6.9 ms on 5.3), msys; a fresh `kk.uses dateutils` ≈0.36 s, math ≈0.23 s,
+thttpapplication ≈0.34 s on both bashes.
+
+The setup — one `rm`, the system one by absolute path — is paid once per shell
+(a subshell that builds a class opens its own pair), and again after ~256 KB of
+captured text. Where the descriptor directory is `/dev/fd` and not
+`/proc/PID/fd` (FreeBSD's pkg bash emulates `/dev/fd`), the fast capture is
+switched off before it creates anything and classes build through `$( )`.
+What it does and does not guarantee:
+
+- The name is `kbool_fntext.PID.<SRANDOM>.<SRANDOM>` (never your `$RANDOM`
+  stream); a name where anything exists is skipped, the created descriptor
+  must be a regular file. noclobber alone refuses only an existing *regular*
+  file, hence those checks; a planted FIFO or device is never opened. A
+  `.u` probe next to it holds nothing but your umask (bash cannot read the
+  umask without a fork) and goes with the same `rm`.
+- The file is removed at once. If the `rm` fails (an ACL, a lock) that ONE
+  file stays, kklass says so on stderr (`kk.warn`) and the shell builds with
+  `$( )` from then on; three out-of-step captures or 16 setups in one shell
+  switch the fast path off too.
+- Processes started by the shell inherit the two read descriptors of the
+  deleted file, never a write descriptor kept open after a `build`. The trust
+  boundary is the USER: a child running as the same user could change your
+  scripts anyway — it can reopen the file and add data, but the per-capture
+  marker (it must occur exactly twice, nothing after it) makes the parent
+  notice and fall back, so it cannot make the parent read a forged function
+  text; it can read the function texts captured after it started. A child
+  running as ANOTHER user (`runuser`, `setpriv` keep descriptors) cannot open
+  the file for writing: it is created mode 0600 (`umask 077`, your umask is
+  restored right after). On MSYS/Cygwin `noacl` mounts (the default) the
+  POSIX mode is not stored; the file carries the Windows ACL of `$TMPDIR` —
+  keep `TMPDIR` private (the per-user `%TEMP%` is). A child keeps the (small,
+  capped) file allocated until it exits.
+- Opening the pair is not free of the caller's descriptor table: it takes
+  three numbers ≥ 10 for a moment and keeps two; a caller that reopens them
+  (`exec 12>file`) is detected before every capture and is never written to
+  or read from — the pair is simply forgotten.
 
 ---
 
