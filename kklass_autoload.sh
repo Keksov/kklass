@@ -69,8 +69,11 @@ autoloadClasses() {
     # same compiled file; between the two, when kbool is loaded, the config's
     # `ckkdir` (kk.config ckkdir: KBOOL_CONFIG / project / user / system, U11,
     # uses U2b).
-    local source_dir="$(dirname "$source_file")"
-    local source_name="$(basename "$source_file")"
+    # `|| :`: GNU dirname/basename fail on a leading `-` (`-foo.kk`); the old
+    # `local x=$(...)` ignored that, so the split form must too (not a set -e exit)
+    local source_dir source_name
+    source_dir="$(dirname "$source_file")" || :
+    source_name="$(basename "$source_file")" || :
     local source_stem="$source_name"
     local ckk_dir="${KKLASS_CKK_DIR:-}"
     if [[ -z "$ckk_dir" ]]; then
@@ -137,8 +140,10 @@ autoloadClasses() {
         echo "[autoload] Compiled file not found: $compiled_file" >&2
     else
         # Compare modification times
-        local source_mtime=$(stat -c %Y "$source_file" 2>/dev/null || stat -f %m "$source_file" 2>/dev/null)
-        local compiled_mtime=$(stat -c %Y "$compiled_file" 2>/dev/null || stat -f %m "$compiled_file" 2>/dev/null)
+        # `|| :`: no stat at all is the empty-mtime branch below, not a set -e exit
+        local source_mtime compiled_mtime
+        source_mtime=$(stat -c %Y "$source_file" 2>/dev/null || stat -f %m "$source_file" 2>/dev/null) || :
+        compiled_mtime=$(stat -c %Y "$compiled_file" 2>/dev/null || stat -f %m "$compiled_file" 2>/dev/null) || :
         
         if [[ -z "$source_mtime" || -z "$compiled_mtime" ]]; then
             # Fallback: use ls -l and date parsing (Windows compatibility)
@@ -222,7 +227,8 @@ kkinfo() {
         echo "File: $KKLASS_COMPILED_FILE"
         
         # Extract class list from compiled file
-        local classes=$(grep "^# Compiled classes:" "$KKLASS_COMPILED_FILE" | sed 's/^# Compiled classes: //')
+        local classes
+        classes=$(grep "^# Compiled classes:" "$KKLASS_COMPILED_FILE" | sed 's/^# Compiled classes: //') || :
         echo "Classes: $classes"
     else
         echo "Mode: Runtime (no compiled classes loaded)"

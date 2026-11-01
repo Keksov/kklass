@@ -133,7 +133,8 @@ kkp._normalize_decl() {
 kkp._emit_class_var_decl() {
     local output_file="$1"
     local line="$2"
-    local decl="$(kkp._normalize_decl "${line%;}")"
+    local decl
+    decl="$(kkp._normalize_decl "${line%;}")"
     local lhs=""
     local field_name=""
 
@@ -153,7 +154,8 @@ kkp._emit_class_var_decl() {
 kkp._emit_property_decl() {
     local output_file="$1"
     local line="$2"
-    local decl="$(kkp._normalize_decl "${line%;}")"
+    local decl
+    decl="$(kkp._normalize_decl "${line%;}")"
     local tokens=()
     local cmd=""
     local property_name=""
@@ -194,7 +196,8 @@ kkp._emit_property_decl() {
 kkp._emit_field_decl() {
     local output_file="$1"
     local line="$2"
-    local decl="$(kkp._normalize_decl "${line%;}")"
+    local decl
+    decl="$(kkp._normalize_decl "${line%;}")"
     local lhs="${decl%%:*}"
     local field_name=""
 
@@ -209,7 +212,8 @@ kkp._emit_field_decl() {
 kkp._emit_method_decl() {
     local output_file="$1"
     local line="$2"
-    local decl="$(kkp._normalize_decl "${line%;}")"
+    local decl
+    decl="$(kkp._normalize_decl "${line%;}")"
     local signature=""
     local method_name=""
     local part=""
@@ -251,7 +255,8 @@ kkp._emit_method_decl() {
 kkp._begin_method_impl() {
     local line="$1"
 
-    local decl="$(kkp._normalize_decl "${line%;}")"
+    local decl
+    decl="$(kkp._normalize_decl "${line%;}")"
     local signature=""
     local qualified_name=""
 
