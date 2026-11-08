@@ -1069,6 +1069,16 @@ a property called `state` simply shadows it inside that class. Internal locals
 of the dispatcher are all `__kk_`-prefixed, so ordinary names such as
 `method_body` or `frame_id` are safe.
 
+A method body runs as a function of its own, defined once when the class is
+built (or the method is redefined): `__kkm.OWNER.METHOD` for the class that
+defines the method, `__kkc.CLASS` for a constructor. Inside a body
+`${FUNCNAME[0]}` is that name and `${FUNCNAME[1]}` is `kk._run_frame_body`;
+`caller`, `LINENO` and error messages from the body name it the same way. The
+property bindings are made inside that function, so `local NAME` of a property
+behaves exactly as it always did. The stored body texts
+(`CLASS_method_body_METHOD`, `CLASS_constructor_body`) are read-only mirrors:
+assigning one does not change what runs — use `defineMethod`.
+
 ### Taken Class and Instance Names
 
 A class `X` and an instance `X` both create functions `X.*`, so some names are
@@ -3010,8 +3020,9 @@ a.y                        # => orig
 ```
 
 Compiled `.ckk` caches hold the static method dispatchers verbatim, so the
-cache format carries a version (now 3: isolating dispatchers that bind their
-static properties `local -n +x`): `autoloadClasses` rebuilds an older cache by itself,
+cache format carries a version (now 6; 3: isolating dispatchers that bind their
+static properties `local -n +x`; 5: per-class field-bind templates; 6: method
+bodies as functions): `autoloadClasses` rebuilds an older cache by itself,
 and an older cache sourced directly loads no class, says why and returns 1 from
 its `source` (recompile it with `bash kklass_compiler.sh SOURCE CACHE`);
 `autoloadClasses SOURCE --no-compile` runs the source instead of an older

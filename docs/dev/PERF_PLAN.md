@@ -83,6 +83,17 @@ kk._run_frame_body merge into kk._invoke (K3). Inventory first: every reader of
 compiled `.ckk` cache dumps the functions too: format number bump, old caches
 refused as stale (existing mechanism). Target: long ≤ 0.85× main.
 
+**Implemented 2026-11-08** (ledger K1): `__kkm.OWNER.METHOD` / `__kkc.CLASS`,
+defined by `kk._body_fn` with the K2 bind + set -a restore as the function's
+prologue (binds and body share one scope: `local Prop` keeps its meaning);
+a body that does not parse falls back to an eval of its text per call;
+kk._invoke / kk._run_frame_body take a function name; text variables kept;
+`.ckk` format 6; `__kkm`/`__kkc` declared kklass namespaces. Local bench
+(Git-bash vs K2): long 0.78, everything else 0.97–1.00. For K3: the trampoline
+now only sets this/__inst__/__class__/__kk_self and the table namerefs, then
+calls FN — it can fold into kk._invoke, the isolation shadow staying one scope
+above FN's binds.
+
 ### K3 — short hot path
 Fold kk._exec / kk._invoke / kk._run_frame_body into as few and as short
 functions as the guarantees allow; move rare branches (set -a, visibility

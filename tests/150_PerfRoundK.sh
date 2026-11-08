@@ -171,7 +171,7 @@ defineClass TK2Caller "" property F01 static_property cnt method go 'F01=mine; c
 TK2Caller.new k2cl
 check "K2.10" "F01=unset cnt=unset state=k2pk_data" "$(k2cl.go)"
 
-kt_test_start "K2.11 a compiled cache holds the templates (format 5) and its classes bind in a fresh shell; a format-4 cache is refused"
+kt_test_start "K2.11 a compiled cache holds the templates (format 5 and later) and its classes bind in a fresh shell; a format-4 cache is refused"
 cat > "$K2T/k2.kk" <<'EOF'
 defineClass CK2P "" property a static_property s method show 'echo "a=$a b=${b-none} s=${s-none}"'
 defineClass CK2C CK2P property b
@@ -179,12 +179,12 @@ EOF
 ( cd "$K2T" && bash "$KKLASS_DIR/kklass_compiler.sh" k2.kk k2.ckk.sh >/dev/null 2>"$K2T/k2.err" ); k2rc=$?
 k2out=$(cd "$K2T" && bash -c 'set -u; source ./k2.ckk.sh; echo "${CK2C_class_binds[*]}"; CK2C.new o; o.a = A; o.b = B; CK2P.s = S; o.show' 2>&1)
 check "K2.11 compile" "0|" "$k2rc|$(<"$K2T/k2.err")"
-check "K2.11 header" "kk._ckk_format 5" "$(grep '^kk._ckk_format ' "$K2T/k2.ckk.sh")"
+check "K2.11 header" "kk._ckk_format $__KK_CKK_FORMAT" "$(grep '^kk._ckk_format ' "$K2T/k2.ckk.sh")"
 check "K2.11 dump" "1" "$(grep -c '^declare -ga CK2C_class_binds=' "$K2T/k2.ckk.sh")"
 check "K2.11 load" "state=@_data a=@_data[a] b=@_data[b] s=CK2P_static_s|a=A b=B s=S" "${k2out//$'\n'/|}"
-sed -e 's/^kk._ckk_format 5$/kk._ckk_format 4/' "$K2T/k2.ckk.sh" > "$K2T/k2old.ckk.sh"
+sed -e "s/^kk._ckk_format $__KK_CKK_FORMAT\$/kk._ckk_format 4/" "$K2T/k2.ckk.sh" > "$K2T/k2old.ckk.sh"
 k2out=$(cd "$K2T" && bash -c 'source ./k2old.ckk.sh; echo "rc=$?"; declare -F CK2C.new >/dev/null && echo loaded' 2>&1)
-check "K2.11 format 4 refused" "1|rc=1" "$(grep -c 'has cache format 4, this kklass reads format 5' <<<"$k2out")|$(grep -v '^kklass:' <<<"$k2out" | tr '\n' '|' | sed 's/|$//')"
+check "K2.11 format 4 refused" "1|rc=1" "$(grep -c "has cache format 4, this kklass reads format $__KK_CKK_FORMAT" <<<"$k2out")|$(grep -v '^kklass:' <<<"$k2out" | tr '\n' '|' | sed 's/|$//')"
 
 kt_test_start "K2.12 a class with tables but no template (a pre-U2b cache sourced directly) gets it rebuilt on its first call, also under set -u"
 defineClass TK2NoT "" property q static_property s method m 'q=7; s=8; echo "q=$q s=$s"'
@@ -192,5 +192,170 @@ TK2NoT.new k2nt
 unset TK2NoT_class_binds
 k2out=$( set -u; k2nt.m; echo "${TK2NoT_class_binds[*]}" )
 check "K2.12" "q=7 s=8|state=@_data q=@_data[q] s=TK2NoT_static_s" "${k2out//$'\n'/|}"
+
+# ---------------------------------------------------------------------------
+# K1: every method / constructor body is a function defined once when it is
+# stored (kk._body_fn): __kkm.OWNER.METHOD, __kkc.CLASS — with the field binds
+# as its prologue, so the binds and the body share one scope as they did
+# around `eval "$body"`. The trampoline calls the function; nothing on the
+# call path evals body text any more.
+K1T="$(cd "$(kt_fixture_tmpdir)" && pwd)"
+
+kt_test_start "K1.1 one function per DEFINING class (none for an inherited copy), one per constructor; the body is the function's frame (D2)"
+defineClass TK1P "" property v method who 'echo "f0=${FUNCNAME[0]} f1=${FUNCNAME[1]} f2=${FUNCNAME[2]}"' method shared 'echo p' constructor 'v=$1'
+defineClass TK1C TK1P method shared 'echo c'
+k1f=""
+for f in __kkm.TK1P.who __kkm.TK1P.shared __kkm.TK1C.shared __kkm.TK1C.who __kkc.TK1P __kkc.TK1C; do
+    declare -F "$f" >/dev/null && k1f+="$f "
+done
+TK1C.new k1c
+check "K1.1 functions" "__kkm.TK1P.who __kkm.TK1P.shared __kkm.TK1C.shared __kkc.TK1P " "$k1f"
+check "K1.1 frames" "f0=__kkm.TK1P.who f1=kk._run_frame_body f2=kk._invoke" "$(k1c.who)"
+check "K1.1 text kept" "echo c" "$TK1C_method_body_shared"
+
+kt_test_start "K1.2 return N and the RESULT protocol: the status comes back, the caller's RESULT is restored unless kk._return ran; an empty body is rc 0"
+defineClass TK1R "" method r7 'RESULT=inner; return 7' method rbare 'false; return' function fret 'kk._return got; return 4' \
+    method empty '' method lastfail 'false'
+TK1R.new k1r
+k1o=""
+for m in r7 rbare fret empty lastfail; do RESULT=outer; k1r.$m >/dev/null; k1o+="$m:$?:$RESULT "; done
+RESULT=outer; k1r.call r7; k1o+="call:$?:$RESULT"
+check "K1.2" "r7:7:outer rbare:1:outer fret:4:got empty:0:outer lastfail:1:outer call:7:outer" "$k1o"
+
+kt_test_start "K1.3 local / declare / unset of a bound name in a body keeps its pre-K1 meaning (binds and body share one scope)"
+defineClass TK1L "" property Count static_property S \
+    method peek 'K1_PEEK="Count=${Count-U}"' \
+    method run 'eval "$1"; K1_IN="Count=${Count-U} S=${S-U} st=${state[Count]-U} gS=${TK1L_static_S-U} this=${this-U}"; $this.peek' \
+    method lone 'local Count=5; Count=6; K1_IN=$Count'
+TK1L.new k1l
+k1o=""
+for st in 'local Count=5' 'local Count' 'local -a Count' 'unset Count' 'local S=5' 'local S' 'local this=zz' 'Count=4' 'S=4'; do
+    k1l.Count = 1; TK1L.S = 1; K1_PEEK=""
+    k1l.run "$st" 2>/dev/null
+    k1o+="[$st] $K1_IN $K1_PEEK after=${k1l_data[Count]-U}/$TK1L_static_S"$'\n'
+done
+k1l.Count = 1; k1l.lone
+k1o+="lone: in=$K1_IN after=${k1l_data[Count]}"
+check "K1.3" "[local Count=5] Count=5 S=1 st=1 gS=1 this=k1l Count=5 after=1/1
+[local Count] Count=U S=1 st=1 gS=1 this=k1l Count=U after=1/1
+[local -a Count] Count=U S=1 st=1 gS=1 this=k1l Count=U after=1/1
+[unset Count] Count=U S=1 st=U gS=1 this=k1l Count=U after=U/1
+[local S=5] Count=1 S=5 st=1 gS=5 this=k1l Count=1 after=1/1
+[local S] Count=1 S=U st=1 gS=U this=k1l Count=1 after=1/1
+[local this=zz] Count=1 S=1 st=1 gS=1 this=zz  after=1/1
+[Count=4] Count=4 S=1 st=4 gS=1 this=k1l Count=4 after=4/1
+[S=4] Count=1 S=4 st=1 gS=4 this=k1l Count=1 after=1/4
+lone: in=6 after=1" "$k1o"
+
+kt_test_start "K1.4 set -a: the body runs with the caller's allexport (a bare assignment reaches a child), the binds never do; allexport stays on after the call"
+defineClass TK1A "" property P method exp 'K1_X=1; command env | command grep -cE "^(K1_X|P)="'
+TK1A.new k1a; k1a.P = pv
+k1o=$( set -a; k1a.exp; [[ $- == *a* ]] && echo on; set +a; unset K1_X; k1a.exp )
+check "K1.4" "1|on|0" "${k1o//$'\n'/|}"
+
+kt_test_start "K1.5 set -e stops in the body; set -u callers; ERR (set -E) fires once for a failing body command; with set -T a RETURN trap sees the body function's return too (one more than before K1)"
+defineClass TK1E "" method boom 'false; echo after' method r 'return 0'
+TK1E.new k1e
+k1o=$( ( set -eu; k1e.boom; echo survived ); echo "rc=$?"
+       ( set -E; n=0; trap 'n=$((n+1))' ERR; k1e.boom >/dev/null; echo "err=$n" )
+       ( set -T; n=0; trap 'n=$((n+1))' RETURN; k1e.r; trap - RETURN; echo "ret=$n" ) )
+check "K1.5" "rc=1|err=1|ret=5" "${k1o//$'\n'/|}"
+
+kt_test_start "K1.6 heredoc bodies; a body that does not parse falls back to the eval of its text at every call (rc 2, nothing run at build — not even after a stray })"
+defineClass TK1H "" method h 'cat <<EOF
+one $1
+EOF' method h2 'cat <<-"EOT"
+	raw $x
+	EOT' method bad 'if true; then echo x' method brace "echo a; }; echo BUILD >> '$K1T/k1build'" method bs 'echo a \'
+TK1H.new k1h
+k1o="$(k1h.h arg)|$(k1h.h2)|bs=$(k1h.bs)"
+k1b=$( k1h.bad 2>&1 ); k1o+="|bad=$?"
+[[ -e "$K1T/k1build" ]] && k1o+="|RAN-AT-BUILD"
+k1b=$( k1h.brace 2>&1 ); k1o+="|brace=$?"
+[[ -e "$K1T/k1build" ]] && k1o+="|RAN-AT-CALL"
+check "K1.6" "one arg|raw \$x|bs=a \\|bad=2|brace=2" "$k1o"
+
+kt_test_start "K1.7 defineMethod (re)defines the function; overrides and inherited run per owner"
+defineClass TK1B "" method who 'echo base' method say '$this.who'
+defineClass TK1S TK1B method who 'echo -n "sub+"; inherited who'
+TK1S.new k1s
+k1o="$(k1s.say)|$(k1s.call who)"
+defineMethod TK1S who 'echo redefined' 2>/dev/null
+defineMethod TK1B added 'echo "added:$1"'
+TK1B.new k1b
+k1o+="|$(k1s.who)|$(k1b.call added zz)|$(declare -F __kkm.TK1B.added)"
+check "K1.7" "sub+base|sub+base|redefined|added:zz|__kkm.TK1B.added" "$k1o"
+
+kt_test_start "K1.8 a rebuild (kk.class --forget): the functions follow the variables — a method now inherited runs the inherited text on an older instance, a dropped constructor loses its function"
+defineClass TK1RP "" method m 'echo parent-m'
+defineClass TK1RC TK1RP method m 'echo own-m' constructor ':'
+TK1RC.new k1old
+kk.class --forget TK1RC 2>/dev/null
+defineClass TK1RC TK1RP
+TK1RC.new k1new
+check "K1.8" "parent-m|parent-m|no-ctor" "$(k1old.m)|$(k1new.m)|$(declare -F __kkc.TK1RC || echo no-ctor)"
+
+kt_test_start "K1.9 the call path evals no body text (the trampoline and its callers have no eval)"
+check "K1.9" "0" "$(declare -f kk._run_frame_body kk._invoke kk._exec kk._call kk._parent kk._constructor_exec | grep -c 'eval ')"
+
+kt_test_start "K1.10 kk._call / kk._parent with the body variable unset after the cache resolved it: an empty body, rc 0, allexport kept (kk._body_none)"
+defineClass TK1G "" method gone 'echo stale'
+TK1G.new k1g; k1g.call gone >/dev/null
+unset TK1G_method_body_gone
+k1o=$( set -a; k1g.call gone; echo "rc=$? a=$([[ $- == *a* ]] && echo on)" )
+check "K1.10" "rc=0 a=on" "$k1o"
+
+kt_test_start "K1.11 a Pascal class without a constructor gets its parent's, as a function of its own"
+class TK1PP
+    public
+        property v
+        constructor Create
+end
+TK1PP.Create() { v="made:$1"; }
+build TK1PP
+class TK1PC : TK1PP
+end
+build TK1PC
+TK1PC.new k1pc w
+check "K1.11" "__kkc.TK1PC|made:w" "$(declare -F __kkc.TK1PC)|$(k1pc.v)"
+
+kt_test_start "K1.12 a class without template and body functions (a pre-U2b cache sourced directly) gets both on its first call — own, inherited and overridden bodies and the constructor — also under set -u"
+defineClass TK1OP "" property p method base 'echo "base p=$p"' method ov 'echo "pov"'
+defineClass TK1OC TK1OP property q method ov 'echo -n "cov q=$q "; inherited ov' constructor 'q=$1'
+unset TK1OC_class_binds TK1OP_class_binds
+unset -f __kkm.TK1OP.base __kkm.TK1OP.ov __kkm.TK1OC.ov __kkc.TK1OC
+k1o=$( set -u; TK1OC.new k1oc Q; k1oc.p = P; k1oc.base; k1oc.ov; declare -F __kkm.TK1OP.base __kkm.TK1OP.ov __kkm.TK1OC.ov __kkc.TK1OC | tr '\n' ' ' )
+check "K1.12" "base p=P|cov q=Q pov|__kkm.TK1OP.base __kkm.TK1OP.ov __kkm.TK1OC.ov __kkc.TK1OC " "${k1o//$'\n'/|}"
+
+kt_test_start "K1.13 a compiled cache holds the body functions (format 6) and runs in a fresh shell; a format-5 cache is refused"
+cat > "$K1T/k1.kk" <<'EOF'
+defineClass CK1P "" property a method show 'echo "a=$a"' method ov 'echo -n "p "'
+defineClass CK1C CK1P property b method ov 'echo -n "c "; inherited ov; echo "b=$b"' constructor 'b=$1'
+EOF
+( cd "$K1T" && bash "$KKLASS_DIR/kklass_compiler.sh" k1.kk k1.ckk.sh >/dev/null 2>"$K1T/k1.err" ); k1rc=$?
+check "K1.13 compile" "0|" "$k1rc|$(<"$K1T/k1.err")"
+check "K1.13 header" "kk._ckk_format 6" "$(grep '^kk._ckk_format ' "$K1T/k1.ckk.sh")"
+check "K1.13 dump" "__kkc.CK1C|__kkm.CK1C.ov|__kkm.CK1P.ov|__kkm.CK1P.show|" \
+    "$(grep -E '^__kk[mc]\.' "$K1T/k1.ckk.sh" | sed 's/ .*//' | LC_ALL=C sort | tr '\n' '|')"
+k1o=$(cd "$K1T" && bash -c 'set -u; source ./k1.ckk.sh; CK1C.new o B; o.a = A; o.show; o.ov' 2>&1)
+check "K1.13 load" "a=A|c p b=B" "${k1o//$'\n'/|}"
+sed -e 's/^kk._ckk_format 6$/kk._ckk_format 5/' "$K1T/k1.ckk.sh" > "$K1T/k1old.ckk.sh"
+k1o=$(cd "$K1T" && bash -c 'source ./k1old.ckk.sh; echo "rc=$?"; declare -F CK1C.new >/dev/null && echo loaded' 2>&1)
+check "K1.13 format 5 refused" "1|rc=1" "$(grep -c 'has cache format 5, this kklass reads format 6 (.*format 6: method bodies as functions)' <<<"$k1o")|$(grep -v '^kklass:' <<<"$k1o" | tr '\n' '|' | sed 's/|$//')"
+
+kt_test_start "K1.14 a class declared again from another file is refused (Duplicate identifier) and leaves the original's body functions alone"
+printf '%s\n' "defineClass TK1Dup \"\" method m 'echo first' constructor 'K1_CT=first'" > "$K1T/dupa.sh"
+printf '%s\n' "defineClass TK1Dup \"\" method m 'echo second' constructor 'K1_CT=second'" > "$K1T/dupb.sh"
+source "$K1T/dupa.sh"
+source "$K1T/dupb.sh" 2>/dev/null; k1rc=$?
+TK1Dup.new k1dup
+check "K1.14" "1|first|first" "$k1rc|$(k1dup.m)|$K1_CT"
+
+kt_test_start "K1.15 __kkm and __kkc are kklass's declared namespaces: no class and no instance of that name"
+k1o=""
+defineClass __kkm "" property a 2>/dev/null; k1o+="class=$? "
+TK1R.new __kkc 2>/dev/null; k1o+="inst=$? "
+k1o+="owner=${__KK_NAMESPACES[__kkm]%%$__KK_SEP*}/${__KK_NAMESPACES[__kkc]%%$__KK_SEP*} taken=${_KKLASS_TAKEN[__kkm]-}"
+check "K1.15" "class=1 inst=1 owner=kklass/kklass taken=ns" "$k1o"
 
 kt_test_log "150_PerfRoundK.sh completed"

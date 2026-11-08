@@ -300,7 +300,10 @@ build() {
         local cparent="${!cpvar:-}"
         if [[ -n "$cparent" ]]; then
             local pcbody_var="${cparent}_constructor_body"
-            [[ -n "${!pcbody_var:-}" ]] && eval "${class_name}_constructor_body=\${${cparent}_constructor_body}"
+            if [[ -n "${!pcbody_var:-}" ]]; then
+                eval "${class_name}_constructor_body=\${${cparent}_constructor_body}"
+                kk._body_fn "__kkc.${class_name}" "${!pcbody_var}"     # its function (perf round K1)
+            fi
         fi
     fi
 

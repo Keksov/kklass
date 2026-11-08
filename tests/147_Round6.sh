@@ -112,12 +112,13 @@ kt_test_start "A2 TZ / LANG / TERM (raw builder): children get the global TZ=Asi
 case_run A2
 check "A2" "own: TZ=UTC child=[LANG=C.UTF-8 TZ=Asia/Tokyo ]|fat: TERM=vt-prop child=[TERM=xterm-global ]|rc=0 err=" "${OUT//$'\n'/|}|rc=$RC err=$ERR"
 
-kt_test_start "A3 the binding sites carry +x (kk._run_frame_body's one bind of state + properties + static properties from the class template, perf round K2; the fat static dispatcher)"
+kt_test_start "A3 the binding sites carry +x (the one bind of state + properties + static properties from the class template, perf round K2, in the prologue of every body function since K1; the fat static dispatcher)"
 defineClass A3F "" static_property sp static_method m ':'
-n1=$(declare -f kk._run_frame_body | grep -c -e 'local -n +x "\${__kk_binds\[@\]//@/\$__kk_inst}"')
-n0=$(declare -f kk._run_frame_body | grep -c -e 'local -n "\${__kk_binds')   # the same bind WITHOUT +x
+defineClass A3G "" property p method m ':' constructor ':'
+n1=$(declare -f __kkm.A3G.m __kkc.A3G | grep -c -e 'local -n +x "\${__kk_binds\[@\]//@/\$__kk_inst}"')
+n0=$(declare -f __kkm.A3G.m __kkc.A3G kk._run_frame_body | grep -c -e 'local -n "\${__kk_binds')   # the same bind WITHOUT +x
 n2=$(declare -f A3F.m | grep -c 'local -n +x sp=A3F_static_sp')
-check "A3" "1 0 1" "$n1 $n0 $n2"
+check "A3" "2 0 1" "$n1 $n0 $n2"
 
 # .ckk cache format 3 (the fat dispatchers are dumped verbatim)
 cat > "$TMPD/fmt3.kk" <<'EOF'
@@ -133,9 +134,9 @@ grep '^kk._ckk_format ' "$c"
 grep -c 'local -n +x MYSTAT=F3S_static_MYSTAT' "$c"
 F3S.MYSTAT = sval; F3S.fat
 EOF
-kt_test_start "A4 a compiled cache is format 5 and holds the +x fat-static binding; its static's child sees the global value"
+kt_test_start "A4 a compiled cache is format 6 and holds the +x fat-static binding; its static's child sees the global value"
 case_run A4
-check "A4" "first=0|kk._ckk_format 5|1|fat child=[MYSTAT=gstat ]|rc=0" "${OUT//$'\n'/|}|rc=$RC"
+check "A4" "first=0|kk._ckk_format 6|1|fat child=[MYSTAT=gstat ]|rc=0" "${OUT//$'\n'/|}|rc=$RC"
 
 # a FORMAT-2 cache (P15's: fat bindings without +x), newer than source + kklass
 cat > "$TMPD/A5.sh" <<'EOF'
@@ -143,22 +144,22 @@ export KKLASS_CKK_DIR=$TMPD/ckk
 source "$KKLASS_DIR/kklass_autoload.sh"
 export MYSTAT=gstat
 c=$KKLASS_CKK_DIR/fmt3.ckk.sh
-sed -e 's/^kk._ckk_format 5$/kk._ckk_format 2/' -e 's/local -n +x /local -n /' "$c" > "$c.old"; mv "$c.old" "$c"; touch "$c"
+sed -e 's/^kk._ckk_format 6$/kk._ckk_format 2/' -e 's/local -n +x /local -n /' "$c" > "$c.old"; mv "$c.old" "$c"; touch "$c"
 autoloadClasses "$TMPD/fmt3.kk" 2>"$TMPD/A5.e"; echo "rc=$?"
 grep -c 'cache format 2 is not' "$TMPD/A5.e"
 grep '^kk._ckk_format ' "$c"
 F3S.MYSTAT = sval; F3S.fat
 EOF
-kt_test_start "A5 a format-2 cache is REBUILT by autoloadClasses (one message); the rebuilt one is format 5 and export-safe"
+kt_test_start "A5 a format-2 cache is REBUILT by autoloadClasses (one message); the rebuilt one is format 6 and export-safe"
 case_run A5
-check "A5" "rc=0|1|kk._ckk_format 5|fat child=[MYSTAT=gstat ]|rc=0" "${OUT//$'\n'/|}|rc=$RC"
+check "A5" "rc=0|1|kk._ckk_format 6|fat child=[MYSTAT=gstat ]|rc=0" "${OUT//$'\n'/|}|rc=$RC"
 
 cat > "$TMPD/A6.sh" <<'EOF'
 export KKLASS_CKK_DIR=$TMPD/ckk
 source "$KKLASS_DIR/kklass_autoload.sh"
 export MYSTAT=gstat
 c=$KKLASS_CKK_DIR/fmt3.ckk.sh
-sed -e 's/^kk._ckk_format 5$/kk._ckk_format 2/' -e 's/local -n +x /local -n /' "$c" > "$c.old"; mv "$c.old" "$c"; touch "$c"
+sed -e 's/^kk._ckk_format 6$/kk._ckk_format 2/' -e 's/local -n +x /local -n /' "$c" > "$c.old"; mv "$c.old" "$c"; touch "$c"
 autoloadClasses "$TMPD/fmt3.kk" --no-compile 2>"$TMPD/A6.e"; echo "rc=$?"
 grep -c 'runtime mode' "$TMPD/A6.e"
 grep '^kk._ckk_format ' "$c"

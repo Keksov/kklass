@@ -13,6 +13,13 @@ kk.unit kklass || return $__kk_unit_rc
 kk._kklass_dir() { local __kk_n; kk._unit_lexnorm "$KK_UNIT_DIR"; KKLASS_DIR=$__kk_n; }
 kk._kklass_dir
 unset -f kk._kklass_dir
+# The method-body function namespaces (perf round K1, kk._body_fn):
+# __kkm.OWNER.METHOD and __kkc.CLASS are kklass's, declared like kkore's own
+# (kbool.sh) — taken (no class or instance of that name, see "Taken names")
+# and owned in kkore's registry (kcl's census: every function prefix in the
+# shell has an owner). `|| :`: a unit may be sourced under set -e.
+kk._ns_declare __kkm kklass "$KKLASS_DIR/kklass.sh" || :
+kk._ns_declare __kkc kklass "$KKLASS_DIR/kklass.sh" || :
 
 # ---------------------------------------------------------------------------
 # Class declaration sites — "Duplicate identifier" (uses phase U2a; design:
@@ -158,6 +165,8 @@ kk._taken_init() {
     done
     kk._namespace_add kk kklass "$__kk_d/kklass.sh"
     kk._namespace_add kkp kklass "$__kk_d/kklass_kkp.sh"
+    kk._namespace_add __kkm kklass "$__kk_d/kklass.sh"     # body functions (K1)
+    kk._namespace_add __kkc kklass "$__kk_d/kklass.sh"
     kk._namespace_add kl klib "${__kk_d%/*}/kkore/klib.sh"
     kk._namespace_add ke kerr "${__kk_d%/*}/kkore/kerr.sh"
     kk._namespace_add kv kvar "${__kk_d%/*}/kkore/kvar.sh"
@@ -602,12 +611,14 @@ kk._class_instances() {
 # `$'\r'` word, kk._fn_text_cr; a format-3 cache from such a bash lost them);
 # format 5 = perf round K2 (every class has the bind template
 # ${CLASS}_class_binds that kk._run_frame_body expands; a format-4 cache has
-# none). autoloadClasses rebuilds a
+# none); format 6 = perf round K1 (every method / constructor body is a
+# function __kkm.OWNER.METHOD / __kkc.CLASS, kk._body_fn, dumped with its
+# class; a format-5 cache has none). autoloadClasses rebuilds a
 # cache of another format (kk._ckk_file_format; with --no-compile it runs the
 # source instead); one sourced directly loads no class, says why once
 # (kk._ckk_class) and its `source` returns 1 (kk._ckk_end). Caches older than
 # uses U2b (no kk._ckk_begin at all) are not checked when sourced directly.
-declare -g __KK_CKK_FORMAT=5
+declare -g __KK_CKK_FORMAT=6
 
 # kk._ckk_begin UNIT REL [ABS] — a compiled cache starts (see above).
 kk._ckk_begin() {
@@ -679,7 +690,7 @@ kk._ckk_class() {
     if [[ -n ${__KK_CKK_FMT-} && $__KK_CKK_FMT != "$__KK_CKK_FORMAT" ]]; then
         if [[ -z ${__KK_CKK_FMT_SAID-} ]]; then
             __KK_CKK_FMT_SAID=1
-            echo "kklass: the compiled cache '${__KK_CKK_PATH-}' has cache format $__KK_CKK_FMT, this kklass reads format $__KK_CKK_FORMAT (format 2: round 5 / P15 scope isolation; format 3: round 6 / P16 export-safe static bindings; format 4: CR-faithful method bodies on MSYS2/Cygwin; format 5: per-class field-bind templates); its classes are not loaded — recompile it: bash kklass_compiler.sh SOURCE CACHE (autoloadClasses without --no-compile rebuilds it)" >&2
+            echo "kklass: the compiled cache '${__KK_CKK_PATH-}' has cache format $__KK_CKK_FMT, this kklass reads format $__KK_CKK_FORMAT (format 2: round 5 / P15 scope isolation; format 3: round 6 / P16 export-safe static bindings; format 4: CR-faithful method bodies on MSYS2/Cygwin; format 5: per-class field-bind templates; format 6: method bodies as functions); its classes are not loaded — recompile it: bash kklass_compiler.sh SOURCE CACHE (autoloadClasses without --no-compile rebuilds it)" >&2
         fi
         return 1
     fi
@@ -1341,8 +1352,8 @@ kk._invoke_constructor() {
 # these with the instance name as the first argument. Before P4a every .new
 # eval'd its own ~8 KB copy of all of this (dispatch, frames, accessors, find,
 # call, parent, delete). Behaviour is unchanged; only the copies are gone.
-# Every local here is __kk_-prefixed: a method body is eval'd inside
-# kk._run_frame_body and sees the whole dynamic scope chain.
+# Every local here is __kk_-prefixed: a method body (its function, called by
+# kk._run_frame_body, K1) sees the whole dynamic scope chain.
 
 kk._property() {   # INST NAME [= VALUE]
     local -n __kk_d="${1}_data"
@@ -1476,10 +1487,100 @@ kk._class_binds_build() {   # CLASS
     eval "declare -ga ${__kk_c}_class_binds=(\"\${__kk_b[@]}\")"
 }
 
-# Run BODY with the instance context in scope: this/__inst__/__class__, the
-# `state` nameref to the data array, one nameref per property (including
-# inherited ones; the list is the one of the instance class) and one per
-# static property (bound to the DEFINING class storage).
+# Method bodies are functions (perf round K1). Each body is defined ONCE, when
+# it is stored, as a function the trampoline (kk._run_frame_body) calls — before
+# K1 it ran `eval "$body"` and bash parsed the text on every call:
+#   __kkm.OWNER.METHOD   an instance method body, per DEFINING class (the class
+#                        the per-instance wrapper and the method cache name; a
+#                        subclass's copy of an inherited body gets no function)
+#   __kkc.CLASS          a constructor body
+# `.` cannot occur in a class or method name, so the names cannot collide with
+# each other, with OWNER_method_body_METHOD-style names containing `__`, or with
+# a Pascal-DSL source function OWNER.METHOD. The text variables
+# (OWNER_method_body_METHOD, CLASS_constructor_body) stay: they are what the
+# dispatchers test for existence, what subclasses copy, what the declarative
+# tables, the serializer, kcl tests and the parent-constructor chaining
+# (kk._invoke_constructor, still an eval: it runs in the child's frame) read.
+# Writers: kk._build_class_runtime (own methods + the constructor), defineMethod,
+# the Pascal `build` (a constructor inherited from the parent), kk._body_fns_sync
+# (a class from a cache older than uses U2b); kklass_compiler.sh dumps the
+# functions (.ckk format 6). kk.class --forget deletes nothing (the class and its
+# instances keep working until a rebuild), so it keeps them too; a rebuild
+# redefines them.
+#
+# kk._body_fn FN BODY — define FN as BODY with the binding prologue in FRONT:
+# the property / static-property / state namerefs are bound by the body
+# function itself (one `local -n +x` from the class template, K2), so they
+# live in the SAME scope as the body's own code, as they did around the eval —
+# `local Count=5` / `local Count` / `local S` / `local state` / `unset Count`
+# for a bound name keep their exact pre-K1 meaning (a bash `local` of a name
+# bound in the same scope acts on the nameref or its target; one scope deeper
+# it would create a plain shadow). allexport is turned back on right after
+# the binds, as before (see kk._run_frame_body). Reads __kk_binds, __kk_inst
+# and __kk_ax of the trampoline's frame through dynamic scope.
+# The definition is wrapped in `if :; then … fi`: bash parses that compound
+# command WHOLE before it runs any of it, so a body that does not parse — or
+# closes the function early with a stray `}` — defines nothing and runs
+# nothing here. Such a body (and one that only parses in the caller's shell
+# state, e.g. extglob patterns with extglob off at build time) falls back to
+# a function that evals the stored text at every call: exactly the pre-K1
+# behaviour, error messages included. No fork, no `$( )` (round 5 builds).
+kk._body_fn() {   # FN BODY
+    { eval "if :; then $1() {
+local -n +x \"\${__kk_binds[@]//@/\$__kk_inst}\"
+(( __kk_ax )) || set -a
+$2
+}
+fi"; } 2>/dev/null && return 0
+    local __kk_bq
+    printf -v __kk_bq '%q' "$2"
+    eval "$1() {
+local -n +x \"\${__kk_binds[@]//@/\$__kk_inst}\"
+(( __kk_ax )) || set -a
+eval $__kk_bq
+}"
+}
+
+# The "function" of a method whose body variable was unset after the method
+# cache resolved it (kk._call, kk._parent): an empty body, rc 0, as before K1.
+kk._body_none() {
+    (( __kk_ax )) || set -a
+}
+
+# kk._body_fns_sync CLASS — define every missing body function CLASS's frames
+# can run: the own methods of CLASS and of each ancestor (owner = that class)
+# and their constructors, from the text variables. Only for a class without a
+# bind template (kk._run_frame_body): a cache older than uses U2b sourced
+# directly loads no functions. Rare path: one `declare -F` per body.
+kk._body_fns_sync() {   # CLASS
+    local __kk_c="$1" __kk_m __kk_v __kk_pv __kk_n=0
+    while [[ -n $__kk_c ]] && (( __kk_n++ < 256 )); do
+        local -n __kk_sm="${__kk_c}_class_methods" __kk_so="${__kk_c}_class_method_owner"
+        for __kk_m in ${__kk_sm[@]+"${__kk_sm[@]}"}; do
+            [[ ${__kk_so[$__kk_m]:-$__kk_c} == "$__kk_c" ]] || continue
+            __kk_v="${__kk_c}_method_body_${__kk_m}"
+            [[ -n ${!__kk_v+x} ]] && ! declare -F "__kkm.$__kk_c.$__kk_m" >/dev/null || continue
+            kk._body_fn "__kkm.$__kk_c.$__kk_m" "${!__kk_v}"
+        done
+        unset -n __kk_sm __kk_so
+        __kk_v="${__kk_c}_constructor_body"
+        if [[ -n ${!__kk_v:-} ]] && ! declare -F "__kkc.$__kk_c" >/dev/null; then
+            kk._body_fn "__kkc.$__kk_c" "${!__kk_v}"
+        fi
+        __kk_pv="${__kk_c}_parent_class"
+        __kk_c=${!__kk_pv:-}
+    done
+    return 0
+}
+
+# Run the body function FN (perf round K1, kk._body_fn) with the instance
+# context in scope: this/__inst__/__class__ here, and — bound by FN's own
+# prologue, in the body's scope — the `state` nameref to the data array, one
+# nameref per property (including inherited ones; the list is the one of the
+# instance class) and one per static property (bound to the DEFINING class
+# storage). A `return N` in the body returns from FN to here, and this
+# function's status is FN's: kk._invoke always pops the frame. FN adds one
+# frame to FUNCNAME / caller (owner decision D2).
 # All of them come from ONE `local -n +x` (perf round K2): the per-class
 # template ${CLASS}_class_binds, written by kk._build_class_runtime next to the
 # class's property tables, is
@@ -1499,29 +1600,30 @@ kk._class_binds_build() {   # CLASS
 # property hides (also a never-set property, and the children of another
 # class's callee), `state=inst_data`, `this=inst`. With +x a child sees the
 # global value. `set -a` (allexport) would export every bind anyway, and
-# kklass's private locals with them — `__kk_body`, the whole method body, in
-# every child's environment (review F1, critic r6b): the four callers of
+# kklass's private locals with them — before K1 `__kk_body`, the whole
+# method body, in every child's environment (review F1, critic r6b): the four callers of
 # kk._invoke (kk._exec, kk._call, kk._parent, kk._constructor_exec) start with
 # `[[ $- == *a* ]] && set +a` and keep the status in their first local
 # (`__kk_ax=$?`, 0 = it was on; every early return turns it back on); it is
-# turned back on here, right before the body, so the body runs with the
-# caller's allexport. One test + one arithmetic per call, no extra builtin.
-kk._run_frame_body() {   # INST ACTIVE_CLASS BODY ARGS...
+# turned back on by the body function's prologue, right after the binds and
+# before the body, so the body runs with the caller's allexport. One test +
+# one arithmetic per call, no extra builtin.
+kk._run_frame_body() {   # INST ACTIVE_CLASS FN ARGS...
     # __kk_self: the frame's instance for kk._invoke's own-instance skip (P15
     # review round 2, N1) — private, unlike `this`, which user code may
     # re-declare; static dispatchers shadow it.
-    local +x __kk_inst="$1" __class__="$2" __kk_method_body="$3" __kk_self="$1"
+    local +x __kk_inst="$1" __class__="$2" __kk_fn="$3" __kk_self="$1"
     shift 3
     local +x this="$__kk_inst" __inst__="$__kk_inst"
     local __kk_cv="${__kk_inst}_class"
     local __kk_cls="${!__kk_cv:-}"
     local -n __kk_props="${__kk_cls}_class_properties" __kk_sprops="${__kk_cls}_class_static_properties" \
         __kk_binds="${__kk_cls:-__kk_nocls}_class_binds"
-    [[ -n ${__kk_binds[0]+x} ]] || kk._class_binds_build "$__kk_cls"   # +x: set -u safe; [0] is always state=
-    local -n +x "${__kk_binds[@]//@/$__kk_inst}"
-    (( __kk_ax )) || set -a
-
-    eval "$__kk_method_body"
+    # +x: set -u safe; [0] is always state=. No template = a class from a
+    # cache that skips the format check (before uses U2b): it has neither the
+    # template nor its body functions (K1) — both are made here, once.
+    [[ -n ${__kk_binds[0]+x} ]] || { kk._class_binds_build "$__kk_cls"; kk._body_fns_sync "$__kk_cls"; }
+    "$__kk_fn" "$@"
 }
 
 # Frame push/pop + RESULT protocol around one body execution. The frame
@@ -1529,9 +1631,11 @@ kk._run_frame_body() {   # INST ACTIVE_CLASS BODY ARGS...
 # so kv.frameCurrent / kv.frameClass see exactly the same stack (kk._parent and
 # kk._warn_visibility read these arrays directly, perf round K4) — minus three
 # function calls per method call. The
-# body must stay in its own function (kk._run_frame_body): a `return` inside
-# it must come back HERE so the frame is always popped.
-kk._invoke() {   # INST ACTIVE_CLASS BODY ARGS...
+# body runs in its own function (since K1 the body function FN itself, called
+# by kk._run_frame_body): a `return` inside it must come back HERE so the frame
+# is always popped. FN is a function NAME (__kkm.OWNER.METHOD, __kkc.CLASS,
+# kk._body_none), never body text.
+kk._invoke() {   # INST ACTIVE_CLASS FN ARGS...
     # Scope isolation (round 5 / P15, K2, DR16a): the CALLER's property and
     # static-property names — its frame's __kk_props/__kk_sprops namerefs, seen
     # here through dynamic scope — become plain unset locals of THIS frame, folded
@@ -1556,9 +1660,9 @@ kk._invoke() {   # INST ACTIVE_CLASS BODY ARGS...
     # this test stays as short as it can (an exact `[` or a helper call here
     # measured +10..+30 us). At the top level `-R __kk_props` is the whole cost.
     if [[ -R __kk_props && ( ${!__kk_props} != "$2_class_properties" || a == A ) && ( ${__kk_self-} != "$1" || a == A ) ]]; then
-        local __kk_inst="$1" __kk_active_class="$2" __kk_body="$3" "${__kk_props[@]}" "${__kk_sprops[@]}"
+        local __kk_inst="$1" __kk_active_class="$2" __kk_fn="$3" "${__kk_props[@]}" "${__kk_sprops[@]}"
     else
-        local __kk_inst="$1" __kk_active_class="$2" __kk_body="$3"
+        local __kk_inst="$1" __kk_active_class="$2" __kk_fn="$3"
     fi
     shift 3
     # (no `local this` here: kk._run_frame_body binds this, +x — review F2)
@@ -1584,7 +1688,7 @@ kk._invoke() {   # INST ACTIVE_CLASS BODY ARGS...
     __KLIB_FRAME_INSTANCE[__kk_frame_id]="$__kk_inst"
     __KLIB_FRAME_CLASS[__kk_frame_id]="$__kk_active_class"
 
-    kk._run_frame_body "$__kk_inst" "$__kk_active_class" "$__kk_body" "$@"
+    kk._run_frame_body "$__kk_inst" "$__kk_active_class" "$__kk_fn" "$@"
     local __kk_status=$?
     [[ -z $__kk_lvu ]] || { shopt -u localvar_unset; __KK_LVU_OWN=; }
 
@@ -1606,18 +1710,17 @@ kk._exec() {   # INST METHOD OWNER ARGS...
     [[ $- == *a* ]] && set +a          # set -a: see kk._run_frame_body
     local __kk_ax=$? __kk_inst="$1" __kk_m="$2" __kk_owner="$3"
     shift 3
-    local __kk_bv="${__kk_owner}_method_body_${__kk_m}"
-    local __kk_body="${!__kk_bv:-}"
     # SET-ness, not emptiness (R2_P8, divergence c): an empty body is a valid
-    # no-op and runs silently with rc 0, exactly as `.call` runs it. The second
-    # test only runs for an empty body, so the hot path keeps one expansion.
-    if [[ -z "$__kk_body" && -z "${!__kk_bv+x}" ]]; then
+    # no-op and runs silently with rc 0, exactly as `.call` runs it. The body
+    # variable says whether the method exists; its function runs it (K1).
+    local __kk_bv="${__kk_owner}_method_body_${__kk_m}"
+    if [[ -z ${!__kk_bv+x} ]]; then
         echo "Error: Method '$__kk_m' not found in class '$__kk_owner'" >&2
         (( __kk_ax )) || set -a; return 1
     fi
     local __kk_np="${__kk_owner}_has_nonpublic"
     [[ "${!__kk_np:-1}" == "0" ]] || kk._warn_visibility "$__kk_owner" method "$__kk_m"
-    kk._invoke "$__kk_inst" "$__kk_owner" "$__kk_body" "$@"
+    kk._invoke "$__kk_inst" "$__kk_owner" "__kkm.$__kk_owner.$__kk_m" "$@"
 }
 
 # Find the first class in the chain starting at SEARCH_CLASS that holds a body
@@ -1670,10 +1773,13 @@ kk._call() {   # INST METHOD ARGS...
         __kk_cache["$__kk_m"]="$__kk_found"
     fi
 
-    local __kk_bv="${__kk_found}_method_body_${__kk_m}"
+    # an unset body variable (resolved from the cache) runs as an empty body,
+    # as before K1 (kk._body_none), never a stale function
+    local __kk_bv="${__kk_found}_method_body_${__kk_m}" __kk_fn="__kkm.$__kk_found.$__kk_m"
+    [[ -n ${!__kk_bv+x} ]] || __kk_fn=kk._body_none
     local __kk_np="${__kk_found}_has_nonpublic"
     [[ "${!__kk_np:-1}" == "0" ]] || kk._warn_visibility "$__kk_found" method "$__kk_m"
-    kk._invoke "$__kk_inst" "$__kk_found" "${!__kk_bv:-}" "$@"
+    kk._invoke "$__kk_inst" "$__kk_found" "$__kk_fn" "$@"
 }
 
 # `inherited` / $this.parent: STATIC resolution from the parent of the class
@@ -1718,20 +1824,22 @@ kk._parent() {   # INST METHOD ARGS...
         __kk_cache["$__kk_key"]="$__kk_found"
     fi
 
-    local __kk_bv="${__kk_found}_method_body_${__kk_m}"
+    local __kk_bv="${__kk_found}_method_body_${__kk_m}" __kk_fn="__kkm.$__kk_found.$__kk_m"
+    [[ -n ${!__kk_bv+x} ]] || __kk_fn=kk._body_none     # as in kk._call
     local __kk_np="${__kk_found}_has_nonpublic"
     [[ "${!__kk_np:-1}" == "0" ]] || kk._warn_visibility "$__kk_found" method "$__kk_m"
-    kk._invoke "$__kk_inst" "$__kk_found" "${!__kk_bv:-}" "$@"
+    kk._invoke "$__kk_inst" "$__kk_found" "$__kk_fn" "$@"
 }
 
-# Run the class constructor body (if any) in a frame of CLASS.
+# Run the class constructor body (if any) in a frame of CLASS: its function
+# __kkc.CLASS (K1, kk._body_fn).
 kk._constructor_exec() {   # INST CLASS ARGS...
     [[ $- == *a* ]] && set +a          # set -a: see kk._run_frame_body
     local __kk_ax=$? __kk_inst="$1" __kk_cls="$2"
     shift 2
     local __kk_bv="${__kk_cls}_constructor_body"
     [[ -n "${!__kk_bv:-}" ]] || { (( __kk_ax )) || set -a; return 0; }
-    kk._invoke "$__kk_inst" "$__kk_cls" "${!__kk_bv:-}" "$@"
+    kk._invoke "$__kk_inst" "$__kk_cls" "__kkc.$__kk_cls" "$@"
 }
 
 # Destroy an instance: destructor (if the class declares one), lazy globals,
@@ -2266,6 +2374,10 @@ kk._build_class_runtime() {
         meth_bodies["$__kk_om"]="$METHOD_BODY"
     done
 
+    # a class built before (a rebuild): see the body functions below (K1)
+    local __kk_rebuild=0
+    declare -p "${class_name}_class_methods" &>/dev/null && __kk_rebuild=1
+
     # Store class metadata for inheritance
     eval "${class_name}_class_properties=(\"\${props_arr[@]}\")"
     eval "${class_name}_class_methods=(\"\${meths_arr[@]}\")"
@@ -2311,6 +2423,16 @@ kk._build_class_runtime() {
     
     for m in "${meths_arr[@]}"; do
         eval "${class_name}_method_body_${m}=\${meth_bodies[\$m]}"
+        # The body function (K1, kk._body_fn): for the methods this class
+        # DEFINES — dispatch names the owner. A rebuild (same file after
+        # kk.class --forget, U20) of a class whose method is now inherited
+        # redefines the function it had with the inherited text, as the
+        # variable above: an instance made before still runs THAT (its
+        # wrapper names this class), exactly as the variable did before K1.
+        if [[ ${meth_owner[$m]:-$class_name} == "$class_name" ]] \
+           || { (( __kk_rebuild )) && declare -F "__kkm.${class_name}.${m}" >/dev/null; }; then
+            kk._body_fn "__kkm.${class_name}.${m}" "${meth_bodies[$m]}"
+        fi
 
         # Pre-populate cache: method resolves to its DEFINING class (owner), so
         # dispatch pushes the owner as the frame class and `inherited`/.parent
@@ -2370,9 +2492,15 @@ __INST__.delete() { kk._delete __INST__ \"\$@\"; }"
         constructor_body="${constructor_body//parent.constructor/${parent_class}.constructor}"
     fi
     
-    # Store constructor body
+    # Store constructor body, and its function (K1); none for an empty one
+    # (.new and kk._constructor_exec skip it), a rebuild drops a stale one
     eval "${class_name}_constructor_body=\$constructor_body"
-    
+    if [[ -n $constructor_body ]]; then
+        kk._body_fn "__kkc.${class_name}" "$constructor_body"
+    else
+        unset -f "__kkc.${class_name}"
+    fi
+
     # Create static members if needed (lazy approach)
     if [[ "$has_static_members" == "true" ]]; then
         # Initialize static properties as global variables
@@ -2581,6 +2709,7 @@ _defineMethodType() {
     # Process method body using shared logic from defineClass
     kk._processMethodBody "$class_name" "$method_name" "$method_body" "$meth_type"
     eval "${class_name}_method_body_${method_name}=\$METHOD_BODY"
+    kk._body_fn "__kkm.${class_name}.${method_name}" "$METHOD_BODY"   # K1: this class now defines it
 
     # Update class methods array in global scope
     eval "${class_name}_class_methods=(\"\${meths_ref[@]}\")"

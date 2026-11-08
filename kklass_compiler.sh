@@ -314,6 +314,12 @@ HEADER
         while IFS= read -r fn_name; do
             [[ -n "$fn_name" ]] && fn_names+=("$fn_name")
         done < <(compgen -A function "${class_name}.")
+        # the body functions of the methods it defines and of its constructor
+        # (perf round K1, kk._body_fn; cache format 6)
+        while IFS= read -r fn_name; do
+            [[ -n "$fn_name" ]] && fn_names+=("$fn_name")
+        done < <(compgen -A function "__kkm.${class_name}.")
+        declare -F "__kkc.${class_name}" >/dev/null && fn_names+=("__kkc.${class_name}")
         # kk._fn_text = the `declare -f` text; kk._fn_text_cr writes a raw CR
         # (a $'\r' word) so that sourcing the cache keeps it (L7.2-K)
         for fn_name in "${fn_names[@]}"; do
