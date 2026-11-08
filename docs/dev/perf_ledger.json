@@ -1,0 +1,33 @@
+{
+  "plan": "kklass/docs/dev/PERF_PLAN.md",
+  "created": "2026-11-08",
+  "branches": {"kklass": "perf", "kbool": "perf"},
+  "harness": "kbool tools/bench + .github/workflows/bench.yml (kbool c0b9ac0)",
+  "decisions": {
+    "D1": "K0-K5 approved, K6 rejected",
+    "D2": "extra FUNCNAME/caller frame from bodies-as-functions accepted",
+    "D3": "in parallel with TUI L0/L1; L2 waits",
+    "D4": "gates on GitHub: kklass ci.yml on perf (15 rows) + bench.yml A/B"
+  },
+  "baseline": {
+    "kklass": "7691162",
+    "bench_run": 42481258498,
+    "us_per_call_median": {
+      "debian-13 bash 5.2.37": {"plain": 4.6, "call1": 133, "call14": 207, "long": 221, "inherited": 385, "nested": 277, "prop": 20.8, "newdel": 161},
+      "windows git-bash 5.3.15": {"plain": 5.1, "call1": 197, "call14": 267, "long": 262, "inherited": 596, "nested": 418, "prop": 26.2, "newdel": 190},
+      "windows msys2 5.3.20": {"plain": 7.4, "call1": 352, "call14": 487, "long": 495, "inherited": 1096, "nested": 742, "prop": 45.7, "newdel": 371}
+    },
+    "drift": "none on 11 rows (after/before 0.93-1.08)",
+    "noise_aa": "Linux/Windows +-1-4%, macOS +-5-8%"
+  },
+  "targets_cur_over_main": {"call1": 0.6, "call14": 0.55, "long": 0.6, "inherited": 0.45, "nested": 0.6, "max_any": 1.03},
+  "phases": [
+    {"id": "K0", "title": "harness, baseline, drift check", "status": "done", "date": "2026-11-08", "commits": {"kbool": "c0b9ac0"}},
+    {"id": "K4", "title": "cheap inherited: direct frame-array read", "status": "planned"},
+    {"id": "K2", "title": "fields bound by one local -n from a per-class template", "status": "planned"},
+    {"id": "K1", "title": "method bodies as functions defined at build (.ckk format bump)", "status": "planned"},
+    {"id": "K3", "title": "short hot path: fold exec/invoke/run_frame_body, rare branches out", "status": "planned"},
+    {"id": "K5", "title": "drift fix", "status": "dropped", "reason": "K0: no drift on any platform; the local slowdown was outside load"},
+    {"id": "K6", "title": "bind only referenced fields", "status": "rejected", "reason": "D1"}
+  ]
+}
