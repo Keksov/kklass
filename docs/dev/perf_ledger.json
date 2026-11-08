@@ -87,7 +87,7 @@
     {
       "id": "K2",
       "title": "fields bound by one local -n from a per-class template",
-      "status": "implemented",
+      "status": "done",
       "date": "2026-11-08",
       "notes": "kk._run_frame_body binds state + properties + static properties with ONE `local -n +x` from the per-class template ${CLASS}_class_binds=(state=@_data P=@_data[P] ... S=OWNER_static_S ...), written by kk._build_class_runtime (the only writer of the property tables); __kk_props/__kk_sprops kept as namerefs (kk._invoke isolation, static shadow, kk.frameReset); classless instance -> __kk_nocls_class_binds; .ckk format 4 -> 5; test 150 K2.1-K2.11, 147 A3/A4/A5 updated; local gate kklass 1790/1790 (Git-bash 5.3.15 + MSYS2 5.3.9), kcl 27 suites + examples 7462/7462 Git-bash; bench Git-bash vs K4 2c3cdfb: call1 0.92, call14 0.78, long 0.94, nested 0.93",
       "findings": [
@@ -99,7 +99,7 @@
     {
       "id": "K1",
       "title": "method bodies as functions defined at build (.ckk format bump)",
-      "status": "implemented",
+      "status": "done",
       "date": "2026-11-08",
       "notes": "kk._body_fn FN BODY defines __kkm.OWNER.METHOD (own methods of the DEFINING class; none for an inherited copy) and __kkc.CLASS (constructor) once, when the body is stored: kk._build_class_runtime, defineMethod, Pascal build (constructor inherited from the parent), kk._body_fns_sync (class without bind template = pre-U2b cache). The function's PROLOGUE is the K2 bind (`local -n +x` from ${CLASS}_class_binds) + the set -a restore, so binds and body share one scope: local/declare/unset of a bound name keep the exact pre-K1 meaning (probe old vs new identical on Git-bash 5.3.15, MSYS2 5.3.9, Cygwin 5.2.21). Definition wrapped in `if :; then ... fi` (parsed whole before anything runs): a body that does not parse falls back to a function that evals the stored text per call (pre-K1 behaviour). kk._invoke / kk._run_frame_body receive a function NAME; kk._exec tests the body variable's set-ness; kk._call/kk._parent run kk._body_none when the variable was unset after the cache resolved it (as the empty eval before). Text variables kept (existence, subclass copies, decl tables, kcl thttpserver tests). kk._invoke_constructor (parent-constructor chaining) still evals the text. A rebuild redefines a function whose method became inherited with the inherited text (mirrors the variable). __kkm/__kkc declared as kklass namespaces (kk._ns_declare + taken table): kcl census. .ckk format 5 -> 6 (compiler dumps __kkm.CLASS.* and __kkc.CLASS). D2: FUNCNAME[0] in a body = __kkm.OWNER.METHOD, [1] = kk._run_frame_body; LINENO/error-line prefixes change; a set -T RETURN trap fires once more. Tests: 150 K1.1-K1.15, 147 A3-A6 updated, 150 K2.11 format-agnostic. Build time unchanged (fresh kk.uses dateutils 373/379 ms, math 240/237, thttpserver 294/314, tstringlist 125/123, k2/cur best of 3); 234 body functions for 9 common units",
       "gate_local": "kklass 1822/1822 (911 each, Git-bash 5.3.15 + MSYS2 5.3.9); all 31 suites Git-bash 9828/9848 before the namespace fix (the 20 = kcl/tests census of __kkm/__kkc, fixed: kcl+kkore 953/953 after); lab VM kb-debian kklass+kcl 2186/2186 (bash 5.1.16 + 5.2.37)",
@@ -114,7 +114,7 @@
     {
       "id": "K3",
       "title": "short hot path: fold exec/invoke/run_frame_body, rare branches out",
-      "status": "implemented",
+      "status": "done",
       "date": "2026-11-08",
       "notes": "one dispatcher per call: kk._exec (wrappers, $this.M) and kk._parent (inherited) carry THE CORE inline, kk._invoke (kk._call, kk._constructor_exec) is the core alone; kk._run_frame_body removed (FUNCNAME[1] in a body = the dispatcher; a set -T RETURN trap fires 3 times per call instead of 5); rare paths in helpers kk._call_fail / kk._binds_repair / kk._parent_find; outermost localvar_unset restore keyed on __KK_LVU_OWN at frame 0 (no per-call flag local); FN prologue binds from $this (no __kk_inst local); status kept in __kk_cv; \"${@:4}\" instead of shift. Hot path line counts (declare -f): exec path 63 lines in 3 functions -> 32 in 1, parent path 90 -> 43, kk._invoke 25. Wrapper text and .ckk format unchanged (6). Tests: 150 K3.1-K3.11 (K3.2-K3.8, K3.10, K3.11 also pass unchanged on 870b92a: behaviour parity), K1.1/K1.5/K1.9 and 147 A3 updated for the removed trampoline",
       "steps_gitbash_call1_us": "fold rfb into invoke 165->134; core inline in exec 134->115; inline lvu toggle 114->106; fewer locals 106->102; parent inline + one-line frame read: inherited 334->253",
@@ -129,7 +129,9 @@
       "critic": "Opus critic 2026-11-08: MEDIUM fixed - a method called from a DEBUG/signal trap between the outermost localvar_unset toggle and the frame push turned the option off for the outer body (unset isolation broken); __KK_LVU_OWN now holds the owner call depth ${#FUNCNAME[@]} (test K3.12). Also quoted `return \"$__kk_cv\"` (IFS with digits split it, pre-existing; K3.13). LOW (documented, not changed): ERR-trap firing counts under set -E change on not-found paths / return N.",
       "bench_ci": "bench run 42500388872 (16c5f44) cur/main: call1 0.54-0.58 (macOS 0.64), call14 0.41-0.49, long 0.31-0.49, inherited 0.43-0.49, nested 0.50-0.57, prop/newdel ~1.0",
       "ci": "kklass ci 42500390308: green except the 2 pre-existing tsed 008 rows",
-      "gate_local_fix": "kklass 1854/1854 Git-bash + MSYS2"
+      "gate_local_fix": "kklass 1854/1854 Git-bash + MSYS2",
+      "final_bench": "run 42503884434 (4bb2f9c) cur/main, 11 rows: call1 0.56-0.60, call14 0.46-0.51, long 0.33-0.50, inherited 0.44-0.48, nested 0.53-0.58, prop/newdel 0.98-1.01",
+      "final_ci": "kklass ci 42503885439: green except the 2 pre-existing tsed 008 rows"
     },
     {
       "id": "K5",
@@ -150,5 +152,6 @@
     "pre-existing: under set -e, .call / inherited of a missing method exits silently (kk._find_method rc 1 before the message)",
     "pre-existing: a caller property named like a callee data array (q_data) shadows it: q.set aborts with expression recursion",
     "pre-existing: inherited is rewritten inside string literals too (echo \"after inherited X\")"
-  ]
+  ],
+  "status": "round complete on perf 2026-11-08 (kklass 4bb2f9c, kbool 4224796); waiting for the owner go to merge into main"
 }
