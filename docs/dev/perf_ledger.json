@@ -114,7 +114,18 @@
     {
       "id": "K3",
       "title": "short hot path: fold exec/invoke/run_frame_body, rare branches out",
-      "status": "planned"
+      "status": "implemented",
+      "date": "2026-11-08",
+      "notes": "one dispatcher per call: kk._exec (wrappers, $this.M) and kk._parent (inherited) carry THE CORE inline, kk._invoke (kk._call, kk._constructor_exec) is the core alone; kk._run_frame_body removed (FUNCNAME[1] in a body = the dispatcher; a set -T RETURN trap fires 3 times per call instead of 5); rare paths in helpers kk._call_fail / kk._binds_repair / kk._parent_find; outermost localvar_unset restore keyed on __KK_LVU_OWN at frame 0 (no per-call flag local); FN prologue binds from $this (no __kk_inst local); status kept in __kk_cv; \"${@:4}\" instead of shift. Hot path line counts (declare -f): exec path 63 lines in 3 functions -> 32 in 1, parent path 90 -> 43, kk._invoke 25. Wrapper text and .ckk format unchanged (6). Tests: 150 K3.1-K3.11 (K3.2-K3.8, K3.10, K3.11 also pass unchanged on 870b92a: behaviour parity), K1.1/K1.5/K1.9 and 147 A3 updated for the removed trampoline",
+      "steps_gitbash_call1_us": "fold rfb into invoke 165->134; core inline in exec 134->115; inline lvu toggle 114->106; fewer locals 106->102; parent inline + one-line frame read: inherited 334->253",
+      "gate_local": "kklass 925/925 Git-bash 5.3.15 + MSYS2 5.3.9; all 31 suites Git-bash 9863/9863; lab VM kb-debian kklass+thttpserver+tstringlist+tutil 1893/1893 on bash 5.1.16 and 5.2.37",
+      "bench": "local Git-bash 5.3.15, 5 rounds, cur/main (k1/main): call1 0.55 (0.93), call14 0.50 (0.78), long 0.45 (0.73), inherited 0.43 (0.79), nested 0.53 (0.97), prop 1.03 (1.08), newdel 1.00; VM debian 5.1.16: call1 0.57 call14 0.49 long 0.43 inherited 0.48 nested 0.56; 5.2.37: 0.57 0.49 0.42 0.46 0.57",
+      "thttpserver_msys2_wall_s": "main 32.6/36.5, k1 30.6/33.1/35.3, cur 25.3/28.7/35.4/39.3 - noise, no slowdown from K1 or K3",
+      "findings": [
+        "Linux inherited 0.46-0.48 vs target 0.45 (Windows 0.43): the parent path is two cores plus the .parent wrapper; options: rewrite `inherited M` to `kk._parent \"$this\" M` (saves the wrapper call, changes stored body text) or pass more data through the wrapper (.ckk format 7)",
+        "alpine bash 5.1 nested 1.07 (K1/main on CI) not reproduced: glibc 5.1.16 on the lab VM gives K1/main nested 0.96 and cur/main 0.56",
+        "kkore/klib.sh:285 comment still names kk._run_frame_body (outside kklass)"
+      ]
     },
     {
       "id": "K5",

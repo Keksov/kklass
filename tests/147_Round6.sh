@@ -2,7 +2,7 @@
 # Round6 (kklass round 6 / P16; PLAN.md "# Round 6", findings E1, E2, E3;
 # owner decisions DR20, DR21, DR22; research scratchpad/research_r6).
 #   §A DR20 (a) export-safe binding: a property / static-property nameref is
-#      bound `local -n +x` (kk._run_frame_body, the capturing static
+#      bound `local -n +x` (the body function prologue, the capturing static
 #      dispatcher), so a child of a method sees the GLOBAL value of an exported
 #      variable of the same name (before: the nameref inherited the export flag
 #      and exported its TARGET NAME, `MYENV=e_data[MYENV]`); .ckk format 3
@@ -115,8 +115,8 @@ check "A2" "own: TZ=UTC child=[LANG=C.UTF-8 TZ=Asia/Tokyo ]|fat: TERM=vt-prop ch
 kt_test_start "A3 the binding sites carry +x (the one bind of state + properties + static properties from the class template, perf round K2, in the prologue of every body function since K1; the fat static dispatcher)"
 defineClass A3F "" static_property sp static_method m ':'
 defineClass A3G "" property p method m ':' constructor ':'
-n1=$(declare -f __kkm.A3G.m __kkc.A3G | grep -c -e 'local -n +x "\${__kk_binds\[@\]//@/\$__kk_inst}"')
-n0=$(declare -f __kkm.A3G.m __kkc.A3G kk._run_frame_body | grep -c -e 'local -n "\${__kk_binds')   # the same bind WITHOUT +x
+n1=$(declare -f __kkm.A3G.m __kkc.A3G | grep -c -e 'local -n +x "\${__kk_binds\[@\]//@/\$this}"')
+n0=$(declare -f __kkm.A3G.m __kkc.A3G kk._exec kk._parent kk._invoke | grep -c -e 'local -n "\${__kk_binds')   # the same bind WITHOUT +x
 n2=$(declare -f A3F.m | grep -c 'local -n +x sp=A3F_static_sp')
 check "A3" "2 0 1" "$n1 $n0 $n2"
 

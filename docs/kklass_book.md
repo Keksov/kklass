@@ -1072,8 +1072,9 @@ of the dispatcher are all `__kk_`-prefixed, so ordinary names such as
 A method body runs as a function of its own, defined once when the class is
 built (or the method is redefined): `__kkm.OWNER.METHOD` for the class that
 defines the method, `__kkc.CLASS` for a constructor. Inside a body
-`${FUNCNAME[0]}` is that name and `${FUNCNAME[1]}` is `kk._run_frame_body`;
-`caller`, `LINENO` and error messages from the body name it the same way. The
+`${FUNCNAME[0]}` is that name and `${FUNCNAME[1]}` is the dispatcher
+(`kk._exec` for `obj.M` and `$this.M`, `kk._parent` for `inherited`,
+`kk._invoke` for `.call` and constructors); `caller`, `LINENO` and error messages from the body name it the same way. The
 property bindings are made inside that function, so `local NAME` of a property
 behaves exactly as it always did. A body's text is parsed when the class is
 built, no longer at every call: a body that does not parse then (an unmatched

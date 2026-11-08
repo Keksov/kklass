@@ -328,7 +328,7 @@ kk.decl._static_clash() {
 # chain (the parent's merged _class_properties / _class_static_properties).
 # Round 4 / P12 (finding V1, decision DR10): inside a member body every
 # instance property AND every static property is a plain variable name
-# (kk._run_frame_body binds the instance namerefs, then the static ones), so
+# (the body function's prologue binds the instance namerefs, then the static ones), so
 # with both of one name the static HID the instance property — `x=v` in a
 # body wrote the static, on every path, own or inherited, either order.
 # kk._build_class_runtime repeats the check over the merged lists (a raw

@@ -610,7 +610,7 @@ kk._class_instances() {
 # when it parses — MSYS2/Cygwin — every raw CR in a dumped body is written as a
 # `$'\r'` word, kk._fn_text_cr; a format-3 cache from such a bash lost them);
 # format 5 = perf round K2 (every class has the bind template
-# ${CLASS}_class_binds that kk._run_frame_body expands; a format-4 cache has
+# ${CLASS}_class_binds that the call path expands; a format-4 cache has
 # none); format 6 = perf round K1 (every method / constructor body is a
 # function __kkm.OWNER.METHOD / __kkc.CLASS, kk._body_fn, made again when the
 # cache loads: `kk._body_fns_for CLASS` after the class's variables; a format-5
@@ -1354,7 +1354,7 @@ kk._invoke_constructor() {
 # eval'd its own ~8 KB copy of all of this (dispatch, frames, accessors, find,
 # call, parent, delete). Behaviour is unchanged; only the copies are gone.
 # Every local here is __kk_-prefixed: a method body (its function, called by
-# kk._run_frame_body, K1) sees the whole dynamic scope chain.
+# a dispatcher, K1/K3) sees the whole dynamic scope chain.
 
 kk._property() {   # INST NAME [= VALUE]
     local -n __kk_d="${1}_data"
@@ -1475,7 +1475,7 @@ declare -ga __kk_nocls_class_binds=('state=@_data')
 
 # kk._class_binds_build CLASS — write ${CLASS}_class_binds from the class's
 # property tables (kk._build_class_runtime, right after it wrote them; and
-# kk._run_frame_body for a class that has tables but no template: a cache from
+# the call path (kk._binds_repair) for a class that has tables but no template: a cache from
 # before uses U2b, sourced directly, skips the format check — without the
 # template every body of it would bind nothing; K2 critic finding 1).
 kk._class_binds_build() {   # CLASS
@@ -1489,7 +1489,7 @@ kk._class_binds_build() {   # CLASS
 }
 
 # Method bodies are functions (perf round K1). Each body is defined ONCE, when
-# it is stored, as a function the trampoline (kk._run_frame_body) calls — before
+# it is stored, as a function the dispatchers call (K3) — before
 # K1 it ran `eval "$body"` and bash parsed the text on every call:
 #   __kkm.OWNER.METHOD   an instance method body, per DEFINING class (the class
 #                        the per-instance wrapper and the method cache name; a
@@ -1522,8 +1522,10 @@ kk._class_binds_build() {   # CLASS
 # for a bound name keep their exact pre-K1 meaning (a bash `local` of a name
 # bound in the same scope acts on the nameref or its target; one scope deeper
 # it would create a plain shadow). allexport is turned back on right after
-# the binds, as before (see kk._run_frame_body). Reads __kk_binds, __kk_inst
-# and __kk_ax of the trampoline's frame through dynamic scope.
+# the binds, as before (see THE CORE above kk._invoke). Reads __kk_binds,
+# this and __kk_ax of the dispatcher's frame through dynamic scope (`this`,
+# not a private copy, since K3: the prologue runs before any body code, so it
+# is always the dispatcher's own `this` — one local fewer per call).
 # The text is PARSED here, when the class is built (before K1: at every call).
 # The definition is wrapped in `if :; then … fi`: bash parses that compound
 # command whole before it runs any of it, so a body that does not parse —
@@ -1539,7 +1541,7 @@ kk._class_binds_build() {   # CLASS
 # No fork, no `$( )` (round 5 builds).
 kk._body_fn() {   # FN BODY
     { eval "if :; then $1() {
-local -n +x \"\${__kk_binds[@]//@/\$__kk_inst}\"
+local -n +x \"\${__kk_binds[@]//@/\$this}\"
 (( __kk_ax )) || set -a
 $2
 }
@@ -1547,7 +1549,7 @@ fi"; } 2>/dev/null && return 0
     local __kk_bq
     printf -v __kk_bq '%q' "$2"
     eval "$1() {
-local -n +x \"\${__kk_binds[@]//@/\$__kk_inst}\"
+local -n +x \"\${__kk_binds[@]//@/\$this}\"
 (( __kk_ax )) || set -a
 eval $__kk_bq
 }"
@@ -1586,7 +1588,7 @@ kk._body_fns_for() {   # CLASS [missing]
 
 # kk._body_fns_sync CLASS — CLASS and each ancestor: the missing body
 # functions (kk._body_fns_for … missing). For an instance class without a bind
-# template (kk._run_frame_body): a cache older than uses U2b sourced directly
+# template (kk._binds_repair): a cache older than uses U2b sourced directly
 # loads no functions. Rare path.
 kk._body_fns_sync() {   # CLASS
     local __kk_c="$1" __kk_pv __kk_n=0
@@ -1603,7 +1605,7 @@ kk._body_fns_sync() {   # CLASS
 # bind template — a class from a cache older than uses U2b — gets its
 # template and its missing body functions now, so a subclass built from source
 # can run the inherited bodies (the call path repairs only the INSTANCE's
-# class, kk._run_frame_body). One test per ancestor per build.
+# class, kk._binds_repair). One test per ancestor per build.
 kk._body_fns_old() {   # CLASS
     local __kk_c="$1" __kk_v __kk_n=0
     while [[ -n $__kk_c ]] && (( __kk_n++ < 256 )); do
@@ -1618,132 +1620,130 @@ kk._body_fns_old() {   # CLASS
     return 0
 }
 
-# Run the body function FN (perf round K1, kk._body_fn) with the instance
-# context in scope: this/__inst__/__class__ here, and — bound by FN's own
-# prologue, in the body's scope — the `state` nameref to the data array, one
-# nameref per property (including inherited ones; the list is the one of the
-# instance class) and one per static property (bound to the DEFINING class
-# storage). A `return N` in the body returns from FN to here, and this
-# function's status is FN's: kk._invoke always pops the frame. FN adds one
-# frame to FUNCNAME / caller (owner decision D2).
-# All of them come from ONE `local -n +x` (perf round K2): the per-class
-# template ${CLASS}_class_binds, written by kk._build_class_runtime next to the
-# class's property tables, is
-#   (state=@_data  P=@_data[P] ...  S=OWNER_static_S ...)
-# — `state` first, the instance properties in table order, then the static
-# properties with their defining class resolved at build (no `@`). `@` is
-# replaced by the instance name; it cannot occur in a class, property or
-# instance name (identifiers only: kk._is_ident / kk.decl._validate_*), so the
-# substitution hits exactly the placeholders. Same binds, same order as the
-# loops it replaces (14 fields: 63 -> 32 us). __kk_props / __kk_sprops stay
-# namerefs to the class's tables: kk._invoke (scope isolation), the static
-# dispatchers' shadow and kk.frameReset read them through dynamic scope.
-# Every bind is `local -n +x` / `local +x` (round 6 / P16, E1, DR20 a, review
-# F2): bash gives a new local the EXPORT attribute of the visible variable of
-# the same name, and an exported nameref exports its TARGET NAME — without +x
-# a child of the body got `MYENV=inst_data[MYENV]` for an exported MYENV the
-# property hides (also a never-set property, and the children of another
-# class's callee), `state=inst_data`, `this=inst`. With +x a child sees the
-# global value. `set -a` (allexport) would export every bind anyway, and
-# kklass's private locals with them — before K1 `__kk_body`, the whole
-# method body, in every child's environment (review F1, critic r6b): the four callers of
-# kk._invoke (kk._exec, kk._call, kk._parent, kk._constructor_exec) start with
-# `[[ $- == *a* ]] && set +a` and keep the status in their first local
-# (`__kk_ax=$?`, 0 = it was on; every early return turns it back on); it is
-# turned back on by the body function's prologue, right after the binds and
-# before the body, so the body runs with the caller's allexport. One test +
-# one arithmetic per call, no extra builtin.
-kk._run_frame_body() {   # INST ACTIVE_CLASS FN ARGS...
-    # __kk_self: the frame's instance for kk._invoke's own-instance skip (P15
-    # review round 2, N1) — private, unlike `this`, which user code may
-    # re-declare; static dispatchers shadow it.
-    local +x __kk_inst="$1" __class__="$2" __kk_fn="$3" __kk_self="$1"
-    shift 3
-    local +x this="$__kk_inst" __inst__="$__kk_inst"
-    local __kk_cv="${__kk_inst}_class"
-    local __kk_cls="${!__kk_cv:-}"
-    local -n __kk_props="${__kk_cls}_class_properties" __kk_sprops="${__kk_cls}_class_static_properties" \
-        __kk_binds="${__kk_cls:-__kk_nocls}_class_binds"
-    # +x: set -u safe; [0] is always state=. No template = a class from a
-    # cache that skips the format check (before uses U2b): it has neither the
-    # template nor its body functions (K1) — both are made here, once.
-    [[ -n ${__kk_binds[0]+x} ]] || { kk._class_binds_build "$__kk_cls"; kk._body_fns_sync "$__kk_cls"; }
-    "$__kk_fn" "$@"
+# ---------------------------------------------------------------------------
+# The method call path (perf round K3). A call runs in three bash functions:
+# the per-instance wrapper `INST.M() { kk._exec INST M OWNER "$@"; }`, ONE
+# dispatcher, and the body function FN (__kkm.OWNER.METHOD / __kkc.CLASS made
+# by kk._body_fn, K1; kk._body_none). The dispatchers:
+#   kk._exec     the wrappers, i.e. `obj.M` and `$this.M` (OWNER baked in)
+#   kk._parent   `inherited M` / `$this.parent M`
+#   kk._invoke   for kk._call (`.call`, computed properties, destructors) and
+#                kk._constructor_exec, which resolve the body first
+# Before K3 every dispatcher called kk._invoke, which called the trampoline
+# kk._run_frame_body, which called FN: two more function calls per call. bash
+# copies a function's command tree on every call, so the LENGTH of these
+# dispatchers is time too: each rare branch (an error, a cache miss, a class
+# without bind template) is a helper called only when it is needed.
+#
+# THE CORE is the same lines in kk._invoke, kk._exec and kk._parent, from the
+# isolation shadow to the `return` (test 150 K3.1 compares the three copies).
+# ACTIVE below = the class that OWNS the body ($2 in kk._invoke, $3 in
+# kk._exec, $__kk_ac in kk._parent); INST = $1. Keep the copies in step.
+#
+#  * Scope isolation (round 5 / P15, K2, DR16a). The CALLER's property and
+#    static-property names — its frame's __kk_props/__kk_sprops namerefs, seen
+#    here through dynamic scope — become plain unset locals of the dispatcher
+#    (`__kk_shd` keeps the list from ever being a bare `local`), one scope
+#    ABOVE the callee's own binds, which FN's prologue makes in FN's scope
+#    over them (in FN's scope a shadow would collide with its `local -n
+#    state`, test 066). So a callee body neither reads nor writes a name it
+#    does not bind itself. The shadow is read BEFORE this frame declares its
+#    own __kk_props. No shadow when the callee rebinds every caller name anyway:
+#      - the caller's table is the one of ACTIVE (the callee instance is that
+#        class or a subclass: same class, $this.m, another instance of it);
+#      - the callee is the caller's OWN instance (__kk_self, declared only by
+#        the dispatchers and shadowed empty by every static dispatcher — not
+#        `this`, which a helper's `local this=$1` re-declares, review round 2
+#        N1): an inherited body on it, $this.m of a parent's method,
+#        `inherited X` (review F5).
+#    Both comparisons fold case under the caller's nocasematch (review F1:
+#    case-twin classes Foo / foo and instances are legal, K3 of round 5), so
+#    with nocasematch on (`a == A`) neither skips: the shadow is always
+#    correct, only slower. At the top level `-R __kk_props` is the whole cost.
+#  * The frame's context: this / __inst__ / __class__ (+x, see below),
+#    __kk_self, and the namerefs __kk_props / __kk_sprops (the instance
+#    class's tables: the isolation above, the static dispatchers' shadow and
+#    kk.frameReset read them through dynamic scope) and __kk_binds (the bind
+#    template FN's prologue expands, K2: ${CLASS}_class_binds, an instance
+#    without class -> __kk_nocls_class_binds). No template = a class from a
+#    cache that skips the format check (before uses U2b): it has neither the
+#    template nor its body functions (K1) — kk._binds_repair makes both, once.
+#  * RESULT protocol: the caller's RESULT is saved and restored after the
+#    body, unless the body ran kk._return, which writes __kk_return_set /
+#    __kk_return_value of this frame through dynamic scope.
+#  * `unset` isolation (P15 review F3, owner 2026-10-17): bash's `unset` of a
+#    local of a PREVIOUS scope removes it, so a callee's `unset y` dropped the
+#    shadow above and the next `y` reached the caller's nameref (unset+assign
+#    wrote the caller's property, a double unset destroyed it). With
+#    localvar_unset such an unset only marks the shadow unset. The OUTERMOST
+#    call (empty frame stack) turns it on when it is off and turns it off
+#    again after the body; every nested body, every static and every plain
+#    function called from them runs with it on. A caller that has it on keeps
+#    it (bash >= 5.0 has the option; kklass needs 5.1+ anyway: SRANDOM).
+#    __KK_LVU_OWN (round 6 / P16, DR21) is set while the outermost call holds
+#    the option it turned on: the restore after the body and kk.frameReset
+#    (a `set -e` exit inside a body skips the restore; the EXIT handler calls
+#    it) turn it off only then.
+#  * The frame push/pop is kv.framePush/kv.framePop inlined (P4b): the same
+#    three kkore arrays, kept dense, so kv.frameCurrent / kv.frameClass see
+#    exactly the same stack (kk._parent and kk._warn_visibility read the arrays
+#    directly, K4).
+#  * FN runs the body: a `return N` in it returns from FN to here, so the
+#    frame is always popped and the dispatcher's status is FN's (the status
+#    is kept in __kk_cv, a scratch the core no longer needs). FN adds one frame
+#    to FUNCNAME / caller (owner decision D2): FUNCNAME[1] in a body is the
+#    dispatcher.
+#  * allexport (`set -a`): every bind is `local -n +x` / `local +x` (round 6 /
+#    P16, E1, DR20 a, review F2): bash gives a new local the EXPORT attribute
+#    of the visible variable of the same name, and an exported nameref exports
+#    its TARGET NAME — without +x a child of the body got
+#    `MYENV=inst_data[MYENV]` for an exported MYENV the property hides,
+#    `state=inst_data`, `this=inst`. With +x a child sees the global value.
+#    `set -a` would export every bind anyway, and kklass's private locals with
+#    them (review F1, critic r6b): the four dispatchers (kk._exec, kk._call,
+#    kk._parent, kk._constructor_exec) start with `[[ $- == *a* ]] && set +a`
+#    and keep the status in their first local (`__kk_ax=$?`, 0 = it was on;
+#    every early return turns it back on: kk._call_fail); FN's prologue turns
+#    it back on right after the binds, before the body, so the body runs with
+#    the caller's allexport.
+
+# kk._call_fail MESSAGE — a not-found exit of a dispatcher (rare path): the
+# message on stderr, allexport back on when the dispatcher turned it off (its
+# __kk_ax, dynamic scope), rc 1.
+kk._call_fail() {
+    echo "$1" >&2
+    (( __kk_ax )) || set -a
+    return 1
 }
 
-# Frame push/pop + RESULT protocol around one body execution. The frame
-# push/pop is kv.framePush/kv.framePop inlined (P4b): same three kkore arrays,
-# so kv.frameCurrent / kv.frameClass see exactly the same stack (kk._parent and
-# kk._warn_visibility read these arrays directly, perf round K4) — minus three
-# function calls per method call. The
-# body runs in its own function (since K1 the body function FN itself, called
-# by kk._run_frame_body): a `return` inside it must come back HERE so the frame
-# is always popped. FN is a function NAME (__kkm.OWNER.METHOD, __kkc.CLASS,
-# kk._body_none), never body text.
+# kk._binds_repair CLASS — the core met an instance class without bind
+# template (see THE CORE): make the template and the missing body functions.
+kk._binds_repair() {
+    kk._class_binds_build "$1"
+    kk._body_fns_sync "$1"
+}
+
+# kk._invoke INST ACTIVE_CLASS FN ARGS... — THE CORE around the body function
+# FN (a function NAME: __kkm.OWNER.METHOD, __kkc.CLASS, kk._body_none, never
+# body text) of a body owned by ACTIVE_CLASS, on INST.
 kk._invoke() {   # INST ACTIVE_CLASS FN ARGS...
-    # Scope isolation (round 5 / P15, K2, DR16a): the CALLER's property and
-    # static-property names — its frame's __kk_props/__kk_sprops namerefs, seen
-    # here through dynamic scope — become plain unset locals of THIS frame, folded
-    # into its first `local` (one builtin call either way), one scope above the
-    # callee's own binds in kk._run_frame_body, which binds its own names over
-    # them (placed there, a shadow would collide with its `local -n state`,
-    # test 066). So a callee body neither reads nor writes a name it does not
-    # bind itself. No shadow when the callee's frame rebinds every caller name
-    # anyway:
-    #   - the caller's table is the one of the class that OWNS the body
-    #     (ACTIVE_CLASS; the callee instance is that class or a subclass: same
-    #     class, $this.m, another instance of the class);
-    #   - the callee is the caller's OWN instance (__kk_self, declared only by
-    #     kk._run_frame_body and shadowed empty by every static dispatcher —
-    #     not `this`, which a helper's `local this=$1` re-declares, review
-    #     round 2 N1): an inherited body on it, $this.m of a parent's method,
-    #     `inherited X` (review F5).
-    # Both comparisons fold case under the caller's nocasematch (review F1:
-    # case-twin classes Foo / foo and instances are legal, K3), so with
-    # nocasematch on (`a == A`) neither skips: the shadow is always correct,
-    # only slower. One `[[ ]]`: bash copies a function body on every call, so
-    # this test stays as short as it can (an exact `[` or a helper call here
-    # measured +10..+30 us). At the top level `-R __kk_props` is the whole cost.
-    if [[ -R __kk_props && ( ${!__kk_props} != "$2_class_properties" || a == A ) && ( ${__kk_self-} != "$1" || a == A ) ]]; then
-        local __kk_inst="$1" __kk_active_class="$2" __kk_fn="$3" "${__kk_props[@]}" "${__kk_sprops[@]}"
-    else
-        local __kk_inst="$1" __kk_active_class="$2" __kk_fn="$3"
-    fi
-    shift 3
-    # (no `local this` here: kk._run_frame_body binds this, +x — review F2)
-    local __kk_caller_result="$RESULT"
-    local __kk_return_set=0
-    local __kk_return_value=""
-    # `unset` isolation (P15 review F3, owner 2026-10-17): bash's `unset` of a
-    # local of a PREVIOUS scope removes it, so a callee's `unset y` dropped the
-    # shadow above and the next `y` reached the caller's nameref (unset+assign
-    # wrote the caller's property, a double unset destroyed it). With
-    # localvar_unset such an unset only marks the shadow unset. The OUTERMOST
-    # call (empty frame stack) turns it on when it is off and restores it after
-    # the body (a `return` in the body comes back here, so the restore always
-    # runs); every nested body, every static and every plain function called
-    # from them runs with it on. A caller that has it on keeps it
-    # (bash >= 5.0 has the option; kklass needs 5.1+ anyway: SRANDOM).
-    # __KK_LVU_OWN (round 6 / P16, DR21): set while the outermost call holds the
-    # option it turned on — kk.frameReset turns it off only then (a `set -e` exit
-    # inside a body skips the restore below; the EXIT handler calls it).
-    local __kk_frame_id=${#__KLIB_FRAME_STACK[@]} __kk_lvu=
-    (( __kk_frame_id )) || [[ :$BASHOPTS: == *:localvar_unset:* ]] || { shopt -s localvar_unset; __kk_lvu=1; __KK_LVU_OWN=1; }
-    __KLIB_FRAME_STACK[__kk_frame_id]=$__kk_frame_id
-    __KLIB_FRAME_INSTANCE[__kk_frame_id]="$__kk_inst"
-    __KLIB_FRAME_CLASS[__kk_frame_id]="$__kk_active_class"
-
-    kk._run_frame_body "$__kk_inst" "$__kk_active_class" "$__kk_fn" "$@"
-    local __kk_status=$?
-    [[ -z $__kk_lvu ]] || { shopt -u localvar_unset; __KK_LVU_OWN=; }
-
+    local __kk_cv
+    [[ -R __kk_props && ( ${!__kk_props} != "$2_class_properties" || a == A ) && ( ${__kk_self-} != "$1" || a == A ) ]] \
+        && local __kk_shd "${__kk_props[@]}" "${__kk_sprops[@]}"
+    __kk_cv=$1_class
+    __kk_cv=${!__kk_cv:-}
+    local +x __class__=$2 __kk_self=$1 this=$1 __inst__=$1 __kk_caller_result=$RESULT __kk_return_set=0 __kk_return_value= __kk_frame_id=${#__KLIB_FRAME_STACK[@]}
+    local -n __kk_props=${__kk_cv}_class_properties __kk_sprops=${__kk_cv}_class_static_properties __kk_binds=${__kk_cv:-__kk_nocls}_class_binds
+    [[ -n ${__kk_binds[0]+x} ]] || kk._binds_repair "$__kk_cv"
+    (( __kk_frame_id )) || [[ :$BASHOPTS: == *:localvar_unset:* ]] || { shopt -s localvar_unset; __KK_LVU_OWN=1; }
+    __KLIB_FRAME_STACK[__kk_frame_id]=$__kk_frame_id __KLIB_FRAME_INSTANCE[__kk_frame_id]=$1 __KLIB_FRAME_CLASS[__kk_frame_id]=$2
+    "$3" "${@:4}"
+    __kk_cv=$?
+    (( __kk_frame_id )) || [[ -z $__KK_LVU_OWN ]] || { shopt -u localvar_unset; __KK_LVU_OWN=; }
     unset '__KLIB_FRAME_STACK[$__kk_frame_id]' '__KLIB_FRAME_INSTANCE[$__kk_frame_id]' '__KLIB_FRAME_CLASS[$__kk_frame_id]'
-    if (( __kk_return_set )); then
-        RESULT="$__kk_return_value"
-    else
-        RESULT="$__kk_caller_result"
-    fi
-    return $__kk_status
+    RESULT=$__kk_caller_result
+    (( __kk_return_set )) && RESULT=$__kk_return_value
+    return $__kk_cv
 }
 
 # Static dispatch used by the per-instance method wrappers: the wrapper names
@@ -1751,21 +1751,32 @@ kk._invoke() {   # INST ACTIVE_CLASS FN ARGS...
 # body walks up from where the body was defined (Pascal semantics). This is
 # also what `$this.NAME` inside a body runs (R2_P8: the body text is no longer
 # rewritten into `.call NAME`), so a call is virtual as of `.new`.
+# SET-ness of the body variable, not emptiness (R2_P8, divergence c): an empty
+# body is a valid no-op and runs silently with rc 0, exactly as `.call` runs
+# it. The body variable says whether the method exists; its function runs it
+# (K1). Then THE CORE (ACTIVE = OWNER), inline (K3).
 kk._exec() {   # INST METHOD OWNER ARGS...
-    [[ $- == *a* ]] && set +a          # set -a: see kk._run_frame_body
-    local __kk_ax=$? __kk_inst="$1" __kk_m="$2" __kk_owner="$3"
-    shift 3
-    # SET-ness, not emptiness (R2_P8, divergence c): an empty body is a valid
-    # no-op and runs silently with rc 0, exactly as `.call` runs it. The body
-    # variable says whether the method exists; its function runs it (K1).
-    local __kk_bv="${__kk_owner}_method_body_${__kk_m}"
-    if [[ -z ${!__kk_bv+x} ]]; then
-        echo "Error: Method '$__kk_m' not found in class '$__kk_owner'" >&2
-        (( __kk_ax )) || set -a; return 1
-    fi
-    local __kk_np="${__kk_owner}_has_nonpublic"
-    [[ "${!__kk_np:-1}" == "0" ]] || kk._warn_visibility "$__kk_owner" method "$__kk_m"
-    kk._invoke "$__kk_inst" "$__kk_owner" "__kkm.$__kk_owner.$__kk_m" "$@"
+    [[ $- == *a* ]] && set +a
+    local __kk_ax=$? __kk_cv=$3_method_body_$2
+    [[ -n ${!__kk_cv+x} ]] || { kk._call_fail "Error: Method '$2' not found in class '$3'"; return; }
+    __kk_cv=$3_has_nonpublic
+    [[ ${!__kk_cv:-1} == 0 ]] || kk._warn_visibility "$3" method "$2"
+    [[ -R __kk_props && ( ${!__kk_props} != "$3_class_properties" || a == A ) && ( ${__kk_self-} != "$1" || a == A ) ]] \
+        && local __kk_shd "${__kk_props[@]}" "${__kk_sprops[@]}"
+    __kk_cv=$1_class
+    __kk_cv=${!__kk_cv:-}
+    local +x __class__=$3 __kk_self=$1 this=$1 __inst__=$1 __kk_caller_result=$RESULT __kk_return_set=0 __kk_return_value= __kk_frame_id=${#__KLIB_FRAME_STACK[@]}
+    local -n __kk_props=${__kk_cv}_class_properties __kk_sprops=${__kk_cv}_class_static_properties __kk_binds=${__kk_cv:-__kk_nocls}_class_binds
+    [[ -n ${__kk_binds[0]+x} ]] || kk._binds_repair "$__kk_cv"
+    (( __kk_frame_id )) || [[ :$BASHOPTS: == *:localvar_unset:* ]] || { shopt -s localvar_unset; __KK_LVU_OWN=1; }
+    __KLIB_FRAME_STACK[__kk_frame_id]=$__kk_frame_id __KLIB_FRAME_INSTANCE[__kk_frame_id]=$1 __KLIB_FRAME_CLASS[__kk_frame_id]=$3
+    "__kkm.$3.$2" "${@:4}"
+    __kk_cv=$?
+    (( __kk_frame_id )) || [[ -z $__KK_LVU_OWN ]] || { shopt -u localvar_unset; __KK_LVU_OWN=; }
+    unset '__KLIB_FRAME_STACK[$__kk_frame_id]' '__KLIB_FRAME_INSTANCE[$__kk_frame_id]' '__KLIB_FRAME_CLASS[$__kk_frame_id]'
+    RESULT=$__kk_caller_result
+    (( __kk_return_set )) && RESULT=$__kk_return_value
+    return $__kk_cv
 }
 
 # Find the first class in the chain starting at SEARCH_CLASS that holds a body
@@ -1797,7 +1808,7 @@ kk._find_method() {   # METHOD SEARCH_CLASS
 # resolved class is mapped to the DEFINING class so nested `inherited`
 # continues from the right level.
 kk._call() {   # INST METHOD ARGS...
-    [[ $- == *a* ]] && set +a          # set -a: see kk._run_frame_body
+    [[ $- == *a* ]] && set +a          # set -a: see THE CORE above kk._invoke
     local __kk_ax=$? __kk_inst="$1" __kk_m="$2"
     shift 2
     local __kk_cv="${__kk_inst}_class"
@@ -1809,8 +1820,8 @@ kk._call() {   # INST METHOD ARGS...
         kk._find_method "$__kk_m" "$__kk_search"
         __kk_found="$__kk_find_class"
         if [[ -z "$__kk_found" ]]; then
-            echo "Error: Method '$__kk_m' not found in class hierarchy" >&2
-            (( __kk_ax )) || set -a; return 1
+            kk._call_fail "Error: Method '$__kk_m' not found in class hierarchy"
+            return
         fi
         local __kk_ov="${__kk_found}_class_method_owner[${__kk_m}]"
         [[ -n "${!__kk_ov:-}" ]] && __kk_found="${!__kk_ov:-}"
@@ -1828,58 +1839,68 @@ kk._call() {   # INST METHOD ARGS...
 }
 
 # `inherited` / $this.parent: STATIC resolution from the parent of the class
-# that owns the CURRENTLY RUNNING body (frame class), not of the instance.
+# that owns the CURRENTLY RUNNING body (frame class), not of the instance —
+# outside any frame, the instance's class. The frame class is read straight
+# from the arrays the core writes (K4): kv.frameCurrent/kv.frameClass cost
+# ~60 us here and overwrote RESULT, so the parent body saw the frame's class
+# name as its caller's RESULT. __kk_return_silent: internal dispatch (see
+# kk._call), the parent body's kk._return answers in RESULT, no echo. The
+# answer is cached per class under the key CLASS_parent_METHOD (a miss:
+# kk._parent_find). An unset body variable runs as an empty body (as in
+# kk._call). Then THE CORE (ACTIVE = the defining class of the parent body,
+# __kk_ac), inline (K3).
 kk._parent() {   # INST METHOD ARGS...
-    [[ $- == *a* ]] && set +a          # set -a: see kk._run_frame_body
-    local __kk_ax=$? __kk_inst="$1" __kk_m="$2"
-    shift 2
-    # Internal dispatch (see kk._call): result via RESULT, no echo.
-    local __kk_return_silent=1
-    local __kk_cv="${__kk_inst}_class"
-    local __kk_active="${!__kk_cv:-}"
-    # The frame class read straight from the arrays kk._invoke writes (K4):
-    # kv.frameCurrent/kv.frameClass cost ~60 us here and overwrote RESULT, so
-    # the parent body saw the frame's class name as its caller's RESULT.
-    local __kk_frame=${#__KLIB_FRAME_STACK[@]}
-    if (( __kk_frame )); then
-        __kk_frame=${__KLIB_FRAME_STACK[__kk_frame-1]-}
-        [[ -z $__kk_frame ]] || __kk_active=${__KLIB_FRAME_CLASS[__kk_frame]-}
-    fi
+    [[ $- == *a* ]] && set +a
+    local __kk_ax=$? __kk_return_silent=1 __kk_cv=$1_class __kk_ac __kk_fn=${#__KLIB_FRAME_STACK[@]}
+    (( __kk_fn )) && __kk_fn=${__KLIB_FRAME_STACK[__kk_fn-1]-} && [[ -n $__kk_fn ]] \
+        && __kk_ac=${__KLIB_FRAME_CLASS[__kk_fn]-} || __kk_ac=${!__kk_cv:-}
+    __kk_fn=${__kk_ac}_parent_class
+    [[ -n ${!__kk_fn:-} ]] || { kk._call_fail "Error: No parent class for '${__kk_ac}'"; return; }
+    __kk_fn=${__kk_ac}_method_cache[${__kk_ac}_parent_$2]
+    __kk_fn=${!__kk_fn:-}
+    if [[ -z $__kk_fn ]]; then kk._parent_find "$2"; [[ -n $__kk_fn ]] || return 1; fi
+    __kk_ac=$__kk_fn
+    __kk_fn=${__kk_ac}_method_body_$2
+    [[ -n ${!__kk_fn+x} ]] && __kk_fn=__kkm.$__kk_ac.$2 || __kk_fn=kk._body_none
+    __kk_cv=${__kk_ac}_has_nonpublic
+    [[ ${!__kk_cv:-1} == 0 ]] || kk._warn_visibility "$__kk_ac" method "$2"
+    [[ -R __kk_props && ( ${!__kk_props} != "${__kk_ac}_class_properties" || a == A ) && ( ${__kk_self-} != "$1" || a == A ) ]] \
+        && local __kk_shd "${__kk_props[@]}" "${__kk_sprops[@]}"
+    __kk_cv=$1_class
+    __kk_cv=${!__kk_cv:-}
+    local +x __class__=$__kk_ac __kk_self=$1 this=$1 __inst__=$1 __kk_caller_result=$RESULT __kk_return_set=0 __kk_return_value= __kk_frame_id=${#__KLIB_FRAME_STACK[@]}
+    local -n __kk_props=${__kk_cv}_class_properties __kk_sprops=${__kk_cv}_class_static_properties __kk_binds=${__kk_cv:-__kk_nocls}_class_binds
+    [[ -n ${__kk_binds[0]+x} ]] || kk._binds_repair "$__kk_cv"
+    (( __kk_frame_id )) || [[ :$BASHOPTS: == *:localvar_unset:* ]] || { shopt -s localvar_unset; __KK_LVU_OWN=1; }
+    __KLIB_FRAME_STACK[__kk_frame_id]=$__kk_frame_id __KLIB_FRAME_INSTANCE[__kk_frame_id]=$1 __KLIB_FRAME_CLASS[__kk_frame_id]=$__kk_ac
+    "$__kk_fn" "${@:3}"
+    __kk_cv=$?
+    (( __kk_frame_id )) || [[ -z $__KK_LVU_OWN ]] || { shopt -u localvar_unset; __KK_LVU_OWN=; }
+    unset '__KLIB_FRAME_STACK[$__kk_frame_id]' '__KLIB_FRAME_INSTANCE[$__kk_frame_id]' '__KLIB_FRAME_CLASS[$__kk_frame_id]'
+    RESULT=$__kk_caller_result
+    (( __kk_return_set )) && RESULT=$__kk_return_value
+    return $__kk_cv
+}
 
-    local __kk_pv="${__kk_active}_parent_class"
-    local __kk_parent_of="${!__kk_pv:-}"
-    if [[ -z "$__kk_parent_of" ]]; then
-        echo "Error: No parent class for '${__kk_active}'" >&2
-        (( __kk_ax )) || set -a; return 1
-    fi
-
-    local __kk_key="${__kk_active}_parent_${__kk_m}"
-    local __kk_cache_cell="${__kk_active}_method_cache[${__kk_key}]"
-    local __kk_found="${!__kk_cache_cell:-}"
-    if [[ -z "$__kk_found" ]]; then
-        kk._find_method "$__kk_m" "$__kk_parent_of"
-        __kk_found="$__kk_find_class"
-        if [[ -z "$__kk_found" ]]; then
-            echo "Error: Parent method '$__kk_m' not found" >&2
-            (( __kk_ax )) || set -a; return 1
-        fi
-        local __kk_ov="${__kk_found}_class_method_owner[${__kk_m}]"
-        [[ -n "${!__kk_ov:-}" ]] && __kk_found="${!__kk_ov:-}"
-        local -n __kk_cache="${__kk_active}_method_cache"
-        __kk_cache["$__kk_key"]="$__kk_found"
-    fi
-
-    local __kk_bv="${__kk_found}_method_body_${__kk_m}" __kk_fn="__kkm.$__kk_found.$__kk_m"
-    [[ -n ${!__kk_bv+x} ]] || __kk_fn=kk._body_none     # as in kk._call
-    local __kk_np="${__kk_found}_has_nonpublic"
-    [[ "${!__kk_np:-1}" == "0" ]] || kk._warn_visibility "$__kk_found" method "$__kk_m"
-    kk._invoke "$__kk_inst" "$__kk_found" "$__kk_fn" "$@"
+# kk._parent_find METHOD — a miss of kk._parent's cache (rare path): the
+# class that holds the parent body, from the parent of kk._parent's __kk_ac,
+# mapped to its DEFINING class, into kk._parent's __kk_fn and the cache;
+# rc 1 + message when there is none.
+kk._parent_find() {   # METHOD
+    local __kk_pv=${__kk_ac}_parent_class
+    kk._find_method "$1" "${!__kk_pv}"
+    [[ -n $__kk_find_class ]] || { kk._call_fail "Error: Parent method '$1' not found"; return; }
+    __kk_fn=$__kk_find_class
+    __kk_pv="${__kk_fn}_class_method_owner[$1]"
+    [[ -n ${!__kk_pv:-} ]] && __kk_fn=${!__kk_pv}
+    local -n __kk_cache="${__kk_ac}_method_cache"
+    __kk_cache["${__kk_ac}_parent_$1"]=$__kk_fn
 }
 
 # Run the class constructor body (if any) in a frame of CLASS: its function
 # __kkc.CLASS (K1, kk._body_fn).
 kk._constructor_exec() {   # INST CLASS ARGS...
-    [[ $- == *a* ]] && set +a          # set -a: see kk._run_frame_body
+    [[ $- == *a* ]] && set +a          # set -a: see THE CORE above kk._invoke
     local __kk_ax=$? __kk_inst="$1" __kk_cls="$2"
     shift 2
     local __kk_bv="${__kk_cls}_constructor_body"
@@ -1938,7 +1959,7 @@ kk._class_static_api() {
                     echo \"\${${static_owner}_static_${sp}-}\"
                 fi
             }"
-        # +x: export-safe, as kk._run_frame_body's binds (round 6 / P16, E1);
+        # +x: export-safe, as the body functions' binds (round 6 / P16, E1);
         # dumped into .ckk caches (format 3)
         static_namerefs+="local -n +x $sp=${static_owner}_static_${sp}; "
     done
@@ -2439,7 +2460,7 @@ kk._build_class_runtime() {
     for m in "${!static_meth_owner[@]}"; do
         eval "${class_name}_class_static_method_owner[\"$m\"]=\"${static_meth_owner[$m]}\""
     done
-    # The bind template kk._run_frame_body expands with one `local -n +x`
+    # The bind template the body functions expand with one `local -n +x`
     # (perf round K2, see there): written here, with the property tables it
     # mirrors — this is the only writer of those tables (a rebuild after
     # kk.class --forget rewrites both); dumped into .ckk caches (format 5).

@@ -102,6 +102,31 @@ functions as the guarantees allow; move rare branches (set -a, visibility
 warning, errors, the outermost localvar_unset toggle) into helpers called only
 when needed; precompute per-class flags at build. Target: call1 ≤ 0.6× main.
 
+**Implemented 2026-11-08** (ledger K3). A call is now wrapper → ONE
+dispatcher → body function: kk._exec (wrappers, `$this.M`), kk._parent
+(`inherited`), kk._invoke (kk._call, kk._constructor_exec). kk._run_frame_body
+is gone; THE CORE (isolation shadow, this/__inst__/__class__/__kk_self, the
+table namerefs, frame push/pop, localvar_unset, RESULT protocol, the FN call)
+is inline in all three — the same text, compared by test 150 K3.1 — and the
+shadow stays one scope above FN's binds. Rare branches are helpers:
+kk._call_fail (not-found + set -a restore), kk._binds_repair (class without
+template), kk._parent_find (parent-cache miss, called as a plain command so a
+`set -e` caller dies exactly where it did). Measured steps (Git-bash, call1 µs,
+probe overrides): fold kk._run_frame_body into kk._invoke 165 → 134; inline
+the core into kk._exec 134 → 115; inline the outermost localvar_unset toggle
+(a helper call cost more than its copy) 114 → 106; fewer locals (the class
+looked up once, FN's prologue binds from `$this` instead of a private
+`__kk_inst`, the status in the scratch `__kk_cv`, `"${@:4}"` instead of
+`shift` + a name local) 106 → 102; kk._parent inline + a one-line frame read:
+inherited 334 → 253. The local cost floor here is ~1.1 µs per `local` word,
+~1 µs per command, ~4.5 µs per function call. Not taken: passing the instance
+class in the wrapper (−2 µs, would need .ckk format 7) and a per-class
+precomputed existence/visibility table (the body variable's set-ness is
+pinned by test 132). Wrapper and .ckk format unchanged (6). Bench Git-bash
+5.3.15, 5 rounds, cur/main: call1 0.55, call14 0.50, long 0.45, inherited
+0.43, nested 0.53, prop 1.03, newdel 1.00; lab VM debian bash 5.1.16: 0.57 /
+0.49 / 0.43 / 0.48 / 0.56; 5.2.37: 0.57 / 0.49 / 0.42 / 0.46 / 0.57.
+
 ### K5 — drift fix: dropped (K0: no drift on any platform).
 
 ### K6 — rejected (D1).

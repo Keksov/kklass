@@ -2,7 +2,7 @@
 # StaticInstanceClash (round 4 / P12, finding V1, decision DR10).
 #
 # Inside a member body every property of the instance AND every static
-# property of the class is a plain variable name (kk._run_frame_body binds the
+# property of the class is a plain variable name (the body function binds the
 # instance namerefs first, then the static ones). With an instance property
 # and a static property of the SAME name the static one won: `x=fromBody`
 # wrote the static, the instance's x was never touched — on every path (raw
