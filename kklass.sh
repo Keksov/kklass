@@ -599,13 +599,15 @@ kk._class_instances() {
 # round 6 / P16 (the fat static dispatchers bind their static properties
 # `local -n +x`, E1); format 4 = launch L7.2-K (on a bash that drops raw CRs
 # when it parses — MSYS2/Cygwin — every raw CR in a dumped body is written as a
-# `$'\r'` word, kk._fn_text_cr; a format-3 cache from such a bash lost them).
-# autoloadClasses rebuilds a
+# `$'\r'` word, kk._fn_text_cr; a format-3 cache from such a bash lost them);
+# format 5 = perf round K2 (every class has the bind template
+# ${CLASS}_class_binds that kk._run_frame_body expands; a format-4 cache has
+# none). autoloadClasses rebuilds a
 # cache of another format (kk._ckk_file_format; with --no-compile it runs the
 # source instead); one sourced directly loads no class, says why once
 # (kk._ckk_class) and its `source` returns 1 (kk._ckk_end). Caches older than
 # uses U2b (no kk._ckk_begin at all) are not checked when sourced directly.
-declare -g __KK_CKK_FORMAT=4
+declare -g __KK_CKK_FORMAT=5
 
 # kk._ckk_begin UNIT REL [ABS] — a compiled cache starts (see above).
 kk._ckk_begin() {
@@ -677,7 +679,7 @@ kk._ckk_class() {
     if [[ -n ${__KK_CKK_FMT-} && $__KK_CKK_FMT != "$__KK_CKK_FORMAT" ]]; then
         if [[ -z ${__KK_CKK_FMT_SAID-} ]]; then
             __KK_CKK_FMT_SAID=1
-            echo "kklass: the compiled cache '${__KK_CKK_PATH-}' has cache format $__KK_CKK_FMT, this kklass reads format $__KK_CKK_FORMAT (format 2: round 5 / P15 scope isolation; format 3: round 6 / P16 export-safe static bindings; format 4: CR-faithful method bodies on MSYS2/Cygwin); its classes are not loaded — recompile it: bash kklass_compiler.sh SOURCE CACHE (autoloadClasses without --no-compile rebuilds it)" >&2
+            echo "kklass: the compiled cache '${__KK_CKK_PATH-}' has cache format $__KK_CKK_FMT, this kklass reads format $__KK_CKK_FORMAT (format 2: round 5 / P15 scope isolation; format 3: round 6 / P16 export-safe static bindings; format 4: CR-faithful method bodies on MSYS2/Cygwin; format 5: per-class field-bind templates); its classes are not loaded — recompile it: bash kklass_compiler.sh SOURCE CACHE (autoloadClasses without --no-compile rebuilds it)" >&2
         fi
         return 1
     fi
@@ -1453,10 +1455,43 @@ declare -g __KK_LVU_OWN=
 # kk._class_static_api): no instance properties; it stays empty.
 declare -ga __kk_k2_none=()
 
+# The bind template of an instance without a class (its `_class` variable is
+# gone: deleted while a body of it still runs): `state` only, as before K2.
+# The template must never be unset or empty: "${a[@]//@/x}" of an unset array
+# is an unbound-variable error under `set -u` on bash 5.1.
+declare -ga __kk_nocls_class_binds=('state=@_data')
+
+# kk._class_binds_build CLASS — write ${CLASS}_class_binds from the class's
+# property tables (kk._build_class_runtime, right after it wrote them; and
+# kk._run_frame_body for a class that has tables but no template: a cache from
+# before uses U2b, sourced directly, skips the format check — without the
+# template every body of it would bind nothing; K2 critic finding 1).
+kk._class_binds_build() {   # CLASS
+    local __kk_c="$1" __kk_x
+    local -n __kk_bp="${__kk_c}_class_properties" __kk_bs="${__kk_c}_class_static_properties" \
+        __kk_bo="${__kk_c}_class_static_property_owner"
+    local -a __kk_b=('state=@_data')
+    for __kk_x in "${__kk_bp[@]}"; do __kk_b+=("$__kk_x=@_data[$__kk_x]"); done
+    for __kk_x in "${__kk_bs[@]}"; do __kk_b+=("$__kk_x=${__kk_bo[$__kk_x]:-$__kk_c}_static_$__kk_x"); done
+    eval "declare -ga ${__kk_c}_class_binds=(\"\${__kk_b[@]}\")"
+}
+
 # Run BODY with the instance context in scope: this/__inst__/__class__, the
 # `state` nameref to the data array, one nameref per property (including
 # inherited ones; the list is the one of the instance class) and one per
 # static property (bound to the DEFINING class storage).
+# All of them come from ONE `local -n +x` (perf round K2): the per-class
+# template ${CLASS}_class_binds, written by kk._build_class_runtime next to the
+# class's property tables, is
+#   (state=@_data  P=@_data[P] ...  S=OWNER_static_S ...)
+# — `state` first, the instance properties in table order, then the static
+# properties with their defining class resolved at build (no `@`). `@` is
+# replaced by the instance name; it cannot occur in a class, property or
+# instance name (identifiers only: kk._is_ident / kk.decl._validate_*), so the
+# substitution hits exactly the placeholders. Same binds, same order as the
+# loops it replaces (14 fields: 63 -> 32 us). __kk_props / __kk_sprops stay
+# namerefs to the class's tables: kk._invoke (scope isolation), the static
+# dispatchers' shadow and kk.frameReset read them through dynamic scope.
 # Every bind is `local -n +x` / `local +x` (round 6 / P16, E1, DR20 a, review
 # F2): bash gives a new local the EXPORT attribute of the visible variable of
 # the same name, and an exported nameref exports its TARGET NAME — without +x
@@ -1478,21 +1513,12 @@ kk._run_frame_body() {   # INST ACTIVE_CLASS BODY ARGS...
     local +x __kk_inst="$1" __class__="$2" __kk_method_body="$3" __kk_self="$1"
     shift 3
     local +x this="$__kk_inst" __inst__="$__kk_inst"
-    local -n +x state="${__kk_inst}_data"
     local __kk_cv="${__kk_inst}_class"
     local __kk_cls="${!__kk_cv:-}"
-    local -n __kk_props="${__kk_cls}_class_properties"
-    local __kk_p
-    for __kk_p in "${__kk_props[@]}"; do
-        local -n +x "${__kk_p}=${__kk_inst}_data[${__kk_p}]"
-    done
-    local -n __kk_sprops="${__kk_cls}_class_static_properties"
-    if (( ${#__kk_sprops[@]} )); then
-        local -n __kk_sowner="${__kk_cls}_class_static_property_owner"
-        for __kk_p in "${__kk_sprops[@]}"; do
-            local -n +x "${__kk_p}=${__kk_sowner[$__kk_p]:-$__kk_cls}_static_${__kk_p}"
-        done
-    fi
+    local -n __kk_props="${__kk_cls}_class_properties" __kk_sprops="${__kk_cls}_class_static_properties" \
+        __kk_binds="${__kk_cls:-__kk_nocls}_class_binds"
+    [[ -n ${__kk_binds[0]+x} ]] || kk._class_binds_build "$__kk_cls"   # +x: set -u safe; [0] is always state=
+    local -n +x "${__kk_binds[@]//@/$__kk_inst}"
     (( __kk_ax )) || set -a
 
     eval "$__kk_method_body"
@@ -1500,8 +1526,9 @@ kk._run_frame_body() {   # INST ACTIVE_CLASS BODY ARGS...
 
 # Frame push/pop + RESULT protocol around one body execution. The frame
 # push/pop is kv.framePush/kv.framePop inlined (P4b): same three kkore arrays,
-# so kv.frameCurrent / kv.frameClass in kk._parent and kk._warn_visibility see
-# exactly the same stack — minus three function calls per method call. The
+# so kv.frameCurrent / kv.frameClass see exactly the same stack (kk._parent and
+# kk._warn_visibility read these arrays directly, perf round K4) — minus three
+# function calls per method call. The
 # body must stay in its own function (kk._run_frame_body): a `return` inside
 # it must come back HERE so the frame is always popped.
 kk._invoke() {   # INST ACTIVE_CLASS BODY ARGS...
@@ -2253,6 +2280,11 @@ kk._build_class_runtime() {
     for m in "${!static_meth_owner[@]}"; do
         eval "${class_name}_class_static_method_owner[\"$m\"]=\"${static_meth_owner[$m]}\""
     done
+    # The bind template kk._run_frame_body expands with one `local -n +x`
+    # (perf round K2, see there): written here, with the property tables it
+    # mirrors — this is the only writer of those tables (a rebuild after
+    # kk.class --forget rewrites both); dumped into .ckk caches (format 5).
+    kk._class_binds_build "$class_name"
     # Instance-method owners (defining class of each body) — the anchor for
     # Pascal-correct `inherited`/.parent resolution.
     eval "declare -gA ${class_name}_class_method_owner=()"
