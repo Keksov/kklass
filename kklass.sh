@@ -1683,7 +1683,11 @@ kk._body_fns_old() {   # CLASS
 #    __KK_LVU_OWN (round 6 / P16, DR21) is set while the outermost call holds
 #    the option it turned on: the restore after the body and kk.frameReset
 #    (a `set -e` exit inside a body skips the restore; the EXIT handler calls
-#    it) turn it off only then.
+#    it) turn it off only then. Its value is the owner's call depth
+#    (${#FUNCNAME[@]}): a method called between the toggle and the frame push
+#    (a DEBUG trap under set -T, a signal trap) also sees an empty frame stack,
+#    but at another depth, so it leaves the outer call's option alone (K3
+#    critic finding; before K3 a per-call local flag did this).
 #  * The frame push/pop is kv.framePush/kv.framePop inlined (P4b): the same
 #    three kkore arrays, kept dense, so kv.frameCurrent / kv.frameClass see
 #    exactly the same stack (kk._parent and kk._warn_visibility read the arrays
@@ -1735,15 +1739,15 @@ kk._invoke() {   # INST ACTIVE_CLASS FN ARGS...
     local +x __class__=$2 __kk_self=$1 this=$1 __inst__=$1 __kk_caller_result=$RESULT __kk_return_set=0 __kk_return_value= __kk_frame_id=${#__KLIB_FRAME_STACK[@]}
     local -n __kk_props=${__kk_cv}_class_properties __kk_sprops=${__kk_cv}_class_static_properties __kk_binds=${__kk_cv:-__kk_nocls}_class_binds
     [[ -n ${__kk_binds[0]+x} ]] || kk._binds_repair "$__kk_cv"
-    (( __kk_frame_id )) || [[ :$BASHOPTS: == *:localvar_unset:* ]] || { shopt -s localvar_unset; __KK_LVU_OWN=1; }
+    (( __kk_frame_id )) || [[ :$BASHOPTS: == *:localvar_unset:* ]] || { shopt -s localvar_unset; __KK_LVU_OWN=${#FUNCNAME[@]}; }
     __KLIB_FRAME_STACK[__kk_frame_id]=$__kk_frame_id __KLIB_FRAME_INSTANCE[__kk_frame_id]=$1 __KLIB_FRAME_CLASS[__kk_frame_id]=$2
     "$3" "${@:4}"
     __kk_cv=$?
-    (( __kk_frame_id )) || [[ -z $__KK_LVU_OWN ]] || { shopt -u localvar_unset; __KK_LVU_OWN=; }
+    (( __kk_frame_id )) || [[ $__KK_LVU_OWN != "${#FUNCNAME[@]}" ]] || { shopt -u localvar_unset; __KK_LVU_OWN=; }
     unset '__KLIB_FRAME_STACK[$__kk_frame_id]' '__KLIB_FRAME_INSTANCE[$__kk_frame_id]' '__KLIB_FRAME_CLASS[$__kk_frame_id]'
     RESULT=$__kk_caller_result
     (( __kk_return_set )) && RESULT=$__kk_return_value
-    return $__kk_cv
+    return "$__kk_cv"
 }
 
 # Static dispatch used by the per-instance method wrappers: the wrapper names
@@ -1768,15 +1772,15 @@ kk._exec() {   # INST METHOD OWNER ARGS...
     local +x __class__=$3 __kk_self=$1 this=$1 __inst__=$1 __kk_caller_result=$RESULT __kk_return_set=0 __kk_return_value= __kk_frame_id=${#__KLIB_FRAME_STACK[@]}
     local -n __kk_props=${__kk_cv}_class_properties __kk_sprops=${__kk_cv}_class_static_properties __kk_binds=${__kk_cv:-__kk_nocls}_class_binds
     [[ -n ${__kk_binds[0]+x} ]] || kk._binds_repair "$__kk_cv"
-    (( __kk_frame_id )) || [[ :$BASHOPTS: == *:localvar_unset:* ]] || { shopt -s localvar_unset; __KK_LVU_OWN=1; }
+    (( __kk_frame_id )) || [[ :$BASHOPTS: == *:localvar_unset:* ]] || { shopt -s localvar_unset; __KK_LVU_OWN=${#FUNCNAME[@]}; }
     __KLIB_FRAME_STACK[__kk_frame_id]=$__kk_frame_id __KLIB_FRAME_INSTANCE[__kk_frame_id]=$1 __KLIB_FRAME_CLASS[__kk_frame_id]=$3
     "__kkm.$3.$2" "${@:4}"
     __kk_cv=$?
-    (( __kk_frame_id )) || [[ -z $__KK_LVU_OWN ]] || { shopt -u localvar_unset; __KK_LVU_OWN=; }
+    (( __kk_frame_id )) || [[ $__KK_LVU_OWN != "${#FUNCNAME[@]}" ]] || { shopt -u localvar_unset; __KK_LVU_OWN=; }
     unset '__KLIB_FRAME_STACK[$__kk_frame_id]' '__KLIB_FRAME_INSTANCE[$__kk_frame_id]' '__KLIB_FRAME_CLASS[$__kk_frame_id]'
     RESULT=$__kk_caller_result
     (( __kk_return_set )) && RESULT=$__kk_return_value
-    return $__kk_cv
+    return "$__kk_cv"
 }
 
 # Find the first class in the chain starting at SEARCH_CLASS that holds a body
@@ -1871,15 +1875,15 @@ kk._parent() {   # INST METHOD ARGS...
     local +x __class__=$__kk_ac __kk_self=$1 this=$1 __inst__=$1 __kk_caller_result=$RESULT __kk_return_set=0 __kk_return_value= __kk_frame_id=${#__KLIB_FRAME_STACK[@]}
     local -n __kk_props=${__kk_cv}_class_properties __kk_sprops=${__kk_cv}_class_static_properties __kk_binds=${__kk_cv:-__kk_nocls}_class_binds
     [[ -n ${__kk_binds[0]+x} ]] || kk._binds_repair "$__kk_cv"
-    (( __kk_frame_id )) || [[ :$BASHOPTS: == *:localvar_unset:* ]] || { shopt -s localvar_unset; __KK_LVU_OWN=1; }
+    (( __kk_frame_id )) || [[ :$BASHOPTS: == *:localvar_unset:* ]] || { shopt -s localvar_unset; __KK_LVU_OWN=${#FUNCNAME[@]}; }
     __KLIB_FRAME_STACK[__kk_frame_id]=$__kk_frame_id __KLIB_FRAME_INSTANCE[__kk_frame_id]=$1 __KLIB_FRAME_CLASS[__kk_frame_id]=$__kk_ac
     "$__kk_fn" "${@:3}"
     __kk_cv=$?
-    (( __kk_frame_id )) || [[ -z $__KK_LVU_OWN ]] || { shopt -u localvar_unset; __KK_LVU_OWN=; }
+    (( __kk_frame_id )) || [[ $__KK_LVU_OWN != "${#FUNCNAME[@]}" ]] || { shopt -u localvar_unset; __KK_LVU_OWN=; }
     unset '__KLIB_FRAME_STACK[$__kk_frame_id]' '__KLIB_FRAME_INSTANCE[$__kk_frame_id]' '__KLIB_FRAME_CLASS[$__kk_frame_id]'
     RESULT=$__kk_caller_result
     (( __kk_return_set )) && RESULT=$__kk_return_value
-    return $__kk_cv
+    return "$__kk_cv"
 }
 
 # kk._parent_find METHOD — a miss of kk._parent's cache (rare path): the

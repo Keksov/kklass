@@ -547,4 +547,24 @@ TK3W.new k3w
 k3o="$( { k3w.UseSec; k3w.call Sec; } 2>&1 )"
 check "K3.11" "[kk] warning: private method 'TK3V.Priv' accessed from 'TK3W'|[kk] warning: protected method 'TK3V.Sec' accessed from 'external'" "${k3o//$'\n'/|}"
 
+kt_test_start "K3.12 a method called from a DEBUG trap (set -T) between the outermost call's localvar_unset toggle and its frame push leaves the option on for the outer body: unset isolation holds on obj.m, .call, inherited (K3 critic)"
+defineClass TK3Log "" method tick ':'
+defineClass TK3Callee "" method poke 'unset y; y=CLOBBERED'
+defineClass TK3Car "" property y method run 'k3callee.poke; echo "y=[$y]"'
+defineClass TK3CarC TK3Car method run 'inherited run'
+TK3Log.new k3log; TK3Callee.new k3callee; TK3Car.new k3car; TK3CarC.new k3carc
+k3car.property y = orig; k3carc.property y = orig
+k3o=$( shopt -u localvar_unset; set -T; trap 'k3log.tick' DEBUG
+       k3car.run; k3car.call run; k3carc.run
+       trap - DEBUG; set +T
+       echo "lvu=$(shopt -q localvar_unset && echo on || echo off) own=[${__KK_LVU_OWN-}]" )
+check "K3.12" "y=[orig]|y=[orig]|y=[orig]|lvu=off own=[]" "${k3o//$'\n'/|}"
+check "K3.12 stored" "orig orig" "$(k3car.property y) $(k3carc.property y)"
+
+kt_test_start "K3.13 the dispatchers' return code survives an IFS that contains digits"
+defineClass TK3Rc "" method r 'return 17'
+TK3Rc.new k3rc
+k3o=$( IFS=17; k3rc.r; echo "rc=$?"; k3rc.call r; echo "rc=$?" )
+check "K3.13" "rc=17|rc=17" "${k3o//$'\n'/|}"
+
 kt_test_log "150_PerfRoundK.sh completed"

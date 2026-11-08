@@ -125,7 +125,11 @@
         "Linux inherited 0.46-0.48 vs target 0.45 (Windows 0.43): the parent path is two cores plus the .parent wrapper; options: rewrite `inherited M` to `kk._parent \"$this\" M` (saves the wrapper call, changes stored body text) or pass more data through the wrapper (.ckk format 7)",
         "alpine bash 5.1 nested 1.07 (K1/main on CI) not reproduced: glibc 5.1.16 on the lab VM gives K1/main nested 0.96 and cur/main 0.56",
         "kkore/klib.sh:285 comment still names kk._run_frame_body (outside kklass)"
-      ]
+      ],
+      "critic": "Opus critic 2026-11-08: MEDIUM fixed - a method called from a DEBUG/signal trap between the outermost localvar_unset toggle and the frame push turned the option off for the outer body (unset isolation broken); __KK_LVU_OWN now holds the owner call depth ${#FUNCNAME[@]} (test K3.12). Also quoted `return \"$__kk_cv\"` (IFS with digits split it, pre-existing; K3.13). LOW (documented, not changed): ERR-trap firing counts under set -E change on not-found paths / return N.",
+      "bench_ci": "bench run 42500388872 (16c5f44) cur/main: call1 0.54-0.58 (macOS 0.64), call14 0.41-0.49, long 0.31-0.49, inherited 0.43-0.49, nested 0.50-0.57, prop/newdel ~1.0",
+      "ci": "kklass ci 42500390308: green except the 2 pre-existing tsed 008 rows",
+      "gate_local_fix": "kklass 1854/1854 Git-bash + MSYS2"
     },
     {
       "id": "K5",
@@ -139,5 +143,12 @@
       "status": "rejected",
       "reason": "D1"
     }
+  ],
+  "findings_outside_round": [
+    "stale comment kkore/klib.sh:285 names kk._run_frame_body; kcl/tutil/docs/TUtil.md:365 and kcl/tutil/README.md:327 say kk._invoke restores RESULT (kk._exec does for wrapper calls) - fix at merge",
+    "pre-existing: $(q.f) inside a body reached through inherited prints nothing (kk._parent __kk_return_silent=1 leaks via dynamic scope)",
+    "pre-existing: under set -e, .call / inherited of a missing method exits silently (kk._find_method rc 1 before the message)",
+    "pre-existing: a caller property named like a callee data array (q_data) shadows it: q.set aborts with expression recursion",
+    "pre-existing: inherited is rewritten inside string literals too (echo \"after inherited X\")"
   ]
 }
