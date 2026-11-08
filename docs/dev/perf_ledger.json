@@ -153,5 +153,5 @@
     "pre-existing: a caller property named like a callee data array (q_data) shadows it: q.set aborts with expression recursion",
     "pre-existing: inherited is rewritten inside string literals too (echo \"after inherited X\")"
   ],
-  "status": "round complete on perf 2026-11-08 (kklass 4bb2f9c, kbool 4224796); waiting for the owner go to merge into main"
+  "status": "round complete on perf 2026-11-08 (kklass 4bb2f9c, kbool 4224796); merged into main on the owner go 2026-11-08 (fast-forward to 5ad6faa, kbool 812af87), CI green on all repos; released in 0.1.1"
 }

@@ -7,6 +7,44 @@ history by phase, newest first. The user guide is
 [docs/kklass_book.md](docs/kklass_book.md). Commit hashes in parentheses point
 at the change for readers who want the diff.
 
+## 0.1.1 — 2026-11-08
+
+### Faster method calls (2026-11-08, round K)
+
+* **A method call is about 1.8 times faster and `inherited` about 2.2 times**, on
+  every platform CI covers. Time relative to 0.1.0, measured on 11 rows (Linux
+  bash 5.1 to 5.3, macOS, Git-bash, MSYS2, Cygwin): a call with one field
+  0.56–0.60, a class with 14 fields 0.46–0.51, a long body 0.33–0.50, `inherited`
+  0.44–0.48, a nested call 0.53–0.58; property reads and `new`/`delete` are
+  unchanged. A call takes 61 µs instead of 103 on Debian (bash 5.2) and 105 µs
+  instead of 183 on Git-bash.
+* How: method and constructor bodies are real functions defined once, when the
+  class is built (`__kkm.OWNER.METHOD`, `__kkc.CLASS`), instead of texts run by
+  `eval` on every call; all fields are bound by one `local -n` from a per-class
+  template; one dispatcher runs between the wrapper and the body instead of
+  three functions; `inherited` reads the frame arrays directly (2c3cdfb, cc05eb4,
+  04bb9e6, 870b92a, 16c5f44, 4bb2f9c).
+* **What code can notice:**
+  * Inside a body `FUNCNAME[0]` is the body function `__kkm.OWNER.METHOD` and
+    `FUNCNAME[1]` the dispatcher (`kk._exec`, `kk._parent` or `kk._invoke`);
+    code that walks `FUNCNAME` or `caller` sees different frames.
+  * A body is parsed when the class is built, not when it first runs: the
+    aliases and the `extglob` setting in effect at build time apply to it. A body
+    that does not parse falls back to the old `eval` on every call.
+  * Under `set -T` a RETURN trap fires 3 times per call instead of 5; under
+    `set -E` an ERR trap fires a different number of times on a call of a missing
+    method and on `return N`.
+  * `__kkm` and `__kkc` are reserved namespaces.
+  * The compiled-cache format is 6: older caches are rebuilt.
+* **Fixed:** after `inherited X` a body saw its class name in `RESULT`; it now
+  keeps the value it had. `return N` from a body could give the wrong status
+  when `IFS` contained digits.
+
+### Maintenance (2026-11-01)
+
+* `autoload` and `kkp` declare and assign separately, so the core passes the
+  strict checks of kbool's CI ShellCheck guard (7691162).
+
 ## 0.1.0 — 2026-11-01
 
 ### Control bytes in method bodies on MSYS2 and Git-bash (2026-10-31, launch L7.2)
