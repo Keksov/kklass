@@ -1075,7 +1075,16 @@ defines the method, `__kkc.CLASS` for a constructor. Inside a body
 `${FUNCNAME[0]}` is that name and `${FUNCNAME[1]}` is `kk._run_frame_body`;
 `caller`, `LINENO` and error messages from the body name it the same way. The
 property bindings are made inside that function, so `local NAME` of a property
-behaves exactly as it always did. The stored body texts
+behaves exactly as it always did. A body's text is parsed when the class is
+built, no longer at every call: a body that does not parse then (an unmatched
+`}`, extglob syntax with extglob off at that moment) falls back to being
+parsed at every call, as before; text that closes the function early with a
+matched `}` … `{` runs its middle part at build time and the method keeps only
+what precedes it; an alias defined after the build does not expand in the
+body; and a body with extglob syntax built with extglob on runs — silently not
+matching — when called with extglob off, where it used to stop with a syntax
+error. A compiled cache keeps the body texts and parses them when it is
+loaded, in the loading shell. The stored body texts
 (`CLASS_method_body_METHOD`, `CLASS_constructor_body`) are read-only mirrors:
 assigning one does not change what runs — use `defineMethod`.
 

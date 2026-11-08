@@ -261,7 +261,7 @@ k1o=$( ( set -eu; k1e.boom; echo survived ); echo "rc=$?"
        ( set -T; n=0; trap 'n=$((n+1))' RETURN; k1e.r; trap - RETURN; echo "ret=$n" ) )
 check "K1.5" "rc=1|err=1|ret=5" "${k1o//$'\n'/|}"
 
-kt_test_start "K1.6 heredoc bodies; a body that does not parse falls back to the eval of its text at every call (rc 2, nothing run at build — not even after a stray })"
+kt_test_start "K1.6 heredoc bodies; a body that does not parse — also one with an unmatched } — falls back to the eval of its text at every call (rc 2, nothing of it run at build; a MATCHED } … { early close is not detected, see the book)"
 defineClass TK1H "" method h 'cat <<EOF
 one $1
 EOF' method h2 'cat <<-"EOT"
@@ -327,7 +327,7 @@ unset -f __kkm.TK1OP.base __kkm.TK1OP.ov __kkm.TK1OC.ov __kkc.TK1OC
 k1o=$( set -u; TK1OC.new k1oc Q; k1oc.p = P; k1oc.base; k1oc.ov; declare -F __kkm.TK1OP.base __kkm.TK1OP.ov __kkm.TK1OC.ov __kkc.TK1OC | tr '\n' ' ' )
 check "K1.12" "base p=P|cov q=Q pov|__kkm.TK1OP.base __kkm.TK1OP.ov __kkm.TK1OC.ov __kkc.TK1OC " "${k1o//$'\n'/|}"
 
-kt_test_start "K1.13 a compiled cache holds the body functions (format 6) and runs in a fresh shell; a format-5 cache is refused"
+kt_test_start "K1.13 a compiled cache (format 6) dumps the body texts, not the functions, and makes the functions again when it loads (kk._body_fns_for); it runs in a fresh shell; a format-5 cache is refused"
 cat > "$K1T/k1.kk" <<'EOF'
 defineClass CK1P "" property a method show 'echo "a=$a"' method ov 'echo -n "p "'
 defineClass CK1C CK1P property b method ov 'echo -n "c "; inherited ov; echo "b=$b"' constructor 'b=$1'
@@ -335,8 +335,8 @@ EOF
 ( cd "$K1T" && bash "$KKLASS_DIR/kklass_compiler.sh" k1.kk k1.ckk.sh >/dev/null 2>"$K1T/k1.err" ); k1rc=$?
 check "K1.13 compile" "0|" "$k1rc|$(<"$K1T/k1.err")"
 check "K1.13 header" "kk._ckk_format 6" "$(grep '^kk._ckk_format ' "$K1T/k1.ckk.sh")"
-check "K1.13 dump" "__kkc.CK1C|__kkm.CK1C.ov|__kkm.CK1P.ov|__kkm.CK1P.show|" \
-    "$(grep -E '^__kk[mc]\.' "$K1T/k1.ckk.sh" | sed 's/ .*//' | LC_ALL=C sort | tr '\n' '|')"
+check "K1.13 dump" "0|kk._body_fns_for CK1C|kk._body_fns_for CK1P|" \
+    "$(grep -cE '^__kk[mc]\.' "$K1T/k1.ckk.sh")|$(grep '^kk._body_fns_for ' "$K1T/k1.ckk.sh" | tr '\n' '|')"
 k1o=$(cd "$K1T" && bash -c 'set -u; source ./k1.ckk.sh; CK1C.new o B; o.a = A; o.show; o.ov' 2>&1)
 check "K1.13 load" "a=A|c p b=B" "${k1o//$'\n'/|}"
 sed -e 's/^kk._ckk_format 6$/kk._ckk_format 5/' "$K1T/k1.ckk.sh" > "$K1T/k1old.ckk.sh"
@@ -357,5 +357,34 @@ defineClass __kkm "" property a 2>/dev/null; k1o+="class=$? "
 TK1R.new __kkc 2>/dev/null; k1o+="inst=$? "
 k1o+="owner=${__KK_NAMESPACES[__kkm]%%$__KK_SEP*}/${__KK_NAMESPACES[__kkc]%%$__KK_SEP*} taken=${_KKLASS_TAKEN[__kkm]-}"
 check "K1.15" "class=1 inst=1 owner=kklass/kklass taken=ns" "$k1o"
+
+kt_test_start "K1.16 a cache compiled from a source that turns extglob on loads whole in a shell with extglob off (every class); the extglob body fails only when called (rc 2, as before K1) and matches once extglob is on"
+mkdir -p "$K1T/ext"
+cat > "$K1T/ext/e.kk" <<'EOF'
+shopt -s extglob
+defineClass CK1E "" method m 'case $1 in @(a|b)) echo match;; *) echo nomatch;; esac' method ok 'echo ok'
+defineClass CK1F "" method f 'echo f'
+EOF
+( cd "$K1T/ext" && bash "$KKLASS_DIR/kklass_compiler.sh" e.kk e.ckk.sh >/dev/null 2>"$K1T/ext/e.err" ); k1rc=$?
+k1o=$(cd "$K1T/ext" && bash -c 'shopt -u extglob; source ./e.ckk.sh; echo "src=$?"; CK1E.new o; o.ok; CK1F.new g; g.f; o.m a >/dev/null 2>&1; echo "m=$?"; shopt -s extglob; o.m a' 2>&1)
+check "K1.16" "0|src=0|ok|f|m=2|match" "$k1rc|${k1o//$'\n'/|}"
+
+kt_test_start "K1.17 a parent from a pre-U2b cache (tables, no template, no body functions) and a child built from source: the child's build repairs the parent (kk._body_fns_old) — inherited body, .call and the parent's constructor body via the child"
+defineClass TK1OldP "" property p method base 'echo "base p=$p"' constructor 'p=$1'
+unset TK1OldP_class_binds
+unset -f __kkm.TK1OldP.base __kkc.TK1OldP
+defineClass TK1OldC TK1OldP property q method own 'echo "own q=$q"'
+TK1OldP.new k1op PP
+TK1OldC.new k1oc; k1oc.p = P
+check "K1.17" "base p=P|base p=P|base p=PP|state=@_data p=@_data[p]" "$(k1oc.base)|$(k1oc.call base)|$(k1op.base)|${TK1OldP_class_binds[*]}"
+
+kt_test_start "K1.18 a body with >&\"\$fd\" through a compiled cache writes to the descriptor (the body text, not a declare -f print of it, is what the cache holds: bash 5.1 prints >&\"\$fd\" as &> \"\$fd\")"
+mkdir -p "$K1T/fd"
+cat > "$K1T/fd/w.kk" <<'EOF'
+defineClass CK1W "" method w 'local fd=$1; printf x >&"$fd"'
+EOF
+( cd "$K1T/fd" && bash "$KKLASS_DIR/kklass_compiler.sh" w.kk w.ckk.sh >/dev/null 2>&1 )
+k1o=$(cd "$K1T/fd" && bash -c 'source ./w.ckk.sh; CK1W.new o; exec {f}>out.txt; o.w "$f"; exec {f}>&-; printf "%s|" "$(<out.txt)"; ls' 2>&1)
+check "K1.18" "x|out.txt w.ckk.sh w.kk" "${k1o//$'\n'/ }"
 
 kt_test_log "150_PerfRoundK.sh completed"

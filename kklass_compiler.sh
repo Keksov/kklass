@@ -306,6 +306,13 @@ HEADER
             [[ -n "$var_name" ]] && var_names+=("$var_name")
         done < <(compgen -A variable "${class_name}_")
         kk.compiler._dump_vars "$output_file" "${var_names[@]}"
+        # The method / constructor body functions (perf round K1, cache format
+        # 6) are NOT dumped: the loading shell makes them again from the body
+        # texts just dumped (kk._body_fns_for -> kk._body_fn), as a source build
+        # there would — a `declare -f` text differs from what was written
+        # (bash 5.1 prints >&"$fd" as &> "$fd") and needs the compiling
+        # shell's extglob to parse.
+        printf 'kk._body_fns_for %s\n' "$class_name" >> "$output_file"
 
         # Every <Class>.* function: .new (and the abstract-guard wrapper's
         # __decl_new_impl), .constructor, static accessors, static methods and
@@ -314,12 +321,6 @@ HEADER
         while IFS= read -r fn_name; do
             [[ -n "$fn_name" ]] && fn_names+=("$fn_name")
         done < <(compgen -A function "${class_name}.")
-        # the body functions of the methods it defines and of its constructor
-        # (perf round K1, kk._body_fn; cache format 6)
-        while IFS= read -r fn_name; do
-            [[ -n "$fn_name" ]] && fn_names+=("$fn_name")
-        done < <(compgen -A function "__kkm.${class_name}.")
-        declare -F "__kkc.${class_name}" >/dev/null && fn_names+=("__kkc.${class_name}")
         # kk._fn_text = the `declare -f` text; kk._fn_text_cr writes a raw CR
         # (a $'\r' word) so that sourcing the cache keeps it (L7.2-K)
         for fn_name in "${fn_names[@]}"; do

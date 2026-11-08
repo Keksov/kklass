@@ -612,8 +612,9 @@ kk._class_instances() {
 # format 5 = perf round K2 (every class has the bind template
 # ${CLASS}_class_binds that kk._run_frame_body expands; a format-4 cache has
 # none); format 6 = perf round K1 (every method / constructor body is a
-# function __kkm.OWNER.METHOD / __kkc.CLASS, kk._body_fn, dumped with its
-# class; a format-5 cache has none). autoloadClasses rebuilds a
+# function __kkm.OWNER.METHOD / __kkc.CLASS, kk._body_fn, made again when the
+# cache loads: `kk._body_fns_for CLASS` after the class's variables; a format-5
+# cache has no such line). autoloadClasses rebuilds a
 # cache of another format (kk._ckk_file_format; with --no-compile it runs the
 # source instead); one sourced directly loads no class, says why once
 # (kk._ckk_class) and its `source` returns 1 (kk._ckk_end). Caches older than
@@ -1501,12 +1502,17 @@ kk._class_binds_build() {   # CLASS
 # dispatchers test for existence, what subclasses copy, what the declarative
 # tables, the serializer, kcl tests and the parent-constructor chaining
 # (kk._invoke_constructor, still an eval: it runs in the child's frame) read.
-# Writers: kk._build_class_runtime (own methods + the constructor), defineMethod,
-# the Pascal `build` (a constructor inherited from the parent), kk._body_fns_sync
-# (a class from a cache older than uses U2b); kklass_compiler.sh dumps the
-# functions (.ckk format 6). kk.class --forget deletes nothing (the class and its
-# instances keep working until a rebuild), so it keeps them too; a rebuild
-# redefines them.
+# Writers: kk._build_class_runtime (own methods + the constructor; and an
+# ancestor from a cache older than uses U2b, kk._body_fns_old), defineMethod,
+# the Pascal `build` (a constructor inherited from the parent), a compiled
+# cache (.ckk format 6: one `kk._body_fns_for CLASS` after the class's dumped
+# variables — the functions are made again from the exactly dumped texts in
+# the LOADING shell, never dumped as `declare -f` text, so a cache behaves
+# like a source build there: bash 5.1 prints `>&"$fd"` as `&> "$fd"`, and a
+# body that only parses with extglob on gets the eval fallback below), and
+# kk._body_fns_sync (an instance class without a bind template).
+# kk.class --forget deletes nothing (the class and its instances keep working
+# until a rebuild), so it keeps them too; a rebuild redefines them.
 #
 # kk._body_fn FN BODY — define FN as BODY with the binding prologue in FRONT:
 # the property / static-property / state namerefs are bound by the body
@@ -1518,13 +1524,19 @@ kk._class_binds_build() {   # CLASS
 # it would create a plain shadow). allexport is turned back on right after
 # the binds, as before (see kk._run_frame_body). Reads __kk_binds, __kk_inst
 # and __kk_ax of the trampoline's frame through dynamic scope.
+# The text is PARSED here, when the class is built (before K1: at every call).
 # The definition is wrapped in `if :; then … fi`: bash parses that compound
-# command WHOLE before it runs any of it, so a body that does not parse — or
-# closes the function early with a stray `}` — defines nothing and runs
-# nothing here. Such a body (and one that only parses in the caller's shell
-# state, e.g. extglob patterns with extglob off at build time) falls back to
-# a function that evals the stored text at every call: exactly the pre-K1
-# behaviour, error messages included. No fork, no `$( )` (round 5 builds).
+# command whole before it runs any of it, so a body that does not parse —
+# also one with an unmatched `}` — defines nothing and runs nothing here. Such
+# a body (and one that only parses in another shell state, e.g. extglob
+# patterns with extglob off at build time) falls back to a function that
+# evals the stored text at every call: exactly the pre-K1 behaviour, error
+# messages included. Not detected (documented in the book): text that closes
+# the function early with a MATCHED `}` … `{` runs its middle part here, at
+# build, and the method keeps only what precedes the `}`; an alias defined
+# after the build does not expand in the body; a body with extglob syntax
+# built with extglob on runs (without matching) when called with it off.
+# No fork, no `$( )` (round 5 builds).
 kk._body_fn() {   # FN BODY
     { eval "if :; then $1() {
 local -n +x \"\${__kk_binds[@]//@/\$__kk_inst}\"
@@ -1547,28 +1559,61 @@ kk._body_none() {
     (( __kk_ax )) || set -a
 }
 
-# kk._body_fns_sync CLASS — define every missing body function CLASS's frames
-# can run: the own methods of CLASS and of each ancestor (owner = that class)
-# and their constructors, from the text variables. Only for a class without a
-# bind template (kk._run_frame_body): a cache older than uses U2b sourced
-# directly loads no functions. Rare path: one `declare -F` per body.
+# kk._body_fns_for CLASS [missing] — define the body functions of the methods
+# CLASS DEFINES (its owner table names CLASS; a class without that table owns
+# all of its methods) and of its constructor, from the text variables. With a
+# 2nd argument only the missing ones (one `declare -F` each). A compiled cache
+# calls it once per class after the class's variables (format 6).
+kk._body_fns_for() {   # CLASS [missing]
+    local __kk_c="$1" __kk_m __kk_v __kk_ot="${1}_class_method_owner"
+    local -n __kk_sm="${__kk_c}_class_methods" __kk_so="$__kk_ot"
+    # no owner table (very old): never subscript a missing table with a
+    # method name (it would be evaluated as arithmetic)
+    [[ ${__kk_so@a} == *A* ]] || __kk_ot=""
+    for __kk_m in ${__kk_sm[@]+"${__kk_sm[@]}"}; do
+        [[ -z $__kk_ot || ${__kk_so[$__kk_m]:-$__kk_c} == "$__kk_c" ]] || continue
+        __kk_v="${__kk_c}_method_body_${__kk_m}"
+        [[ -n ${!__kk_v+x} ]] || continue
+        [[ -z ${2-} ]] || ! declare -F "__kkm.$__kk_c.$__kk_m" >/dev/null || continue
+        kk._body_fn "__kkm.$__kk_c.$__kk_m" "${!__kk_v}"
+    done
+    __kk_v="${__kk_c}_constructor_body"
+    if [[ -n ${!__kk_v:-} ]] && { [[ -z ${2-} ]] || ! declare -F "__kkc.$__kk_c" >/dev/null; }; then
+        kk._body_fn "__kkc.$__kk_c" "${!__kk_v}"
+    fi
+    return 0
+}
+
+# kk._body_fns_sync CLASS — CLASS and each ancestor: the missing body
+# functions (kk._body_fns_for … missing). For an instance class without a bind
+# template (kk._run_frame_body): a cache older than uses U2b sourced directly
+# loads no functions. Rare path.
 kk._body_fns_sync() {   # CLASS
-    local __kk_c="$1" __kk_m __kk_v __kk_pv __kk_n=0
+    local __kk_c="$1" __kk_pv __kk_n=0
     while [[ -n $__kk_c ]] && (( __kk_n++ < 256 )); do
-        local -n __kk_sm="${__kk_c}_class_methods" __kk_so="${__kk_c}_class_method_owner"
-        for __kk_m in ${__kk_sm[@]+"${__kk_sm[@]}"}; do
-            [[ ${__kk_so[$__kk_m]:-$__kk_c} == "$__kk_c" ]] || continue
-            __kk_v="${__kk_c}_method_body_${__kk_m}"
-            [[ -n ${!__kk_v+x} ]] && ! declare -F "__kkm.$__kk_c.$__kk_m" >/dev/null || continue
-            kk._body_fn "__kkm.$__kk_c.$__kk_m" "${!__kk_v}"
-        done
-        unset -n __kk_sm __kk_so
-        __kk_v="${__kk_c}_constructor_body"
-        if [[ -n ${!__kk_v:-} ]] && ! declare -F "__kkc.$__kk_c" >/dev/null; then
-            kk._body_fn "__kkc.$__kk_c" "${!__kk_v}"
-        fi
+        kk._body_fns_for "$__kk_c" missing
         __kk_pv="${__kk_c}_parent_class"
         __kk_c=${!__kk_pv:-}
+    done
+    return 0
+}
+
+# kk._body_fns_old CLASS — kk._build_class_runtime, before it copies from the
+# parent CLASS: every ancestor that is built (has a method table) but has no
+# bind template — a class from a cache older than uses U2b — gets its
+# template and its missing body functions now, so a subclass built from source
+# can run the inherited bodies (the call path repairs only the INSTANCE's
+# class, kk._run_frame_body). One test per ancestor per build.
+kk._body_fns_old() {   # CLASS
+    local __kk_c="$1" __kk_v __kk_n=0
+    while [[ -n $__kk_c ]] && (( __kk_n++ < 256 )); do
+        __kk_v="${__kk_c}_class_binds[0]"
+        if [[ -z ${!__kk_v+x} ]] && declare -p "${__kk_c}_class_methods" &>/dev/null; then
+            kk._class_binds_build "$__kk_c"
+            kk._body_fns_for "$__kk_c" missing
+        fi
+        __kk_v="${__kk_c}_parent_class"
+        __kk_c=${!__kk_v:-}
     done
     return 0
 }
@@ -2147,6 +2192,8 @@ kk._build_class_runtime() {
 
     # Inherit from parent class if specified
     if [[ -n "$parent_class" ]]; then
+        # an ancestor from a pre-U2b cache: its template + body functions (K1)
+        kk._body_fns_old "$parent_class"
         # Copy parent properties using name reference (bash 4.3+)
         local parent_props_var="${parent_class}_class_properties"
         if declare -p "$parent_props_var" &>/dev/null; then
