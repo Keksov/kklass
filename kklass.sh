@@ -1280,11 +1280,11 @@ kk._warn_visibility() {
         owner_class="${owner_ref[$member_name]:-$class_name}"
     fi
 
-    kv.frameCurrent >/dev/null 2>&1 || true
-    current_frame="$RESULT"
-    if [[ -n "$current_frame" ]]; then
-        kv.frameClass "$current_frame" >/dev/null 2>&1 || true
-        current_class="$RESULT"
+    # straight from the frame arrays (K4, as kk._parent): no RESULT overwrite
+    current_frame=${#__KLIB_FRAME_STACK[@]}
+    if (( current_frame )); then
+        current_frame=${__KLIB_FRAME_STACK[current_frame-1]-}
+        [[ -z $current_frame ]] || current_class=${__KLIB_FRAME_CLASS[current_frame]-}
     fi
 
     case "$visibility" in
@@ -1659,12 +1659,13 @@ kk._parent() {   # INST METHOD ARGS...
     local __kk_return_silent=1
     local __kk_cv="${__kk_inst}_class"
     local __kk_active="${!__kk_cv:-}"
-    local __kk_frame=""
-    kv.frameCurrent >/dev/null 2>&1 || true
-    __kk_frame="$RESULT"
-    if [[ -n "$__kk_frame" ]]; then
-        kv.frameClass "$__kk_frame"
-        __kk_active="$RESULT"
+    # The frame class read straight from the arrays kk._invoke writes (K4):
+    # kv.frameCurrent/kv.frameClass cost ~60 us here and overwrote RESULT, so
+    # the parent body saw the frame's class name as its caller's RESULT.
+    local __kk_frame=${#__KLIB_FRAME_STACK[@]}
+    if (( __kk_frame )); then
+        __kk_frame=${__KLIB_FRAME_STACK[__kk_frame-1]-}
+        [[ -z $__kk_frame ]] || __kk_active=${__KLIB_FRAME_CLASS[__kk_frame]-}
     fi
 
     local __kk_pv="${__kk_active}_parent_class"
