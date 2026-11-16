@@ -75,6 +75,8 @@ greeter.delete
 
 * [docs/kklass_book.md](docs/kklass_book.md) — the full guide: classes,
   inheritance, the Pascal DSL, compilation and autoloading, units, serialization.
+  For framework units: the [friend tables contract](docs/kklass_book.md#friend-tables-for-framework-units)
+  (`${inst}_class`, `${inst}_data`, `${CLASS}_class_method_owner`, the dispatcher names).
 * [examples/README.md](examples/README.md) — 48 runnable examples and a demo
   runner.
 * [CONTRIBUTING.md](CONTRIBUTING.md), [CHANGELOG.md](CHANGELOG.md),

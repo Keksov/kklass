@@ -3813,6 +3813,148 @@ What it does and does not guarantee:
   (`exec 12>file`) is detected before every capture and is never written to
   or read from — the pair is simply forgotten.
 
+### Friend tables (for framework units)
+
+Everything else in this chapter explains how kklass works. This section is a
+**contract**: four kklass internals that a framework unit (today kcl's
+`fv.views`, the Free Vision port) may use directly, because going through the
+public API would cost a method call (~100 µs) for every read on its hot paths.
+A unit without per-keystroke loops over many instances must not use them:
+`inst.property`, `inst.call` and the class API do the same with access
+control. The test `kklass/tests/151_FriendTables.sh` pins everything below. A
+change to any of it is a deliberate, versioned change: the CHANGELOG says so,
+the test changes in the same commit and the friend units are adapted. Anything
+not listed here is internal and may change in any release.
+
+Friend access is **outside** the `private`/`protected` check (that is the
+point) and outside the frame bookkeeping: a friend reads and writes variables,
+it never runs a body.
+
+Rules for friend code:
+
+* Give your locals and namerefs your own prefix (`local -n __xx_d=${v}_data`).
+  A method body has the instance's fields bound as namerefs in its dynamic
+  scope (see the isolation rule), and a friend function called from a body
+  sees them.
+* Read with `${d[F]-}`, never `${d[F]}` (set -u, below).
+* Instance and class names must be valid identifiers; the tables are found by
+  name and nothing validates the name for you.
+
+| Table | Name | Type | Written by |
+|---|---|---|---|
+| instance class | `${inst}_class` | scalar string | kklass (`.new`, `.delete`) |
+| instance fields | `${inst}_data` | associative array | kklass and the instance's methods; a friend: declared fields only |
+| method owners | `${CLASS}_class_method_owner` | associative array | kklass (`build`, `defineMethod`) |
+| dispatchers | `kk._exec` `kk._call` `kk._parent` `kk._constructor_exec` | functions | kklass; tests may wrap them |
+
+#### `${inst}_class`
+
+* **Format.** A plain global string (no attributes: `${k_class@a}` is
+  empty; never a nameref or an array) holding the class the instance
+  was created with, that is the instance's **own** class, not the class that
+  defines a method: `TKid.new k` gives `k_class=TKid` also for a method that
+  `TKid` inherited from `TBase`.
+* **Lifetime.** Created by `CLASS.new INST` together with `INST_data`, removed
+  by `INST.delete`. `CLASS.new` over a live name re-creates both without
+  running the destructor. `kk.class --forget` does not touch it.
+* **set -u.** Always set for a live instance, so `v=${inst}_class; ${!v}` is
+  safe. A plain variable of yours that happens to be called `x_class` does not
+  make `x` an instance; a friend unit knows its instances from its own
+  bookkeeping.
+* **A friend may** read it. **Not** write it, unset it or turn it into
+  anything else: the instance's wrapper functions and tables were made for
+  this class.
+
+#### `${inst}_data[F]`
+
+* **Format.** A global associative array declared by `.new`, **empty** at that
+  point. The key `F` is the declared field name exactly: `var X` is
+  `${inst}_data[X]`, and a property that reads and writes a field
+  (`property P read X write X`) is stored under `X`. The value is a string.
+  Every body reads and writes its fields through this array (`X=1` in a body
+  is `inst_data[X]=1` through a nameref; `inst.property X = 1` is the same
+  assignment). Static properties are class variables and not in it; lazy and
+  computed properties keep their own machinery.
+* **Lifetime.** Created by `.new`, removed by `.delete`.
+* **set -u (never-assigned fields).** A field that neither the constructor
+  nor any method nor a friend assigned has **no key**: it is unset, not the
+  empty string. Read it `${d[X]-}` (or `${d[X]:-default}`); the bare
+  `${d[X]}` under `set -u` is *unbound variable* and ends the shell. The
+  instance's own accessors follow the same rule (`inst.property X` prints an
+  empty line, a body that reads `${X-}` gets an empty string). "Assigned or
+  not" is `[[ -n ${d[X]+x} ]]`. For framework classes this has a consequence:
+  a user constructor that skips `inherited` leaves the base class's fields
+  unset, and friend code must check the field it relies on
+  (`fv.views.insert` refuses a view whose `State` is unset).
+* **A friend may** read any key. It may **write** `d[F]=value` for a field `F`
+  declared by the instance's class or an ancestor (`var F`, or the field a
+  property is stored under), any number of times, and `unset 'd[F]'` for such
+  a field, which returns it to "never assigned". Both are what the
+  instance's own accessors do, so its methods see the value on their next
+  call (the namerefs are bound on entry to each call).
+* **A friend may not** add a key that no declared field has; write the key of
+  a **computed** property (its setter would be bypassed); `unset`, `declare`
+  or reassign the array itself; make it a nameref; rely on the order of keys.
+
+#### `${CLASS}_class_method_owner[M]`
+
+* **Format.** A global associative array, one per built class, mapping a
+  method name to the **defining class** of the body that runs for it: the
+  class itself for a method it declares or overrides, and for an inherited
+  method the original definer (copied from the parent's table when the class is
+  built; for `TKid : TBase` that inherits `Plain`, `TKid` maps `Plain` to
+  `TBase`, and a grandchild does too). The entries are the class's
+  **instance** methods and its destructor; the constructor and the static
+  methods are not entries. A class without methods has the table, empty. The
+  table also lists the accessor helpers kklass generates for properties with
+  accessors (`_get_P`, `_set_P`); their names are not promised.
+* **Lifetime.** Declared when the class is built, before any instance exists,
+  and **not removed** when instances go: it lives as long as the class.
+  `kk.class --forget C` leaves it; building `C` again re-declares it empty and
+  refills it. A friend therefore reads the table on every use and never
+  caches a lookup: a cache goes stale after `forget` and a redefinition with an
+  override. `defineMethod C M ...` sets `C`'s entry for `M` to `C` and does not
+  touch the parent's table. What the table of an already-built *subclass*, or
+  the wrapper functions of an already-created *instance*, say after a later
+  `defineMethod` or rebuild of an ancestor is not promised.
+* **Reading it,** by indirection, safe under `set -u` for a method that is not
+  an entry:
+
+  ```bash
+  c=${inst}_class;  c=${!c}                       # the instance's class
+  o=${c}_class_method_owner[$m]; owner=${!o-}     # '' = not an instance method
+  ```
+
+* **set -u.** The table is always set for a built class; an unknown method is
+  a missing key (`${t[M]-}`).
+* **A friend may** read it. **Not** write it (`defineMethod` does that).
+
+#### The dispatchers: `kk._exec`, `kk._call`, `kk._parent`, `kk._constructor_exec`
+
+* **Names and roles.** `kk._exec INST METHOD OWNER ARGS...` runs behind every
+  per-instance wrapper `INST.METHOD()` and every `$this.METHOD` (one call per
+  method call). `kk._call INST METHOD ARGS...` is `inst.call` (the method is
+  resolved virtually). `kk._parent INST METHOD ARGS...` is `inherited` and
+  `inst.parent`. `kk._constructor_exec INST CLASS ARGS...` runs the
+  constructor during `CLASS.new` (once per `.new`).
+* **Allowed: tests only.** A test may wrap them to count calls: a counting
+  function that calls a copy of the original (made from `declare -f`) as its
+  last command with `"$@"`, and unwrap by redefining the original text. Such
+  a shim leaves return codes, `RESULT`, `set -e` and `$( )` exactly as they
+  were; `151_FriendTables.sh` shows one, the counts per kind of call and the
+  removal.
+* **Not allowed:** production code must not wrap, call or redefine them. The
+  argument conventions above are for shims; the bodies, the frame arrays
+  (`__KLIB_FRAME_*`) and the locals they bind are internal.
+
+#### Not promised
+
+Every other variable and function of a class or an instance, for example
+`${CLASS}_class_methods`, `_method_cache`, `_class_binds`,
+`_instance_template`, `_method_body_*`, `__kkm.*`, `__kkc.*`, `${inst}_lazy_*`,
+the static tables, the names of the per-instance wrapper functions beyond
+`INST.METHOD`, the `.ckk` cache format, and the order of keys in any table.
+
 ---
 
 **Happy Bash OOP Programming!** 🎉
