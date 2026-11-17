@@ -1458,6 +1458,32 @@
         },
         "final_gate": "master sweep 2026-10-19 (supervisor): 5.2 30/30 8934 tests rc 0; 5.3 30/30 8935 rc 0; no leftovers; strays none both runtimes; batch capture (critic C) rejected by the supervisor under DR24"
       }
+      ,"P18": {
+        "name": "K-2: what a func answers (round 7)",
+        "status": "done (committed 2026-11-18, kklass a24830c; kcl 7a02bc4; kbool 87cd1db; pushed to perf only)",
+        "date": "2026-11-18",
+        "source": "fv ledger K-2 (P2-2b/2c-1 findings); owner decision 2026-11-17 fix in kklass; design scratchpad/k2/K2_DESIGN.md (options A/E/R/W, A chosen); owner answers Q1 S2, Q2 yes, Q3 yes, Q4 static func in this stage (.ckk 7), Q5/Q6 recommended",
+        "rule": "a func answers with what RESULT holds when its body ends, however it ends (fell off, return, return 0, a last inherited), on rc 0, printed once inside $( ) unless silent; rc != 0 without kk._return: the caller's RESULT, nothing printed (S2); kk._return V; return N = value + failure; a bare last inherited passes the parent's rc and answer; a func that never sets RESULT answers what RESULT held; a body ending in `cond && action` fails when cond is false; static func the same",
+        "changes": {
+          "kklass.sh": "__KK_CKK_FORMAT=7; kk._fret (S2); __KK_FUNC_MARK appended by kk._processMethodBody (the old trailer text, now a marker); kk._body_fn strips the marker (compared by its last characters, no quadratic % strip) and marks the frame (__kk_return_set=2) in the prologue; one identical case tail in kk._invoke / kk._exec / kk._parent (150 K3.1); static func dispatchers (thin / funsub / 5.2 file) save the caller's RESULT and answer by the rule; kk._build_class_runtime strips the marker of static bodies",
+          "kklass_decl.sh": "class_function appends the marker; getter-shim comment",
+          "docs": "README func line; book: new section 'What a func answers' (doctest), static return channels, computed-property contract (+ a failing getter reads as empty), Silent Calls (recursion caveat), grammar notes, cache format 7; CHANGELOG Unreleased",
+          "kcl": "fv.views 013 pins (return 0 answers 42, bare inherited Valid rc 1), README/comments (`|| return` optional); tqueuestack 010_CountCapture ($(q.Count) printed twice before); trailer-trap explanations in ~14 units rewritten (comments only); tstopwatch stale property-status notes"
+        },
+        "tests": "152_FuncAnswer 49 checks (39 red on HEAD on Git-bash and MSYS2); pins 130 (comment), 142 (13 doctests), 147 A4-A6 (format 7), 150 K1.13; kklass 987/987 Git-bash after the critic fixes",
+        "measurements": "interleaved A/B new/today (laptop, ratios): func 0.89-0.93, func15 0.90-0.92, inherited func 0.88-0.90, .call func 0.90-0.92, func in subshell 0.87-0.90, static func thin 0.77-0.83, procs 0.96-1.02 (noise), ret0F 1.03-1.10 (the answer step now runs on that path); CI bench call suite main vs cur (procs): 0.97-1.01 Linux/Git-bash, macOS noisy",
+        "critic": "full critic 2026-11-18: no correctness defect; fixed: quadratic marker strip on long proc texts (36-40 ms over 843 real bodies -> O(1) suffix compare), book sentence on failing getters, stale tstopwatch/kklass texts",
+        "open": {
+          "K2-O1": "thin static func dispatcher exports __kk_caller_result under set -a (the three __kk_return_* already leak today; RESULT is exported anyway); fix: local +x for thin static locals",
+          "K2-O2": "bash 5.2 scratch-file static shape: a failing static method under set -e leaks .kk_static_* in TMPDIR (pre-existing for static procs / return N; K-2 adds a static func ending in a false `cond && x`); fix: RETURN-safe cleanup or `|| __kk_status=$?` on the body line",
+          "K2-O3": "pre-existing: a func captured with $( ) inside a body run through inherited, or inside any static method body, captures nothing (local __kk_return_silent=1 seen through dynamic scope); document in Silent Calls or fix"
+        },
+        "gates": {
+          "host": "worker: 14 suites x Git 5.3.15 / MSYS2 5.3.9 / Cygwin 5.2.21 12012/12012; critic: 22 more kcl/kkore suites on Git-bash and Cygwin all pass",
+          "vm": "kklass + kcl 5.1.16 / 5.2.37 2428/2428 (after the 152 C1 fix for 5.1's declare -p quoting)",
+          "ci": "GitHub ci run 44191041738 on perf (kbool 87cd1db): kklass and every non-fv suite green on all 17 rows; the red cells are fv.* on macOS (2 rows), alpine (3 rows) and FreeBSD (2 rows): never run on those platforms before (fv P1/P2 were local), recorded as fv ledger finding PORT-1, not K-2"
+        }
+      }
     }
   }
 }
