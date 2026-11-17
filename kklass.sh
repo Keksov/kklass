@@ -614,12 +614,21 @@ kk._class_instances() {
 # none); format 6 = perf round K1 (every method / constructor body is a
 # function __kkm.OWNER.METHOD / __kkc.CLASS, kk._body_fn, made again when the
 # cache loads: `kk._body_fns_for CLASS` after the class's variables; a format-5
-# cache has no such line). autoloadClasses rebuilds a
+# cache has no such line); format 7 = round 7, fv ledger K-2 (what a func
+# answers): the dumped `static func` dispatchers CLASS.M save the caller's
+# RESULT and answer after the body (the instance rule: rc 0 prints RESULT,
+# rc != 0 restores the caller's RESULT), and their dumped bodies
+# CLASS.__static_M no longer end with the `kk._return "$RESULT"` line — a
+# format-6 cache has the old dispatchers and bodies, which would still lose
+# a `return 0` answer and mask a failing last command. Nothing else in the
+# file changed: the stored body texts keep that line as the func marker, and
+# the instance body functions are made again from them when a cache loads
+# (format 6), so they follow the new rule from any cache. autoloadClasses rebuilds a
 # cache of another format (kk._ckk_file_format; with --no-compile it runs the
 # source instead); one sourced directly loads no class, says why once
 # (kk._ckk_class) and its `source` returns 1 (kk._ckk_end). Caches older than
 # uses U2b (no kk._ckk_begin at all) are not checked when sourced directly.
-declare -g __KK_CKK_FORMAT=6
+declare -g __KK_CKK_FORMAT=7
 
 # kk._ckk_begin UNIT REL [ABS] — a compiled cache starts (see above).
 kk._ckk_begin() {
@@ -691,7 +700,7 @@ kk._ckk_class() {
     if [[ -n ${__KK_CKK_FMT-} && $__KK_CKK_FMT != "$__KK_CKK_FORMAT" ]]; then
         if [[ -z ${__KK_CKK_FMT_SAID-} ]]; then
             __KK_CKK_FMT_SAID=1
-            echo "kklass: the compiled cache '${__KK_CKK_PATH-}' has cache format $__KK_CKK_FMT, this kklass reads format $__KK_CKK_FORMAT (format 2: round 5 / P15 scope isolation; format 3: round 6 / P16 export-safe static bindings; format 4: CR-faithful method bodies on MSYS2/Cygwin; format 5: per-class field-bind templates; format 6: method bodies as functions); its classes are not loaded — recompile it: bash kklass_compiler.sh SOURCE CACHE (autoloadClasses without --no-compile rebuilds it)" >&2
+            echo "kklass: the compiled cache '${__KK_CKK_PATH-}' has cache format $__KK_CKK_FMT, this kklass reads format $__KK_CKK_FORMAT (format 2: round 5 / P15 scope isolation; format 3: round 6 / P16 export-safe static bindings; format 4: CR-faithful method bodies on MSYS2/Cygwin; format 5: per-class field-bind templates; format 6: method bodies as functions; format 7: static funcs answer like funcs); its classes are not loaded — recompile it: bash kklass_compiler.sh SOURCE CACHE (autoloadClasses without --no-compile rebuilds it)" >&2
         fi
         return 1
     fi
@@ -744,6 +753,22 @@ kk._return() {
         printf '%s' "$return_value"
         return
     fi
+}
+
+# kk._fret — what a func answers (fv ledger K-2, kklass round 7, owner
+# decisions 2026-11-17: option A, rule S2). THE CORE's tail calls it after
+# the body of a FUNC that did not call kk._return (its body function marked
+# the dispatcher's frame: __kk_return_set=2, see kk._body_fn). It runs in the
+# dispatcher's frame and reads its locals through dynamic scope: __kk_cv = the
+# body's rc, __kk_caller_result. rc 0: the func answers with what RESULT holds
+# now, however the body ended (fell off the end, `return`, `return 0`, a last
+# `inherited …`), printed once inside `$( )` unless silent — the same test as
+# kk._return. rc != 0: the caller's RESULT, nothing printed (S2; to answer a
+# value WITH a failure the body writes `kk._return V; return N`). Never fails
+# (an `if` without a taken branch is rc 0): set -e safe.
+kk._fret() {
+    if (( __kk_cv )); then RESULT=$__kk_caller_result
+    elif (( BASH_SUBSHELL )) && [[ ${__kk_return_silent:-0} != 1 ]]; then printf '%s' "${RESULT-}"; fi
 }
 
 kk.call_silent() {
@@ -1159,8 +1184,24 @@ kk._fn_text_cr_try() {   # BODY REF
     [[ $__kk_fc_v == "__kk_fc_probe () "$'\n'"$2" ]]
 }
 
-# Final form of a member body: the text as written, plus the kk._return trailer
-# for a `function`. Result in METHOD_BODY.
+# Final form of a member body: the text as written, plus the func MARKER line
+# `kk._return "$RESULT"` for a `function`. Result in METHOD_BODY.
+#
+# The marker (round 7, fv ledger K-2): up to round 6 that line was the func
+# TRAILER — it ran as the body's last command, so an explicit `return` skipped
+# it (the answer was lost), a failing last command was masked (rc 0) and a
+# body ending with `kk._return V` printed V twice inside `$( )`. It stays in
+# the stored TEXT (what subclasses copy, the serializer and the declarative
+# tables read, .ckk caches dump) only to say "this body is a func": kk._body_fn
+# cuts it off and marks the dispatcher's frame instead, and the dispatcher
+# answers after the body however it ended (kk._fret, THE CORE). The static
+# func path does the same (kk._build_class_runtime defines CLASS.__static_M
+# without the line, kk._class_static_api gives that method the func
+# dispatcher; .ckk format 7). A proc body whose text happens to end with that
+# literal line is therefore a func too (the book, "What a func answers").
+# __KK_FUNC_MARK is that suffix exactly (a newline, then the line); writers:
+# here, endImplementation (`static func`); readers: kk._body_fn,
+# kk._build_class_runtime, kk._class_static_api.
 #
 # Up to round 2 / R2_P8 this also rewrote the TEXT `$this.NAME` / `${this}.NAME`
 # into `$__inst__.call NAME` for every method NAME of the class. That was a blind
@@ -1172,16 +1213,16 @@ kk._fn_text_cr_try() {   # BODY REF
 # function (kk._exec, the defining class baked in at `.new`), which dispatches
 # virtually as of `.new`. A 5th argument (the old methods-array name) is still
 # accepted and ignored.
+declare -g __KK_FUNC_MARK=$'\n''kk._return "$RESULT"'
 kk._processMethodBody() {
     local class_name="$1"
     local method_name="$2"
     local method_body="$3"
     local meth_type="${4:-method}"
 
-    # For function type, append kk._return call
+    # For function type, append the func marker (see above; __KK_FUNC_MARK)
     if [[ "$meth_type" == "function" ]]; then
-        #method_body+=$'\n'"kk._return \"${class_name}_${method_name}\" \"\$RESULT\""
-        method_body+=$'\n'"kk._return \"\$RESULT\""
+        method_body+=$__KK_FUNC_MARK
     fi
     
     METHOD_BODY="$method_body"
@@ -1539,18 +1580,35 @@ kk._class_binds_build() {   # CLASS
 # after the build does not expand in the body; a body with extglob syntax
 # built with extglob on runs (without matching) when called with it off.
 # No fork, no `$( )` (round 5 builds).
+# A FUNC (round 7, fv ledger K-2): a text ending with the func marker
+# (__KK_FUNC_MARK, kk._processMethodBody) is defined WITHOUT that line, and
+# the prologue marks the frame instead: `(( __kk_return_set = 2, __kk_ax ))`
+# writes the dispatcher's local __kk_return_set through dynamic scope (each
+# dispatcher frame has its own: nesting and recursion keep apart), merged
+# into the allexport restore so it is one command, and run while allexport
+# is still off, so it is never exported. THE CORE's tail then sees 2 = "a func
+# that did not call kk._return" and answers (kk._fret); an explicit
+# kk._return in the body writes 1 over it, as before. The match is the exact
+# suffix, compared by its last ${#__KK_FUNC_MARK} characters with `[ = ]`
+# (case-sensitive even under nocasematch; a `%` strip would scan a long text
+# that does not end with it in quadratic time); the eval fallback gets the
+# same prologue.
 kk._body_fn() {   # FN BODY
+    local __kk_bt=$2 __kk_bm='(( __kk_ax )) || set -a'
+    if [ "${2: -${#__KK_FUNC_MARK}}" = "$__KK_FUNC_MARK" ]; then
+        __kk_bt=${2:0:${#2}-${#__KK_FUNC_MARK}} __kk_bm='(( __kk_return_set = 2, __kk_ax )) || set -a'
+    fi
     { eval "if :; then $1() {
 local -n +x \"\${__kk_binds[@]//@/\$this}\"
-(( __kk_ax )) || set -a
-$2
+$__kk_bm
+$__kk_bt
 }
 fi"; } 2>/dev/null && return 0
     local __kk_bq
-    printf -v __kk_bq '%q' "$2"
+    printf -v __kk_bq '%q' "$__kk_bt"
     eval "$1() {
 local -n +x \"\${__kk_binds[@]//@/\$this}\"
-(( __kk_ax )) || set -a
+$__kk_bm
 eval $__kk_bq
 }"
 }
@@ -1668,9 +1726,16 @@ kk._body_fns_old() {   # CLASS
 #    without class -> __kk_nocls_class_binds). No template = a class from a
 #    cache that skips the format check (before uses U2b): it has neither the
 #    template nor its body functions (K1) — kk._binds_repair makes both, once.
-#  * RESULT protocol: the caller's RESULT is saved and restored after the
-#    body, unless the body ran kk._return, which writes __kk_return_set /
-#    __kk_return_value of this frame through dynamic scope.
+#  * RESULT protocol: the caller's RESULT is saved (__kk_caller_result,
+#    __kk_return_set=0) and the one `case` after the body decides on
+#    __kk_return_set, which the body writes in this frame through dynamic
+#    scope: 0 = a proc (or a constructor) that did not call kk._return: the
+#    caller's RESULT is restored; 1 = kk._return ran: its value
+#    (__kk_return_value) is the answer, also with rc != 0 (`kk._return V;
+#    return N`); 2 = a FUNC that did not call kk._return (its body function's
+#    prologue wrote 2, kk._body_fn): kk._fret — rc 0 answers with RESULT as
+#    the body left it (printed once inside `$( )` unless silent), rc != 0
+#    restores the caller's RESULT (round 7, fv ledger K-2, rule S2).
 #  * `unset` isolation (P15 review F3, owner 2026-10-17): bash's `unset` of a
 #    local of a PREVIOUS scope removes it, so a callee's `unset y` dropped the
 #    shadow above and the next `y` reached the caller's nameref (unset+assign
@@ -1693,8 +1758,9 @@ kk._body_fns_old() {   # CLASS
 #    exactly the same stack (kk._parent and kk._warn_visibility read the arrays
 #    directly, K4).
 #  * FN runs the body: a `return N` in it returns from FN to here, so the
-#    frame is always popped and the dispatcher's status is FN's (the status
-#    is kept in __kk_cv, a scratch the core no longer needs). FN adds one frame
+#    frame is always popped, the answer step above always runs, and the
+#    dispatcher's status is FN's (the status is kept in __kk_cv, a scratch the
+#    core no longer needs; kk._fret reads it). FN adds one frame
 #    to FUNCNAME / caller (owner decision D2): FUNCNAME[1] in a body is the
 #    dispatcher.
 #  * allexport (`set -a`): every bind is `local -n +x` / `local +x` (round 6 /
@@ -1745,8 +1811,7 @@ kk._invoke() {   # INST ACTIVE_CLASS FN ARGS...
     __kk_cv=$?
     (( __kk_frame_id )) || [[ $__KK_LVU_OWN != "${#FUNCNAME[@]}" ]] || { shopt -u localvar_unset; __KK_LVU_OWN=; }
     unset '__KLIB_FRAME_STACK[$__kk_frame_id]' '__KLIB_FRAME_INSTANCE[$__kk_frame_id]' '__KLIB_FRAME_CLASS[$__kk_frame_id]'
-    RESULT=$__kk_caller_result
-    (( __kk_return_set )) && RESULT=$__kk_return_value
+    case $__kk_return_set in 0) RESULT=$__kk_caller_result ;; 1) RESULT=$__kk_return_value ;; *) kk._fret ;; esac
     return "$__kk_cv"
 }
 
@@ -1778,8 +1843,7 @@ kk._exec() {   # INST METHOD OWNER ARGS...
     __kk_cv=$?
     (( __kk_frame_id )) || [[ $__KK_LVU_OWN != "${#FUNCNAME[@]}" ]] || { shopt -u localvar_unset; __KK_LVU_OWN=; }
     unset '__KLIB_FRAME_STACK[$__kk_frame_id]' '__KLIB_FRAME_INSTANCE[$__kk_frame_id]' '__KLIB_FRAME_CLASS[$__kk_frame_id]'
-    RESULT=$__kk_caller_result
-    (( __kk_return_set )) && RESULT=$__kk_return_value
+    case $__kk_return_set in 0) RESULT=$__kk_caller_result ;; 1) RESULT=$__kk_return_value ;; *) kk._fret ;; esac
     return "$__kk_cv"
 }
 
@@ -1848,7 +1912,9 @@ kk._call() {   # INST METHOD ARGS...
 # from the arrays the core writes (K4): kv.frameCurrent/kv.frameClass cost
 # ~60 us here and overwrote RESULT, so the parent body saw the frame's class
 # name as its caller's RESULT. __kk_return_silent: internal dispatch (see
-# kk._call), the parent body's kk._return answers in RESULT, no echo. The
+# kk._call), the parent body's answer (kk._return / kk._fret) lands in RESULT,
+# no echo; its rc comes back too, so a bare last `inherited M` in a func
+# passes both (round 7, K-2). The
 # answer is cached per class under the key CLASS_parent_METHOD (a miss:
 # kk._parent_find). An unset body variable runs as an empty body (as in
 # kk._call). Then THE CORE (ACTIVE = the defining class of the parent body,
@@ -1881,8 +1947,7 @@ kk._parent() {   # INST METHOD ARGS...
     __kk_cv=$?
     (( __kk_frame_id )) || [[ $__KK_LVU_OWN != "${#FUNCNAME[@]}" ]] || { shopt -u localvar_unset; __KK_LVU_OWN=; }
     unset '__KLIB_FRAME_STACK[$__kk_frame_id]' '__KLIB_FRAME_INSTANCE[$__kk_frame_id]' '__KLIB_FRAME_CLASS[$__kk_frame_id]'
-    RESULT=$__kk_caller_result
-    (( __kk_return_set )) && RESULT=$__kk_return_value
+    case $__kk_return_set in 0) RESULT=$__kk_caller_result ;; 1) RESULT=$__kk_return_value ;; *) kk._fret ;; esac
     return "$__kk_cv"
 }
 
@@ -2013,17 +2078,42 @@ kk._class_static_api() {
         __kk_has_funsub=1
     fi
 
+    # A `static func` (round 7, fv ledger K-2, owner Q4): its stored text ends
+    # with the func marker (__KK_FUNC_MARK; kk._build_class_runtime defines its
+    # body CLASS.__static_M without that line), so its dispatcher also saves
+    # the caller's RESULT (__kk_sfl) and its tail (__kk_sft / __kk_sfr) answers
+    # by the instance rule: an explicit kk._return -> its value (as before);
+    # else rc 0 -> RESULT as the body left it, rc != 0 -> the caller's RESULT
+    # and no answer. A static func prints its answer on every call (also a
+    # direct one, as before); a capturing dispatcher appends it to REPLY. A
+    # `static proc` dispatcher is unchanged. Dumped into .ckk caches (format 7).
+    local __kk_sb __kk_sfl __kk_sft __kk_sfr
     for sm in "${__kk_sa_meths[@]}"; do
+        __kk_sb="${class_name}_static_method_body_${sm}"
+        __kk_sb=${!__kk_sb-}
+        __kk_sft="" __kk_sfr=""
+        # (the marker compared by its last characters: see kk._body_fn)
+        if ! [ "${__kk_sb: -${#__KK_FUNC_MARK}}" = "$__KK_FUNC_MARK" ]; then
+            __kk_sfl=""
+        else
+            __kk_sfl='local __kk_caller_result=${RESULT-}'
+            __kk_sft='elif (( __kk_status )); then RESULT=$__kk_caller_result
+                    else printf "%s" "${RESULT-}"'
+            __kk_sfr='elif (( __kk_status )); then RESULT=$__kk_caller_result
+                    else REPLY+=${RESULT-}'
+        fi
         if (( ${#__kk_sa_props[@]} == 0 )); then
             eval "${class_name}.${sm}() {
                     ${__kk_k2sh}
                     local __kk_return_set=0
                     local __kk_return_value=\"\"
                     local __kk_return_silent=1
+                    ${__kk_sfl}
                     ${class_name}.__static_${sm} \"\$@\"
                     local __kk_status=\$?
                     if (( __kk_return_set )); then
                         printf \"%s\" \"\$__kk_return_value\"
+                    ${__kk_sft}
                     fi
                     return \$__kk_status
                 }"
@@ -2037,11 +2127,13 @@ kk._class_static_api() {
                     local __kk_return_set=0
                     local __kk_return_value=\"\"
                     local __kk_return_silent=1
+                    ${__kk_sfl}
                     (( __kk_sa )) || set -a
                     REPLY=\${ ${class_name}.__static_${sm} \"\$@\"; }
                     local __kk_status=\$?
                     if (( __kk_return_set )); then
                         REPLY+=\"\$__kk_return_value\"
+                    ${__kk_sfr}
                     fi
                     printf \"%s\" \"\$REPLY\"
                     return \$__kk_status
@@ -2056,6 +2148,7 @@ kk._class_static_api() {
                     local __kk_return_value=\"\"
                     local __kk_return_silent=1
                     local __kk_static_out=\"\${TMPDIR:-/tmp}/.kk_static_\${BASHPID}_\${RANDOM}\${RANDOM}\"
+                    ${__kk_sfl}
                     (( __kk_sa )) || set -a
                     ${class_name}.__static_${sm} \"\$@\" >\"\$__kk_static_out\"
                     local __kk_status=\$?
@@ -2063,6 +2156,7 @@ kk._class_static_api() {
                     rm -f \"\$__kk_static_out\"
                     if (( __kk_return_set )); then
                         REPLY+=\"\$__kk_return_value\"
+                    ${__kk_sfr}
                     fi
                     printf \"%s\" \"\$REPLY\"
                     return \$__kk_status
@@ -2438,7 +2532,7 @@ kk._build_class_runtime() {
         done
     fi
 
-    # Finalize the bodies declared here (function trailer; no text rewrite
+    # Finalize the bodies declared here (the func marker; no text rewrite
     # since R2_P8).
     local __kk_om
     for __kk_om in "${!own_raw_bodies[@]}"; do
@@ -2584,9 +2678,12 @@ __INST__.delete() { kk._delete __INST__ \"\$@\"; }"
         done
         
         # The static method bodies, each in its own function
-        # Class.__static_NAME (see kk._class_static_api for why).
+        # Class.__static_NAME (see kk._class_static_api for why). A static
+        # func's text ends with the func marker: the function is defined
+        # without it, its dispatcher answers (round 7, K-2; .ckk format 7).
         for sm in "${static_meths_arr[@]}"; do
             local sm_body="${static_meth_bodies[$sm]}"
+            if [ "${sm_body: -${#__KK_FUNC_MARK}}" = "$__KK_FUNC_MARK" ]; then sm_body=${sm_body:0:${#sm_body}-${#__KK_FUNC_MARK}}; fi
             eval "${class_name}.__static_${sm}() {
                 ${sm_body}
             }"

@@ -557,8 +557,11 @@ db2.delete
 **Return channels and exit status of a static method.** The body's stdout is
 the method's stdout, and the body's exit status (`return N`, or the status of
 its last command) is the method's exit status — a static method that fails
-propagates its failure. A `func`-style static method may also set `RESULT`
-via `kk._return`; that value is appended to the output.
+propagates its failure. A `func`-style static method (`static func` in the
+Pascal DSL) answers by the func rule ([What a func answers](#what-a-func-answers)):
+with rc 0 its `RESULT` is the answer, set in `RESULT` and appended to the
+output (on a direct call too); a failing one leaves the caller's `RESULT` and
+appends nothing; `kk._return V` gives V, also with a failure.
 
 Two dispatcher shapes exist and you never choose them by hand:
 
@@ -714,7 +717,13 @@ rect.delete
 ```
 
 **How a computed property returns its value.** It follows the same contract as
-a `function`/`func` method (`kk._return`), which every kcl unit relies on:
+a `function`/`func` method ([What a func answers](#what-a-func-answers)), which
+every kcl unit relies on — a `func` getter answers with `RESULT` however its
+body ends (also `RESULT=v; return 0`), and its rc is the property read's rc
+(a predicate getter ending with `(( n > 3 ))` or `[[ … ]]` reads as a
+predicate). One difference from a direct func call: a getter that fails
+without calling `kk._return` reads as empty (`RESULT=''`), where `obj.call`
+of the same method keeps the caller's `RESULT`:
 
 | Call form | Prints | Sets `RESULT` |
 |---|---|---|
@@ -1133,14 +1142,96 @@ caches, forgetting — is the chapter [Units and uses](#units-and-uses).
 ### Silent Calls: kk.call_silent
 
 A `function` method echoes its `RESULT` when it runs in a subshell (that is how
-`$(obj.method)` works). When you call a method *from inside another method
-that is itself being captured* and only want the `RESULT`, wrap the call:
+`$(obj.method)` works) — every func that succeeds, however its body ends. When
+you call a method *from inside another method that is itself being captured*
+and only want the `RESULT`, wrap the call:
 
 ```bash
 kk.call_silent obj methodName arg1 arg2   # runs obj.call methodName; RESULT set, nothing echoed
 ```
 
-It saves and restores the silent flag, so nesting is safe.
+It saves and restores the silent flag, so nesting is safe. Without it the inner
+call prints too: a recursive func that calls itself as `$this.Fact $((n-1))`
+answers 24 for `r.Fact 4` called directly, but `$(r.Fact 4)` prints `12624`
+(each level's answer); written with `kk.call_silent "$this" Fact $((n-1))` it
+prints `24`. (`inherited` and a computed-property read are silent by
+themselves; `> /dev/null` on the inner call works too.)
+
+### What a func answers
+
+One rule, the same for every way a `func` / `function` is declared (Pascal
+`func`, `defineClass … function`, `defineFunction`, a computed-property
+getter) and for `static func`:
+
+* **A func answers with what `RESULT` holds when its body ends — however it
+  ends**: falling off the end, `return`, `return 0`, or a last `inherited …`.
+  The answer is in `RESULT` after the call, and printed **once** when the call
+  runs inside `$( )`.
+* **Its rc is its body's rc**, exactly like a `proc`'s: an explicit
+  `return N`, or the status of the last command.
+* **A func that fails (rc ≠ 0) without calling `kk._return` leaves the
+  caller's `RESULT`** and prints nothing.
+* **`kk._return V`** is the explicit answer: V is final (later assignments to
+  `RESULT` do not change it), and `kk._return V; return N` answers V *with*
+  the failure N — the one spelling for "a value and a non-zero rc".
+
+<!-- doctest -->
+```bash
+source /path/to/kbool/kbool.sh || exit
+kk.uses kklass_pascal || exit
+
+class TFinder
+    public
+        func Find
+        func Pick
+end
+TFinder.Find() {
+    if [[ $1 == a* ]]; then RESULT="starts with a"; return 0; fi
+    RESULT="other"
+}
+TFinder.Pick() { [[ -n $1 ]] || return 1; RESULT=$1; }
+build TFinder; TFinder.new f
+
+RESULT=old; f.Find apple; echo "$RESULT"      # => starts with a
+echo "$(f.Find banana)"                       # => other
+RESULT=old; f.Pick ''; echo "rc=$? $RESULT"   # => rc=1 old
+RESULT=old; f.Pick x; echo "rc=$? $RESULT"    # => rc=0 x
+f.delete
+```
+
+A bare last `inherited` passes the parent's rc and answer: an override
+`TMyDlg.Valid() { log "asked"; inherited Valid "$@"; }` refuses when the parent
+refuses (rc 1). `inherited Valid "$@" || return` keeps working and is still
+good style when more lines follow. When the parent fails WITH a value
+(`kk._return V; return N`), a bare last `inherited` passes the rc N but not V
+(the child failed without its own `kk._return`); to pass both, write
+`inherited M "$@" || rc=$?; v=$RESULT; kk._return "$v"; return "$rc"`.
+
+Three consequences to know:
+
+* **A func that never sets `RESULT` answers whatever `RESULT` held** (the
+  caller's value): `TX.Name() { [[ -n $1 ]] || return 0; RESULT=$1; }` —
+  `RESULT=stale; echo "$(x.Name '')"` prints `stale`. Set `RESULT=''` first
+  when "no answer" must read as empty.
+* **A body ending in `cond && action` fails when `cond` is false** — the proc
+  rule: `TX.Pick() { [[ -n $1 ]] && RESULT=$1; }` returns 1 for `x.Pick ''`,
+  and under `set -e` that stops the caller. Write `if …; then …; fi` or
+  `[[ … ]] || return 1` to say what you mean.
+* **The answer is the global `RESULT`**: a body that declares `local RESULT`
+  answers the caller's value, not its local one.
+
+How it works: `kk._processMethodBody` (and `endImplementation` for a
+`static func`) appends the line `kk._return "$RESULT"` to a func's stored
+text — before round 7 that line ran as the body's last command (the "func
+trailer"), so an explicit `return` skipped it (the answer was lost), a failing
+last command was masked (rc 0) and a body ending with `kk._return V` printed V
+twice inside `$( )`. Since round 7 it is only a MARKER: the body function is
+defined without it and marks its dispatcher's frame, and the dispatcher
+answers after the body however it ended. The stored text keeps it, so a
+`method`/`procedure` body whose text ends with that literal line is a func
+too. For a `static func` the generated dispatcher answers the same way and,
+as before, also prints its answer on a direct call (`TS.Get >/dev/null; echo
+"$RESULT"`); the compiled-cache format went to 7 for it.
 
 ## Pascal DSL: class ... end with Real Function Bodies
 
@@ -1216,9 +1307,12 @@ uses A B ...                     load units once (= kk.uses, names resolved from
 
 Notes:
 
-- **`proc` vs `func`**: a `func` returns through `RESULT` (and is echoed when
-  called in a `$(...)` subshell); a `proc` returns nothing (or just an exit
-  status). Mapping from the old API: `method` → `proc`, `function` → `func`.
+- **`proc` vs `func`**: a `func` answers with what `RESULT` holds when its
+  body ends, however it ends (and is echoed once when called in a `$(...)`
+  subshell); a failing `func` leaves the caller's `RESULT`; both kinds fail
+  with their body's rc. A `proc` returns nothing (or just an exit status) and
+  leaves the caller's `RESULT`. See [What a func answers](#what-a-func-answers).
+  Mapping from the old API: `method` → `proc`, `function` → `func`.
 - **`property X read G write S`**: `read`/`write` targets are declared members
   (or the property name itself for a stored read — see below). A property with
   only `read` is read-only: writes print an error and fail.
@@ -3030,9 +3124,11 @@ a.y                        # => orig
 ```
 
 Compiled `.ckk` caches hold the static method dispatchers verbatim, so the
-cache format carries a version (now 6; 3: isolating dispatchers that bind their
+cache format carries a version (now 7; 3: isolating dispatchers that bind their
 static properties `local -n +x`; 5: per-class field-bind templates; 6: method
-bodies as functions): `autoloadClasses` rebuilds an older cache by itself,
+bodies as functions; 7: `static func` dispatchers answer by the func rule and
+their `CLASS.__static_M` bodies no longer end with the `kk._return "$RESULT"`
+line — the stored body texts keep it as the func marker): `autoloadClasses` rebuilds an older cache by itself,
 and an older cache sourced directly loads no class, says why and returns 1 from
 its `source` (recompile it with `bash kklass_compiler.sh SOURCE CACHE`);
 `autoloadClasses SOURCE --no-compile` runs the source instead of an older

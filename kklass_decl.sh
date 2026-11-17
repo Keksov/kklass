@@ -889,8 +889,12 @@ kk.decl._build_property_getter_body() {
     # still needs its stdout captured.
     if kk.decl._method_kind_is_function "$class_name" "$read_target"; then
         # The getter's exit status must reach the caller (kcl: predicates answer
-        # by rc): keep it across the kk._return trailer that endImplementation
-        # appends to every func (found_in_P6 P6-F1).
+        # by rc), and the value too, also with rc != 0 (found_in_P6 P6-F1:
+        # before round 7 the func trailer replaced the rc). Since round 7
+        # (K-2) a func passes its rc by itself; the explicit
+        # `kk._return "$RESULT"; return "$__kk_grc"` stays: under rule S2 it is
+        # what keeps a failing getter's RESULT (the shim's own "" when the
+        # getter did not call kk._return) as the answer.
         printf -v __kk_btxt 'RESULT=""; $__inst__.call %s; local __kk_grc=$?; kk._return "$RESULT"; return "$__kk_grc"' "$read_target"
         return 0
     fi
@@ -1669,8 +1673,9 @@ return 1"
                 class_args+=("static_method" "$method_name" "$method_body")
                 ;;
             class_function)
-                class_args+=("static_method" "$method_name" "$method_body
-kk._return \"\$RESULT\"")
+                # the func marker (kk._processMethodBody): the static
+                # dispatcher answers like a func's (round 7, K-2)
+                class_args+=("static_method" "$method_name" "$method_body$__KK_FUNC_MARK")
                 ;;
             *)
                 kk.decl._error "endImplementation: Unsupported method kind '$method_kind'"

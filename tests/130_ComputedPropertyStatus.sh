@@ -8,7 +8,9 @@
 # thing missing was the shim keeping it. Consequence before the fix: an
 # rc-carrying boolean (kcl contract: predicates answer by exit status) could
 # not be exposed as a property — `sw.isRunning` answered rc 0 with
-# RESULT=false.
+# RESULT=false. (Since round 7 / K-2 every func passes its body's rc and the
+# trailer is only a marker in the stored text — test 152; the shim keeps its
+# explicit spelling, which also keeps a failing getter's value.)
 
 KTESTS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../ktests" && pwd)"
 source "$KTESTS_LIB_DIR/ktest.sh"
@@ -61,7 +63,7 @@ class TCpsP
         property Ok read GetOk
         func GetOk
 end
-TCpsP.GetOk() { kk._return "$FOk"; [[ "$FOk" == "true" ]]; return $?; }   # explicit return: the func trailer would otherwise yield 0
+TCpsP.GetOk() { kk._return "$FOk"; [[ "$FOk" == "true" ]]; return $?; }   # explicit return: before round 7 the func trailer would otherwise yield 0 (now optional)
 build TCpsP
 TCpsP.new p
 p.FOk = false

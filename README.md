@@ -55,7 +55,10 @@ apples: 3
 apples: 10
 ```
 
-A `func` answers in `$RESULT` and prints only inside `$( )`; reading a property
+A `func` answers with what `$RESULT` holds when its body ends, however it ends
+(`return 0` included), and prints only inside `$( )`; like a `proc` it fails
+with its body's rc, and a failing `func` leaves the caller's `RESULT` (book:
+"What a func answers"); reading a property
 (`basket.Count`) prints it; inside a body the fields are plain variables
 (`Name`, `Count`).
 

@@ -332,21 +332,21 @@ unset -f __kkm.TK1OP.base __kkm.TK1OP.ov __kkm.TK1OC.ov __kkc.TK1OC
 k1o=$( set -u; TK1OC.new k1oc Q; k1oc.p = P; k1oc.base; k1oc.ov; declare -F __kkm.TK1OP.base __kkm.TK1OP.ov __kkm.TK1OC.ov __kkc.TK1OC | tr '\n' ' ' )
 check "K1.12" "base p=P|cov q=Q pov|__kkm.TK1OP.base __kkm.TK1OP.ov __kkm.TK1OC.ov __kkc.TK1OC " "${k1o//$'\n'/|}"
 
-kt_test_start "K1.13 a compiled cache (format 6) dumps the body texts, not the functions, and makes the functions again when it loads (kk._body_fns_for); it runs in a fresh shell; a format-5 cache is refused"
+kt_test_start "K1.13 a compiled cache (format 6 and later) dumps the body texts, not the functions, and makes the functions again when it loads (kk._body_fns_for); it runs in a fresh shell; a format-5 cache is refused"
 cat > "$K1T/k1.kk" <<'EOF'
 defineClass CK1P "" property a method show 'echo "a=$a"' method ov 'echo -n "p "'
 defineClass CK1C CK1P property b method ov 'echo -n "c "; inherited ov; echo "b=$b"' constructor 'b=$1'
 EOF
 ( cd "$K1T" && bash "$KKLASS_DIR/kklass_compiler.sh" k1.kk k1.ckk.sh >/dev/null 2>"$K1T/k1.err" ); k1rc=$?
 check "K1.13 compile" "0|" "$k1rc|$(<"$K1T/k1.err")"
-check "K1.13 header" "kk._ckk_format 6" "$(grep '^kk._ckk_format ' "$K1T/k1.ckk.sh")"
+check "K1.13 header" "kk._ckk_format $__KK_CKK_FORMAT" "$(grep '^kk._ckk_format ' "$K1T/k1.ckk.sh")"
 check "K1.13 dump" "0|kk._body_fns_for CK1C|kk._body_fns_for CK1P|" \
     "$(grep -cE '^__kk[mc]\.' "$K1T/k1.ckk.sh")|$(grep '^kk._body_fns_for ' "$K1T/k1.ckk.sh" | tr '\n' '|')"
 k1o=$(cd "$K1T" && bash -c 'set -u; source ./k1.ckk.sh; CK1C.new o B; o.a = A; o.show; o.ov' 2>&1)
 check "K1.13 load" "a=A|c p b=B" "${k1o//$'\n'/|}"
-sed -e 's/^kk._ckk_format 6$/kk._ckk_format 5/' "$K1T/k1.ckk.sh" > "$K1T/k1old.ckk.sh"
+sed -e "s/^kk._ckk_format $__KK_CKK_FORMAT\$/kk._ckk_format 5/" "$K1T/k1.ckk.sh" > "$K1T/k1old.ckk.sh"
 k1o=$(cd "$K1T" && bash -c 'source ./k1old.ckk.sh; echo "rc=$?"; declare -F CK1C.new >/dev/null && echo loaded' 2>&1)
-check "K1.13 format 5 refused" "1|rc=1" "$(grep -c 'has cache format 5, this kklass reads format 6 (.*format 6: method bodies as functions)' <<<"$k1o")|$(grep -v '^kklass:' <<<"$k1o" | tr '\n' '|' | sed 's/|$//')"
+check "K1.13 format 5 refused" "1|rc=1" "$(grep -c "has cache format 5, this kklass reads format $__KK_CKK_FORMAT (.*format 6: method bodies as functions" <<<"$k1o")|$(grep -v '^kklass:' <<<"$k1o" | tr '\n' '|' | sed 's/|$//')"
 
 kt_test_start "K1.14 a class declared again from another file is refused (Duplicate identifier) and leaves the original's body functions alone"
 printf '%s\n' "defineClass TK1Dup \"\" method m 'echo first' constructor 'K1_CT=first'" > "$K1T/dupa.sh"

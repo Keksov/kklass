@@ -7,6 +7,49 @@ history by phase, newest first. The user guide is
 [docs/kklass_book.md](docs/kklass_book.md). Commit hashes in parentheses point
 at the change for readers who want the diff.
 
+## Unreleased
+
+### What a func answers (2026-11-17, round 7, fv ledger K-2)
+
+* **One rule for every `func`:** a func answers with what `RESULT` holds when
+  its body ends, however it ends — falling off the end, `return`, `return 0`,
+  a last `inherited …` — printed once inside `$( )`; its rc is its body's rc,
+  exactly like a `proc`'s; a func that fails without `kk._return` leaves the
+  caller's `RESULT` and prints nothing; `kk._return V; return N` still answers
+  V with the failure N. The same holds for `static func` (which, as before,
+  also prints its answer on a direct call). Book: "What a func answers".
+* **Fixed** (all were the func trailer `kk._return "$RESULT"`, which ran as the
+  body's last command):
+  * `RESULT=x; return 0` (and an early `return 0` on any path) lost the
+    answer: the caller got its own `RESULT` back, `$( )` printed nothing;
+  * a failing last command was masked: `RESULT=9; false` answered rc 0, and
+    a bare last `inherited Valid "$@"` agreed when the parent refused;
+  * a body ending with `kk._return V` (or a helper that calls it) printed V
+    twice inside `$( )`: kcl `$(q.Count)` printed `33` for 3 elements;
+  * a computed property over a predicate func (`(( n > 3 ))` as the last
+    command) always read rc 0.
+* **What code can notice:**
+  * A body ending in `cond && action` now fails when `cond` is false (the proc
+    rule); under `set -e` that stops the caller. Write `if …` or
+    `[[ … ]] || return 1`.
+  * More bodies print inside `$( )`: a func that calls another func directly
+    while it is itself captured lets the inner one print too (as the
+    fall-through form always did) — use `kk.call_silent`.
+  * `kk._return a; …; RESULT=b` answers `a` (an explicit `kk._return` is
+    final); before it answered `b` and printed `ab`.
+  * A body that declares `local RESULT` answers the caller's value.
+  * A `method`/`procedure` body text that ends with the literal line
+    `kk._return "$RESULT"` is a func (the line is now the func marker).
+  * The compiled-cache format is 7 (the `static func` dispatchers and their
+    bodies changed): older caches are rebuilt by `autoloadClasses`; sourced
+    directly they load no class and say why.
+* Cost (interleaved A/B in fresh processes, Git-bash / MSYS2 / Cygwin, ratio
+  new/before): a func call 0.89–0.93, with 15 fields 0.90–0.92, `inherited` of a
+  func 0.88–0.90, `.call` 0.90–0.92, a func inside a subshell 0.87–0.90, a thin
+  `static func` 0.77–0.83; procs within the noise floor (0.96–1.03). A func that
+  ends with `return 0` costs 1.03–1.10 of before: before, the answer step was
+  skipped there (and the answer lost).
+
 ## 0.1.1 — 2026-11-08
 
 ### Faster method calls (2026-11-08, round K)
