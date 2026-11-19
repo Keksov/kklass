@@ -155,7 +155,7 @@ kk._taken_init() {
     _KKLASS_NS_OWNER=()
     for __kk_v in \
         declareClass privateSection protectedSection publicSection classVar field property \
-        constructor virtual override abstract procedure declareProcedure func declareFunction \
+        constructor virtual override abstract nofields procedure declareProcedure func declareFunction \
         classProcedure classFunction endClass finalizeClass implement implementConstructor \
         endImplementation finalizeImplementation \
         class end public private protected static var proc destructor build uses \
@@ -1214,6 +1214,60 @@ kk._fn_text_cr_try() {   # BODY REF
 # virtually as of `.new`. A 5th argument (the old methods-array name) is still
 # accepted and ignored.
 declare -g __KK_FUNC_MARK=$'\n''kk._return "$RESULT"'
+
+# Field-free bodies (K-8, fv D21 §6 "K", owner 2026-11-19): a method body
+# declared `nofields` is built WITHOUT the field binds (kk._body_fn leaves out
+# the `local -n` line), so a call of it costs no ~2.8 us per bound name. The
+# stored TEXT says so with this PREFIX line (a comment: harmless to a kklass
+# that does not know it — that one binds as before), which travels like the
+# func marker: subclasses copy it with the text, .ckk caches dump it and
+# remake the function from it (no format change). Writers: the DSL modifier
+# `nofields` (kklass_decl.sh: Pascal + declarative + .kkp), the token
+# `nofields` of defineClass / kk._build_class_runtime, the 4th argument
+# `nofields` of defineMethod / defineProcedure / defineFunction; a body whose
+# text starts with the literal line is nofields too. Every build of such a
+# body runs the check kk._nofields_check first. Instance methods only (a
+# static method binds no instance field; a constructor is not marked).
+declare -g __KK_NOFIELDS_MARK=$'# kk.nofields\n'
+
+# kk._nofields_check CLASS METHOD BODY PROPS STATICS — the build-time check of
+# a nofields body (K-8): rc 1 and ONE `Error:` line when BODY (its text without
+# the marker) uses a name the class would bind — `state`, an instance property
+# (field, computed or lazy; own or inherited: the array named PROPS) or a
+# static property (the array named STATICS) — as a whole WORD: any run of
+# identifier characters equal to the name that does not follow a `.`, so
+# Name, $Name, ${Name…}, Name=, Name[…], (( Name )), local Name, unset Name
+# are refused, while fv.app.Name / $this.Name (a function name, not a
+# variable) are not. Textual on purpose: the name inside a comment or a
+# string refuses too (reword it, or build the word: "Na""me"); a helper
+# function that reads a field through bash's dynamic scope is NOT seen (the
+# documented hole: under a nofields body it reads the caller's binding or
+# nothing). The character classes list every character (no ranges: exact in
+# every locale, as kk._new_define's guard). No fork.
+kk._nofields_check() {   # CLASS METHOD BODY PROPS STATICS
+    local __kk_nt=$3 __kk_nn __kk_nk __kk_nx __kk_ni=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_
+    local -n __kk_nfp=$4 __kk_nfs=$5
+    # the func marker is kklass's, not the author's
+    if [ "${__kk_nt: -${#__KK_FUNC_MARK}}" = "$__KK_FUNC_MARK" ]; then __kk_nt=${__kk_nt:0:${#__kk_nt}-${#__KK_FUNC_MARK}}; fi
+    __kk_nt=" $__kk_nt "
+    for __kk_nn in state ${__kk_nfp[@]+"${__kk_nfp[@]}"} ${__kk_nfs[@]+"${__kk_nfs[@]}"}; do
+        # (a plain substring test first: most names are not in the text at
+        # all, and the bracket pattern is the expensive one)
+        [[ $__kk_nt == *"$__kk_nn"* ]] || continue
+        [[ $__kk_nt == *[!$__kk_ni.]"$__kk_nn"[!$__kk_ni]* ]] || continue
+        if [[ $__kk_nn == state ]]; then __kk_nk="the instance data 'state'"
+        else
+            __kk_nk="the field '$__kk_nn'"
+            for __kk_nx in ${__kk_nfs[@]+"${__kk_nfs[@]}"}; do
+                [[ $__kk_nx != "$__kk_nn" ]] || __kk_nk="the static property '$__kk_nn'"
+            done
+        fi
+        echo "Error: nofields method '$1.$2' names $__kk_nk of class '$1': a nofields body binds no fields (read it with \$this.F or a key built at run time, pass it to a helper, or drop nofields; a match in a comment or a string counts too: reword it)" >&2
+        return 1
+    done
+    return 0
+}
+
 kk._processMethodBody() {
     local class_name="$1"
     local method_name="$2"
@@ -1593,13 +1647,23 @@ kk._class_binds_build() {   # CLASS
 # (case-sensitive even under nocasematch; a `%` strip would scan a long text
 # that does not end with it in quadratic time); the eval fallback gets the
 # same prologue.
+# A NOFIELDS body (K-8): a text starting with the nofields marker
+# (__KK_NOFIELDS_MARK) is defined without that line AND without the bind
+# line: its prologue is the allexport restore alone (with the func mark for a
+# func). Compared by its first ${#__KK_NOFIELDS_MARK} characters with `[ = ]`,
+# like the func marker. this / RESULT / kk._return / inherited / the
+# dispatcher's isolation shadow are the dispatcher's: unchanged.
 kk._body_fn() {   # FN BODY
-    local __kk_bt=$2 __kk_bm='(( __kk_ax )) || set -a'
-    if [ "${2: -${#__KK_FUNC_MARK}}" = "$__KK_FUNC_MARK" ]; then
-        __kk_bt=${2:0:${#2}-${#__KK_FUNC_MARK}} __kk_bm='(( __kk_return_set = 2, __kk_ax )) || set -a'
+    local __kk_bt=$2 __kk_bm='(( __kk_ax )) || set -a' __kk_bb='local -n +x "${__kk_binds[@]//@/$this}"'
+    # (a constructor is never nofields: a marker line in its text stays a comment)
+    if [ "${2:0:${#__KK_NOFIELDS_MARK}}" = "$__KK_NOFIELDS_MARK" ] && ! [ "${1:0:6}" = __kkc. ]; then
+        __kk_bt=${2:${#__KK_NOFIELDS_MARK}} __kk_bb=
+    fi
+    if [ "${__kk_bt: -${#__KK_FUNC_MARK}}" = "$__KK_FUNC_MARK" ]; then
+        __kk_bt=${__kk_bt:0:${#__kk_bt}-${#__KK_FUNC_MARK}} __kk_bm='(( __kk_return_set = 2, __kk_ax )) || set -a'
     fi
     { eval "if :; then $1() {
-local -n +x \"\${__kk_binds[@]//@/\$this}\"
+$__kk_bb
 $__kk_bm
 $__kk_bt
 }
@@ -1607,7 +1671,7 @@ fi"; } 2>/dev/null && return 0
     local __kk_bq
     printf -v __kk_bq '%q' "$__kk_bt"
     eval "$1() {
-local -n +x \"\${__kk_binds[@]//@/\$this}\"
+$__kk_bb
 $__kk_bm
 eval $__kk_bq
 }"
@@ -2177,8 +2241,9 @@ kk._decl_token() {
     case $4 in
         static_property|property|constructor) __kk_n=2 ;;
         static_method|lazy_property|method|procedure|function) __kk_n=3 ;;
+        nofields) __kk_n=4 ;;   # nofields method|procedure|function NAME BODY (K-8)
         *)
-            echo "$1: unknown token '$4' in the declaration of class '$2' (tokens: property static_property static_method method procedure function lazy_property constructor)" >&2
+            echo "$1: unknown token '$4' in the declaration of class '$2' (tokens: property static_property static_method method procedure function lazy_property constructor nofields)" >&2
             return 2
             ;;
     esac
@@ -2287,6 +2352,8 @@ kk._build_class_runtime() {
     local -A meth_owner=()  # method -> DEFINING class (Pascal 'inherited' semantics)
     local -A own_raw_bodies=()  # methods declared HERE: raw body, processed after the parse (F11)
     local -A own_meth_type=()
+    local -A own_nofields=()    # methods declared here with the token nofields (K-8)
+    local __kk_nf=0
     local constructor_body=""
     # Loop variables of the member walks below. Without `local` every class
     # definition clobbered the caller's p/m/sm/sp/wm — and kcl units define
@@ -2439,7 +2506,7 @@ kk._build_class_runtime() {
                 # Check if next arguments are getter/setter methods
                 # Method names starting with "get" or "set" are treated as computed accessors
                 # Consume following getter/setter methods until we hit a keyword or non-accessor
-                local keyword_str=" property static_property static_method method procedure function lazy_property constructor "
+                local keyword_str=" property static_property static_method method procedure function lazy_property constructor nofields "
                 while [[ $# -gt 0 ]]; do
                     # Peek at next argument
                     local peek_arg="$1"
@@ -2492,7 +2559,19 @@ kk._build_class_runtime() {
                 # after the whole definition is parsed (F11).
                 own_raw_bodies["$2"]="$3"
                 own_meth_type["$2"]="$meth_type"
+                own_nofields["$2"]=$__kk_nf
+                __kk_nf=0
                 shift 3
+                ;;
+            nofields)
+                # K-8: `nofields method|procedure|function NAME BODY`
+                case $2 in
+                    method|procedure|function) ;;
+                    *) echo "kk._build_class_runtime: token 'nofields' in the declaration of class '$class_name' must be followed by method, procedure or function (got '$2')" >&2
+                       return 2 ;;
+                esac
+                __kk_nf=1
+                shift
                 ;;
             constructor)
                 # Store constructor body for processing later (after all methods are collected)
@@ -2533,10 +2612,21 @@ kk._build_class_runtime() {
     fi
 
     # Finalize the bodies declared here (the func marker; no text rewrite
-    # since R2_P8).
+    # since R2_P8). A nofields body (the token, or a text that starts with the
+    # marker) gets the marker in front and is checked against every name the
+    # class binds (K-8, kk._nofields_check) — before anything is stored, so a
+    # refused rebuild leaves the class as it was.
     local __kk_om
     for __kk_om in "${!own_raw_bodies[@]}"; do
         kk._processMethodBody "$class_name" "$__kk_om" "${own_raw_bodies[$__kk_om]}" "${own_meth_type[$__kk_om]}"
+        if [ "${METHOD_BODY:0:${#__KK_NOFIELDS_MARK}}" = "$__KK_NOFIELDS_MARK" ]; then
+            own_nofields["$__kk_om"]=1
+        elif (( ${own_nofields[$__kk_om]:-0} )); then
+            METHOD_BODY=$__KK_NOFIELDS_MARK$METHOD_BODY
+        fi
+        if (( ${own_nofields[$__kk_om]:-0} )); then
+            kk._nofields_check "$class_name" "$__kk_om" "${METHOD_BODY:${#__KK_NOFIELDS_MARK}}" props_arr static_props_arr || return 1
+        fi
         meth_bodies["$__kk_om"]="$METHOD_BODY"
     done
 
@@ -2718,7 +2808,7 @@ defineClass() {
     local -A declared_method_seen=()
     local -A declared_method_body=()
     local constructor_body=""
-    local keyword_str=" property static_property static_method method procedure function lazy_property constructor "
+    local keyword_str=" property static_property static_method method procedure function lazy_property constructor nofields "
 
     [[ -n "$class_name" ]] || {
         echo "defineClass: Usage: defineClass CLASS_NAME PARENT_CLASS [definition tokens...]" >&2
@@ -2810,6 +2900,17 @@ defineClass() {
                 declared_method_body["$method_name"]="$method_body"
                 shift 3
                 ;;
+            nofields)
+                # K-8: `nofields method|procedure|function NAME BODY` — the
+                # modifier of the declarative DSL, for the next method token
+                case $2 in
+                    method|procedure|function) ;;
+                    *) echo "defineClass: token 'nofields' in the declaration of class '$class_name' must be followed by method, procedure or function (got '$2')" >&2
+                       kk.decl._abandon_class "$class_name" nofields; return 2 ;;
+                esac
+                nofields || { kk.decl._abandon_class "$class_name" nofields; return 1; }
+                shift
+                ;;
             constructor)
                 constructor || { kk.decl._abandon_class "$class_name" constructor; return 1; }
                 constructor_body="$2"
@@ -2842,9 +2943,9 @@ _defineMethodType() {
     local meth_type="${4:-method}"
     local func_name="${5:-Method}"
     
-    # Validate inputs
-    [[ -z "$class_name" || -z "$method_name" || -z "$method_body" ]] && {
-        echo "define${func_name}: Usage: define${func_name} CLASS_NAME METHOD_NAME BODY" >&2
+    # Validate inputs (a 4th public argument: nofields, K-8)
+    [[ -z "$class_name" || -z "$method_name" || -z "$method_body" || ( -n ${6-} && ${6-} != nofields ) ]] && {
+        echo "define${func_name}: Usage: define${func_name} CLASS_NAME METHOD_NAME BODY [nofields]" >&2
         return 1
     }
     # Both names are interpolated into eval'd assignments below; the method
@@ -2858,6 +2959,19 @@ _defineMethodType() {
     if ! declare -p "$class_meths_var" &>/dev/null; then
         echo "define${func_name}: Class '$class_name' does not exist" >&2
         return 1
+    fi
+
+    # The body text (shared with defineClass): the func marker; a nofields
+    # body (the argument, or a text that starts with the marker) gets the
+    # marker and is checked against the class's bound names (K-8) BEFORE
+    # anything below changes the class.
+    kk._processMethodBody "$class_name" "$method_name" "$method_body" "$meth_type"
+    if [ "${METHOD_BODY:0:${#__KK_NOFIELDS_MARK}}" != "$__KK_NOFIELDS_MARK" ] && [[ ${6-} == nofields ]]; then
+        METHOD_BODY=$__KK_NOFIELDS_MARK$METHOD_BODY
+    fi
+    if [ "${METHOD_BODY:0:${#__KK_NOFIELDS_MARK}}" = "$__KK_NOFIELDS_MARK" ]; then
+        kk._nofields_check "$class_name" "$method_name" "${METHOD_BODY:${#__KK_NOFIELDS_MARK}}" \
+            "${class_name}_class_properties" "${class_name}_class_static_properties" || return 1
     fi
     
     # Get existing methods array
@@ -2875,8 +2989,6 @@ _defineMethodType() {
         meths_ref+=("$method_name")
     fi
     
-    # Process method body using shared logic from defineClass
-    kk._processMethodBody "$class_name" "$method_name" "$method_body" "$meth_type"
     eval "${class_name}_method_body_${method_name}=\$METHOD_BODY"
     kk._body_fn "__kkm.${class_name}.${method_name}" "$METHOD_BODY"   # K1: this class now defines it
 
@@ -2924,17 +3036,17 @@ __INST__.delete() \{}"
 
 defineMethod() {
     [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off defineMethod "$@"; return; }   # exact names (K3)
-    _defineMethodType "$1" "$2" "$3" "method" "Method"
+    _defineMethodType "$1" "$2" "$3" "method" "Method" "${4-}"
 }
 
 defineProcedure() {
     [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off defineProcedure "$@"; return; }   # exact names (K3)
-    _defineMethodType "$1" "$2" "$3" "procedure" "Procedure"
+    _defineMethodType "$1" "$2" "$3" "procedure" "Procedure" "${4-}"
 }
 
 defineFunction() {
     [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off defineFunction "$@"; return; }   # exact names (K3)
-    _defineMethodType "$1" "$2" "$3" "function" "Function"
+    _defineMethodType "$1" "$2" "$3" "function" "Function" "${4-}"
 }
 
 kk.register_static_methods() {

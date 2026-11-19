@@ -224,7 +224,7 @@ kkp._emit_method_decl() {
 
     for part in "${__kkp_parts[@]:1}"; do
         case "$(kkp._lower_trim "$part")" in
-            virtual|override|abstract)
+            virtual|override|abstract|nofields)
                 kkp._emit_line "$output_file" "$(kkp._lower_trim "$part")"
                 ;;
         esac

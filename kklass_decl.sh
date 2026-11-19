@@ -402,7 +402,7 @@ declare -ga __KK_DECL_SNAP_ARRAYS=(decl_fields decl_properties decl_methods abst
 declare -ga __KK_DECL_SNAP_ASSOCS=(decl_property_visibility decl_property_read decl_property_write
     decl_property_mode decl_property_lazy_init decl_field_visibility decl_static_method_body
     decl_method_kind decl_method_visibility decl_method_abstract decl_method_override
-    decl_method_virtual decl_method_static decl_method_body
+    decl_method_virtual decl_method_static decl_method_body decl_method_nofields
     method_virtual method_override method_abstract method_visibility)
 declare -ga __KK_DECL_SNAP_SCALARS=(decl_parent decl_constructor_body decl_constructor_name
     decl_declared decl_finalized class_abstract decl_destructor_name)
@@ -1076,7 +1076,10 @@ kk.decl._declare_method_core() {
     local -n visibility_ref="$visibility_var"
     local -n kind_ref="$kind_var"
     local -n static_ref="$static_var"
-    local modifier
+    local modifier __kk_nf=0
+    # (K-8) a class declared before this kklass knew nofields has no table
+    declare -p "${class_name}_decl_method_nofields" &>/dev/null || declare -gA "${class_name}_decl_method_nofields"
+    local -n nofields_ref="${class_name}_decl_method_nofields"
 
     # P11 review R3 — the declarative layer keeps instance AND class methods in
     # ONE set of per-class tables keyed by name (CLASS_decl_methods,
@@ -1120,12 +1123,28 @@ kk.decl._declare_method_core() {
             virtual)
                 virtual_ref["$method_name"]=1
                 ;;
+            nofields)
+                __kk_nf=1
+                ;;
             *)
                 kk.decl._error "Unsupported modifier '$modifier' for method '$method_name'"
                 return 1
                 ;;
         esac
     done
+
+    # nofields (K-8): a body of an instance method only
+    nofields_ref["$method_name"]=$__kk_nf
+    if (( __kk_nf )); then
+        if (( ${static_ref[$method_name]} )); then
+            kk.decl._error "Modifier 'nofields' does not apply to the static method '${class_name}.${method_name}' (a static method binds no instance fields)"
+            return 1
+        fi
+        if (( ${abstract_ref[$method_name]} )); then
+            kk.decl._error "Modifier 'nofields' does not apply to the abstract method '${class_name}.${method_name}' (it has no body; write nofields on the override that implements it)"
+            return 1
+        fi
+    fi
 
     kk.decl._reset_next_modifiers
 }
@@ -1214,6 +1233,7 @@ declareClass() {
     eval "declare -gA ${class_name}_decl_method_virtual=()"
     eval "declare -gA ${class_name}_decl_method_static=()"
     eval "declare -gA ${class_name}_decl_method_body=()"
+    eval "declare -gA ${class_name}_decl_method_nofields=()"
     eval "declare -gA ${class_name}_method_virtual=()"
     eval "declare -gA ${class_name}_method_override=()"
     eval "declare -gA ${class_name}_method_abstract=()"
@@ -1297,6 +1317,27 @@ abstract() {
     [[ -z ${__KK_SINK_OPEN-} ]] || ! kk.decl._sunk || return $__kk_sr
     kk.decl._require_current_class || return 1
     kk.decl._push_next_modifier "abstract"
+}
+
+# nofields [VERB ARGS...] — the field-free body modifier (K-8): the next
+# instance method (procedure / func; Pascal proc / func / destructor) is built
+# without the field binds and checked at build (kklass.sh: __KK_NOFIELDS_MARK,
+# kk._nofields_check). One definition for both DSLs: on its own line before
+# the method (declarative, like virtual / override / abstract, and what a .kkp
+# `procedure X; nofields;` emits) or as a PREFIX of the member verb in any
+# order with the other prefixes (Pascal: `nofields override proc HandleEvent`,
+# `override nofields proc HandleEvent`). Refused (the class fails) with a
+# static method, an abstract one, a constructor, a field or a property.
+nofields() {
+    [[ a == A && $BASHOPTS == *nocasematch* ]] && { kk.decl._ncm_off nofields "$@"; return; }   # exact names (K3)
+    if [[ -n ${__KK_SINK_OPEN-} ]] && kk.decl._sunk; then
+        (( $# )) || return $__kk_sr
+        "$@"; return
+    fi
+    kk.decl._require_current_class || return 1
+    kk.decl._push_next_modifier "nofields"
+    (( $# )) || return 0
+    "$@"
 }
 
 kk.decl._field() {
@@ -1592,6 +1633,8 @@ endImplementation() {
     local override_var="${class_name}_decl_method_override"
     local visibility_var="${class_name}_decl_method_visibility"
     local constructor_var="${class_name}_decl_constructor_body"
+    declare -p "${class_name}_decl_method_nofields" &>/dev/null || declare -gA "${class_name}_decl_method_nofields"
+    local -n nofields_ref="${class_name}_decl_method_nofields"   # K-8
     local -n methods_ref="$methods_var"
     local -n kind_ref="$kind_var"
     local -n body_ref="$body_var"
@@ -1662,6 +1705,9 @@ endImplementation() {
 return 1"
         fi
 
+        # nofields (K-8): the token in front of the method's; the runtime
+        # marks the text and checks it (kk._build_class_runtime)
+        [[ ${nofields_ref[$method_name]:-0} != 1 ]] || class_args+=("nofields")
         case "$method_kind" in
             procedure)
                 class_args+=("procedure" "$method_name" "$method_body")

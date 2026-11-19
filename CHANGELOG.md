@@ -9,6 +9,34 @@ at the change for readers who want the diff.
 
 ## Unreleased
 
+### Field-free bodies: `nofields` (2026-11-19, fv ledger K-8)
+
+* **New method modifier `nofields`:** the body is built without the field
+  binds (every field, static property and `state` of the class as a local
+  nameref, ~2.8 µs per name on every call), for thin wrappers that hand
+  `$this` to a plain function. Spellings: Pascal `nofields proc X` /
+  `nofields override proc X` (any order) / `nofields destructor D`;
+  declarative `nofields` on its own line before `procedure` / `func`; `.kkp`
+  `procedure X; nofields;`; the token `nofields` before `method` /
+  `procedure` / `function` in `defineClass` and `kk._build_class_runtime`;
+  a 4th argument `nofields` to `defineMethod` / `defineProcedure` /
+  `defineFunction`. Book: "Field-free bodies: nofields".
+* **Checked at build:** a `nofields` body whose text uses a bound name as a
+  whole word (`Name`, `$Name`, `${Name…}`, `Name=`, `Name[`, `local Name` …;
+  not after a `.`) fails the build with one `Error:` line naming class,
+  method and name; a refused rebuild leaves the built class as it was. A
+  name in a comment or a string refuses too; a helper that reads a field
+  through dynamic scope is not seen (documented).
+* Instance methods only: refused on a static or abstract method, a
+  constructor, a field or a property. `nofields` is a DSL verb (a refused
+  class name).
+* The stored text starts with the marker line `# kk.nofields`: subclasses and
+  compiled caches carry it; the cache format stays 7 (an older kklass reads
+  the marker as a comment and binds as before).
+* Measured (laptop, interleaved A/B, ratios): `obj.M` of a one-line body
+  nofields / normal 0.91 at 1 field, 0.75 at 15, 0.64 at 25; a normal
+  override's `inherited` into it 0.97 / 0.86 / 0.81.
+
 ### What a func answers (2026-11-17, round 7, fv ledger K-2)
 
 * **One rule for every `func`:** a func answers with what `RESULT` holds when

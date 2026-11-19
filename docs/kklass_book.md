@@ -1233,6 +1233,126 @@ too. For a `static func` the generated dispatcher answers the same way and,
 as before, also prints its answer on a direct call (`TS.Get >/dev/null; echo
 "$RESULT"`); the compiled-cache format went to 7 for it.
 
+### Field-free bodies: nofields
+
+Inside a method body every field of the class is a plain variable (`Name`,
+`Count`). kklass makes that true by binding each field — and each static
+property, and `state` — as a local nameref when the body starts, about 2.8 µs
+per name on every call. A body that never touches a field by name — a thin
+wrapper that hands `$this` to a plain function — pays for all of them anyway:
+~70 µs per call for a class with 25 fields, and once more for every
+`inherited` that reaches such a body.
+
+Declare that method **`nofields`** and its body is built without the binds:
+
+<!-- doctest -->
+```bash
+source /path/to/kbool/kbool.sh || exit
+kk.uses kklass_pascal || exit
+
+app.event() { echo "event $2 for $1"; }      # the real work: a plain function
+
+class TApp
+    public
+        var Title
+        var Width
+        nofields proc HandleEvent             # a thin wrapper: binds nothing
+        proc Show                             # a normal body: binds Title, Width
+end
+TApp.HandleEvent() { app.event "$this" "$@" || return; }
+TApp.Show()        { echo "$Title ($Width)"; }
+build TApp
+
+class TMyApp : TApp
+    public
+        nofields override proc HandleEvent    # any order: override nofields proc …
+end
+TMyApp.HandleEvent() { echo "mine first"; inherited HandleEvent "$@"; }
+build TMyApp
+
+TMyApp.new a; a.Title = Demo; a.Width = 80
+a.HandleEvent key                             # => mine first
+                                              # => event key for a
+a.Show                                        # => Demo (80)
+a.delete
+```
+
+**What changes and what does not.** Only the binds are left out: `$this`,
+the arguments, `RESULT` and the func rule ([What a func
+answers](#what-a-func-answers)), the rc, `inherited`, `$this.M`, `.call`,
+`$( )` capture and computed properties work exactly as in any body (for the
+scope isolation see "The hole" below). `nofields` belongs to the body it is written
+on: an override without it binds as usual, and an `inherited` call into a
+`nofields` parent body skips the binds of that body only (the example above:
+both bodies are field-free; a normal override calling `inherited` into it
+binds its own fields, the parent body binds none).
+
+**The check.** kklass refuses to build a `nofields` body whose text uses a
+bound name — a field (own or inherited, stored, computed or lazy), a static
+property, or `state` — as a whole word: `Name`, `$Name`, `${Name:-x}`,
+`Name=`, `Name[1]`, `(( Name ))`, `local Name`, `unset Name` all fail the
+build with one line naming class, method and name, and the class is not
+built (a rebuild that fails leaves the built class as it was):
+
+```text
+Error: nofields method 'TApp.HandleEvent' names the field 'Title' of class 'TApp': a nofields body binds no fields (...)
+```
+
+A word right after a `.` is not a variable and is not refused
+(`$this.Title`, `app.Title`), nor are longer words (`TitleX`, `_Title`); a
+field named like a function namespace (`app` beside a helper `app.event`)
+refuses where the helper's name starts a word — rename one of them. The
+check is textual on purpose, so it also refuses a field name inside a string
+or a comment (comments survive in the declarative and `defineClass` forms;
+the Pascal DSL strips them): reword it, build the word (`"Ti""tle"`), or
+drop `nofields`. Every literal `${this}_data[F]` names F and is refused too:
+read your own fields with `$this.F` (an accessor call), pass the instance to
+a helper that reads `${1}_data[...]`, or build the key at run time. The check
+runs when the class that writes the body is built, against that class's
+names; a subclass that adds a field does not re-check the inherited body,
+which still binds nothing: a word of it that names the new field is a plain
+variable when the body is called directly, but reaches the override's
+binding (and so the instance's field) when a normal override calls it with
+`inherited`.
+
+**The hole.** A function the body calls is not checked. A helper that reads a
+field through bash's dynamic scope (`helper() { echo "$Title"; }`) sees, under
+a `nofields` body, the nearest binding of that name up the call stack: a
+global of the same name, a caller's field — another instance's too, since
+the dispatcher skips its isolation shadow when the caller's class is the
+body's — or nothing. Keep such helpers on explicit arguments or
+`${1}_data[...]`.
+
+**Where to write it.**
+
+| style | spelling |
+|---|---|
+| Pascal DSL | `nofields proc X`, `nofields func X`, `nofields override proc X` / `override nofields proc X`, `nofields destructor Done` |
+| declarative | `nofields` on its own line before `procedure X` / `func X` (with `override` / `virtual` in any order) |
+| `.kkp` units | `procedure X; nofields;` (also with `override;`) |
+| `defineClass`, `kk._build_class_runtime` | the token `nofields` before `method` / `procedure` / `function NAME BODY` |
+| `defineMethod` / `defineProcedure` / `defineFunction` | a 4th argument: `defineProcedure C M 'body' nofields` |
+
+Instance methods only: a static method binds no instance fields (`nofields
+static proc` is refused), an abstract method has no body (write `nofields` on
+the override that implements it), and constructors, fields and properties
+take no modifier. `nofields` is a DSL verb, so it cannot name a class.
+
+**When to use it.** Thin wrappers that delegate with `$this` — the kcl fv.*
+framework declares every built-in virtual this way, so an application's
+`HandleEvent` override that ends in `inherited` pays no binds for the
+framework's part. Not for bodies that read their fields: there the binds are
+the point.
+
+How it works: the stored body text starts with the marker line
+`# kk.nofields`, written by the modifier (and `endImplementation`), the
+token or the argument; a body whose text starts with that literal line is
+`nofields` too (and is checked). The body function is defined without the
+marker and without the bind line. The marker travels with the text, so a
+subclass's copy and a compiled cache keep it and the cache remakes the
+function field-free; the cache format did not change (a kklass that does not
+know the marker reads it as a comment and binds as before).
+
 ## Pascal DSL: class ... end with Real Function Bodies
 
 ### Why a Second Front-End?
@@ -1301,6 +1421,7 @@ destructor  [D]                  destructor (default Destroy); runs on obj.delet
 static <var|proc|func> X         class-level (shared) member, not per-instance
 abstract <proc|func> X           no body; class not instantiable until overridden
 override <proc|func> X           guard: build errors unless an ancestor has X
+nofields <proc|func|destructor> X  the body binds no fields (any order with override)
 build N                          extract bodies + finalize the class
 uses A B ...                     load units once (= kk.uses, names resolved from this file)
 ```

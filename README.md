@@ -60,7 +60,8 @@ A `func` answers with what `$RESULT` holds when its body ends, however it ends
 with its body's rc, and a failing `func` leaves the caller's `RESULT` (book:
 "What a func answers"); reading a property
 (`basket.Count`) prints it; inside a body the fields are plain variables
-(`Name`, `Count`).
+(`Name`, `Count`) — a method declared `nofields` (a thin wrapper handing
+`$this` on) skips binding them, checked at build (book: "Field-free bodies").
 
 The same kind of class can also be written in one call, with the bodies as
 strings:

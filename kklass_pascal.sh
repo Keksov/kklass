@@ -39,6 +39,8 @@ kk.unit kklass_pascal || return $__kk_unit_rc
 #   static  <var|proc|func>      class member (shared), not per-instance
 #   abstract <proc|func>         no body; class cannot be instantiated until overridden
 #   override <proc|func>         guard: errors unless an ancestor has the method
+#   nofields <proc|func|destructor>  the body binds no fields (checked at build;
+#                                kklass_decl.sh `nofields`, any order with override)
 #   build N                      extract bodies + finalize the class
 #   uses A B ...                 load units once (= kk.uses; kbool.sh must be loaded)
 #
