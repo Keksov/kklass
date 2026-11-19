@@ -1458,6 +1458,17 @@
         },
         "final_gate": "master sweep 2026-10-19 (supervisor): 5.2 30/30 8934 tests rc 0; 5.3 30/30 8935 rc 0; no leftovers; strays none both runtimes; batch capture (critic C) rejected by the supervisor under DR24"
       }
+      ,"P19": {
+        "name": "K-8: nofields method modifier (round 7)",
+        "status": "done (committed 2026-11-19, kklass b23a216; kcl 820e5cf; kbool b9210e2; perf only until owner go)",
+        "date": "2026-11-19",
+        "source": "fv D21 design (field binds ~70 us per call into a thin built-in body); owner decision 2026-11-19: explicit nofields modifier with a build-time check",
+        "changes": "prefix verb `nofields` (Pascal `nofields override proc X`, declarative, .kkp `procedure X; nofields;`, defineClass / kk._build_class_runtime token, defineMethod 4th arg); refused on static, abstract, constructor; __KK_NOFIELDS_MARK prefix line in the stored body (cache format stays 7); kk._body_fn drops the bind line (never for constructors); kk._nofields_check refuses a body naming a field / static property / state as a word (substring prefilter + explicit character classes)",
+        "tests": "153_NoFields 35 checks (33 red on HEAD); 142 doctests 14",
+        "critic": "no core defect; fixed: the advice in the error/book was refused by the check (now `$this.F` / helper), slow check (~7% of kk.uses fv.app; prefilter -42%), a constructor text with the marker built without binds, book wording of the dynamic-scope hole (a helper may see another instance's field or a global) and of subclass-added fields, namespace-like field names",
+        "measurements": "laptop A/B: obj.M nofields vs normal 0.91 / 0.75 / 0.64 at 1 / 15 / 25 fields; inherited into it 0.97 / 0.86 / 0.81; CI fvviews down 0.92-0.96, tab 0.96-0.98",
+        "gates": "host 3 bashes 9414/9414 (kklass kkore kcl fv.*), VM debian 5.1/5.2 3158/3158, GitHub ci run 44534652060 green"
+      }
       ,"P18": {
         "name": "K-2: what a func answers (round 7)",
         "status": "done (committed 2026-11-18, kklass a24830c; kcl 7a02bc4; kbool 87cd1db; pushed to perf only)",
