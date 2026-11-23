@@ -1,0 +1,204 @@
+{
+  "schema_version": 1,
+  "project": "kbool load image kk.image (fv PLAN D35, P4 Q4 = b): kk.image UNIT... = kk.uses UNIT... through a valid saved state image of the unit closure; per-unit settings hooks so nothing is frozen; bin/fvdlg its first user. Design: kklass/docs/dev/IMAGE_PLAN.md; requirements kcl/docs/dev/fv/P4_DESIGN.md section 11.",
+  "created": "2026-11-23",
+  "updated": "2026-11-23",
+  "status": "ACCEPTED rev 3 (owner answers 2026-11-23): decisions IMG-D1..D9; stages I0, I1a, I1b, I2a, I2b, I3, I4, I5 planned; nothing implemented",
+  "plan": "kklass/docs/dev/IMAGE_PLAN.md",
+  "owner_proposal": "kkore (hit path in kkore/kuse.sh, writer in new kkore/kimage.sh, kk.settings + kk.localeDefault + __KK_UNIT_ORDER in kuse.sh, KBOOL_VERSION in kbool.sh); kklass one line (kk.settings : __kk_ft) and its kk._fn_text_cr reused for CR; hooks in 32 kcl unit files; the plan lives next to USES_PLAN.md",
+  "workflow": "per stage: Opus worker -> supervisor review against the live tree -> critic where marked (I0, I1a, I1b, I2a, I2b, I3) -> fixes -> ktests/tools/gate.sh on Git-bash 5.3.15, MSYS2 5.3.9, Cygwin 5.2.21 (+ the bash 5.1 VM gate for kkore / kklass changes) -> commit; CI on the perf branches (16 rows); every timing target is a CI bench row (owner rule; Windows rows as ratios, fv D20); hygiene block in every brief; worker never commits; push only on the owner's word",
+  "reviews": {
+    "rev1_critic": "2026-11-23, independent critic: scratchpad/p4/image_critic/NOTES.md (reproducers reg.sh, spell/, nt.sh, shadow.sh, undo.sh, reload.sh, ro.sh, ro2.sh, wbench.sh, run_opt*.sh, run_rt.sh, junc.sh, ren.sh); HIGH H-A/H-B/H-C, MEDIUM M-A..M-H, LOWs",
+    "rev2": "2026-11-23, planner: all findings handled per the supervisor's decisions; table in plan section R",
+    "rev3": "2026-11-23, planner: owner answers folded in as IMG-D1..D9 (plan section D); I2 split into I2a / I2b"
+  },
+  "supervisor_decisions_rev2": {
+    "H1": "accept: the writer check is a simulated image start (hook VARs restored to pre-load values, all hooks in load order, full state compared: variables incl. attributes, functions, exports; any difference = refuse); lint: load code outside a hook may not write another unit's hook VAR; tawk / tfind / tsed get their own hooks; the simulation test lands in I1 (I1a / I1b)",
+    "H2": "accept all: file-name hash over every key row + the normalised resolved request path(s); resolution compared with -ef; no write when a stamped file has a future mtime; repeat-miss guard (recent image stale again -> stop writing, plain kk.uses); rename failure (EBUSY on Windows) silent, old file kept; alternating-callers test + bench row",
+    "H3": "accept: kbool.sh, kkore/*.sh, kkore/kimage.sh, kklass/kklass.sh stamped like closure files",
+    "M1": "accept: every dependency edge re-checked per start (header form measured); stamps / date reference taken before the load (stale when a file is not older than the load-start reference); KBOOL_VERSION in the key as a Q1 option against a content hash, with costs",
+    "M2": "accept: readonly flags and kklass tables in a final block before registration; the undo forgets classes, variables, functions; flipped byte stated as not detected; tpipe.sh 909-911 unguarded declare -gr = pre-existing bug, fixed in I1b with a test",
+    "M3": "accept: source under if (errexit off), stderr captured; readonly-collision pre-check from a header name list; every failure path spelled out (plan 8.3)",
+    "M4": "accept: Q7 re-presented, (a) = reuse kklass's kk._fn_text_cr (parser probed, not OSTYPE / /proc/version); recommendation changed to it",
+    "M5": "accept: on bash < 5.2 refuse an image when any function text holds the &> \"$ form; new owner question Q9 (class method bodies from texts via the .ckk machinery vs raw declare -f)",
+    "M6": "accept: writer profiled (pipe read of declare -p ~1.8 s of 3.16 s; temp file -> 1.39-1.44 s); miss target to be measured in I2 / I4",
+    "M7": "accept: extglob, expand_aliases, BASH_COMPAT in the key",
+    "M8": "accept: Windows trust thin on noacl documented; KBOOL_IMAGE_DIR / overridden LOCALAPPDATA are the user's responsibility there; symlink tests use mklink /J",
+    "LOW": "accept all: EUID 0 reads / writes only with KBOOL_IMAGE_DIR; base dir -O and ! -L; pruning by age / count / missing KBOOL_HOME; temp pruning only for dead pids; the image written by one checked printf; refusal for aliases, function attributes, the hash table; set -a = not applicable on both paths; BSD stat -f; I1a / I1b carry the simulation test and a critic",
+    "perf_rule": "owner: timing targets are CI-only; laptop-only targets removed (image.check is a CI row)"
+  },
+  "probes": {
+    "where": "scratchpad/p4/image/ (NOTES.md has the raw numbers, rev 1 and rev 2 sections)",
+    "inventory": "79 load-time reads in 33 files: 28 locale blocks, 2 locale derivations, 37 public FV_* self-defaults, 5 public preset guards, 3 registry appends (tawk / tfind / tsed -> TUTIL_OUT_*), 1 PATH probe, 1 pid, kklass __kk_ft + KKLASS_EXPORT_FUNCTIONS warning; 125 self-defaults in all (37 public, 88 internal); env-diff of all 46 units (Git-bash 5.3.15): LANG=ru -> __FV_KB_LOC, __FV_VS_LOC, LC_CTYPE export; LC_ALL=C -> export only; PATH=/nonexistent -> TFILE_USE_CP",
+    "cr_functions": "9 functions with a raw CR byte (TIniFile._load, TIniFile._validate, fv.dialogs._stRows, fv.keyboard._init, tca._longOpts, tfile._crypt_hmac, tpath.__static_getGUIDFileName, ktool._banner, ktool._san); MSYS bash drops CR when parsing (compound arrays silently, function texts on source and eval); handled by kk._fn_text_cr (Q7 a)",
+    "image_source_ms_fvdlg_5_runs": {
+      "git-bash 5.3.15": "77-78",
+      "msys2 5.3.9": "77-83",
+      "cygwin 5.2.21": "77-79"
+    },
+    "normal_load_ms_fvdlg_1_run": {
+      "git-bash 5.3.15": 739,
+      "msys2 5.3.9": 746,
+      "cygwin 5.2.21": 731
+    },
+    "all_46_units": "image 4.37 MB, source 186 ms vs load 2615 ms (Git-bash, 1 run)",
+    "hit_path_pieces_median_ms": {
+      "request kk._unit_find fresh index": "6.6 / 6.6 / 6.2 (Git-bash / MSYS2 / Cygwin)",
+      "dependency edges, header form (14 non-core of 20)": "2.2 / 1.7 / 1.5",
+      "dependency edges, full kk._unit_find each": "14.5 / 14.5 / 15.4-16.2",
+      "-nt over 14 files": "2.6 / 2.6 / 2.4",
+      "one stat fork": "25 / 30 / 47",
+      "one cksum fork": "29 / 35 / 48",
+      "FNV-1a 300 chars": "3.2 / 2.8 / 2.9",
+      "hooks upper bound": "1.1 / 1.0 / 1.0",
+      "readonly pre-check naive": "3.9 / 4.4 / 6.1 (bash's own readonly names skipped: est. < 0.5)",
+      "header read": "0.5 / 0.5 / 0.6"
+    },
+    "writer_profile_fvdlg_gitbash_2_runs": "before: declare -p read 44-45 ms, function texts 140-143 ms; load 0.67-0.70 s; after: vars loop 2.80 s (arrays 134-143 ms, pre-existing deltas 3 ms, ~1.8 s reading declare -p from a pipe; via a temp file the loop is 1.03 s and the write 3.16 -> 1.39-1.44 s; ~0.9 s per-line work left); function compare 130-136 ms; declare -f emit 55-57 ms",
+    "kklass_body_functions": "fv.dlg closure: 210 of 1395 functions, 32 classes; re-made from texts with kk._body_fns_for in 23-25 ms (Git-bash, Cygwin, 3 runs each)",
+    "bash51_redirect_hazard": "no quoted >&\"$x\" and no &> \"$x\" in kcl / kklass / kkore code today",
+    "read_N_plus_eval_vs_source_ms": "111 vs 78 (Git-bash, 3 runs each)",
+    "windows_trust": "noacl on all three runtimes; -L true for a junction, ln -s copies (critic); MSYS2 started from Git-bash: no LOCALAPPDATA"
+  },
+  "decisions": {
+    "IMG-D1": {
+      "date": "2026-11-23",
+      "question": "Q1 how a changed file is noticed",
+      "answer": "c + a flag",
+      "text": "KBOOL_IMAGE_CHECK=stat|dates|hash; default dates (+ KBOOL_VERSION in the key) on Git-bash / MSYS2 / Cygwin (OSTYPE msys* / cygwin*), stat on Linux / macOS / FreeBSD; unset, empty or an invalid value -> the default + one debug line (VERBOSE_KKLASS=debug); a mode whose tool is missing runs as dates; the effective mode is a key row and in the file-name hash. KBOOL_VERSION: declare -g in kbool.sh (not exported), bumped with the CHANGELOG heading by a 'Releasing' step in the kbool root CONTRIBUTING.md; a kbool master test asserts it equals the newest '## X.Y.Z' heading of CHANGELOG.md"
+    },
+    "IMG-D2": {
+      "date": "2026-11-23",
+      "question": "Q2 one image per script or chained",
+      "answer": "b (chained) + a flag",
+      "text": "KBOOL_IMAGE_CHAIN=on|off, default on (invalid -> on + a debug line). The prior set P (non-system units complete when kk.image starts, in load order from the new kkore list __KK_UNIT_ORDER, with normalised files) joins the key and the file name; P's files are stamped. The image holds only this call's delta; pre-existing slots it changes (kkore tables, P's kklass tables and registries) are element deltas with their earlier values in a base list. A start runs the base check (every base slot holds its recorded earlier value) before sourcing; a failure -> plain kk.uses, no write. With P the writer's simulated start runs in a fresh process (kbool.sh, kk.uses P, the image, hooks) and is compared with the writer's state. The undo also restores the base slots. Holds and pruning per (request, P, mode); caps 8 per (request, P), 16 per request, 64 images / 256 MB per folder. Documented limit: the base check sees written slots, not what the load read from P (R13). KBOOL_IMAGE_CHAIN=off = rev 2's first-load-only rule"
+    },
+    "IMG-D3": {
+      "date": "2026-11-23",
+      "question": "Q3 messages",
+      "answer": "b",
+      "text": "silent for cannot-write, holds, refusals and stale images; one WARNING (once per process) when an existing image file fails a trust check; debug lines for every reason"
+    },
+    "IMG-D4": {
+      "date": "2026-11-23",
+      "question": "Q4 location",
+      "answer": "b",
+      "text": "per-user: XDG_CACHE_HOME / HOME/.cache on POSIX; on Git-bash / MSYS2 / Cygwin LOCALAPPDATA -> USERPROFILE/AppData/Local (same per-user folder) -> HOME/.cache fallback; KBOOL_IMAGE_DIR overrides (the only place for EUID 0). Risk kept visible (plan 8.2, R14): MSYS2 / Cygwin HOME lies inside the install folder; mitigations that keep the choice: the USERPROFILE step, umask 077, a debug line naming the fallback and 'inside the install folder', README advice for shared machines"
+    },
+    "IMG-D5": {
+      "date": "2026-11-23",
+      "question": "Q5 hook form",
+      "answer": "a",
+      "text": "explicit kk.settings FN [VAR...]"
+    },
+    "IMG-D6": {
+      "date": "2026-11-23",
+      "question": "Q6 internal reload guards",
+      "answer": "a",
+      "text": "the 88 internal __ self-defaults and X+=() arrays stay at load, image-held; exported __ names are not settings (documented)"
+    },
+    "IMG-D7": {
+      "date": "2026-11-23",
+      "question": "Q7 CR functions",
+      "answer": "a",
+      "text": "the writer reuses kklass's kk._fn_text_cr (parser probed by eval); rc 1 -> no image; no unit edits"
+    },
+    "IMG-D8": {
+      "date": "2026-11-23",
+      "question": "Q8 a damaged image",
+      "answer": "a",
+      "text": "source under if (errexit off, stderr captured), end mark, undo (units, classes, functions, variables, base slots), normal load; a flipped byte that still parses is not detected"
+    },
+    "IMG-D9": {
+      "date": "2026-11-23",
+      "question": "Q9 class bodies on bash 5.1",
+      "answer": "a",
+      "text": "raw declare -f for every function; on bash < 5.2 no image when a function text holds &> \"$"
+    }
+  },
+  "questions_for_owner": {
+    "Q1": "ANSWERED (see decisions): staleness: (a) one stat exact / (b) dates vs load-start reference + KBOOL_VERSION / (c) (b) on Windows runtimes, (a) elsewhere / (d) content hash (cksum) -- recommended c",
+    "Q2": "ANSWERED (see decisions): one image per script (first load only) / chained images -- recommended a",
+    "Q3": "ANSWERED (see decisions): messages: (a) nothing / (b) one WARNING only for a refused trust check / (c) WARNING always -- recommended b",
+    "Q4": "ANSWERED (see decisions): location: (a) per user, no fallback / (b) + $HOME/.cache on Windows runtimes without LOCALAPPDATA / (c) next to kbool -- recommended a",
+    "Q5": "ANSWERED (see decisions): hook form: (a) explicit kk.settings FN VAR... / (b) by name UNIT._settings -- recommended a",
+    "Q6": "ANSWERED (see decisions): internal reload guards (88 names): (a) stay at load, image-held / (b) into hooks -- recommended a",
+    "Q7": "ANSWERED (see decisions): CR functions: (a) reuse kklass kk._fn_text_cr / (b) units use __KK_CR + lint + refusal / (c) no images where the parser drops CR -- recommended a (changed in rev 2)",
+    "Q8": "ANSWERED (see decisions): damaged image: (a) source under if + end mark + undo + normal load / (b) read whole file, check length, eval (+33 ms) -- recommended a",
+    "Q9": "ANSWERED (see decisions): class method bodies on bash 5.1: (a) raw declare -f, refuse on bash < 5.2 when &> \"$ appears / (b) bodies re-made from texts via kk._body_fns_for (+23-25 ms measured, est. net +10-20 ms) -- recommended a (new in rev 2)"
+  },
+  "phases": {
+    "I0": {
+      "name": "kkore kk.settings FN [VAR...] (VARs may be shared by units), __KK_UNIT_SETTINGS / __KK_SETTINGS_VARS, kk.localeDefault, __KK_UNIT_ORDER (load order, for chained keys), KBOOL_VERSION in kbool.sh + the 'Releasing' step in CONTRIBUTING.md + the CHANGELOG test, --forget cleanup; kkore tests; kkore README section",
+      "status": "planned",
+      "review": "supervisor + critic (kkore API)",
+      "gate": "gate.sh all on the Windows bashes + bash 5.1 VM gate"
+    },
+    "I1a": {
+      "name": "fv units' settings hooks (fv.keyboard, fv.video, fv.views, fv.app, fv.dialogs, fv.dlg, fv.histlist, fv.msgbox, fv.drivers, fv.mouse); kcl 001 lint (no unhooked public / locale / PATH / pid reads; no load code writing another unit's hook VAR); the simulated-image-start test harness + the normal-load env-diff for these units; no behaviour change",
+      "status": "planned",
+      "review": "supervisor + critic",
+      "gate": "gate.sh kcl + the 12 fv suites; CI"
+    },
+    "I1b": {
+      "name": "the other 23 hook files: tawk / tfind / tsed registry hooks (H1), tutil, tfile, tpipe (incl. the readonly-guard fix of tpipe.sh 909-911 + a forget/reload test under set -e), the locale-only units; kklass kk.settings : __kk_ft + KKLASS_EXPORT_FUNCTIONS warning hook; the simulation test over every unit",
+      "status": "planned",
+      "review": "supervisor + critic",
+      "gate": "gate.sh all; CI"
+    },
+    "I2a": {
+      "name": "image core, unchained: kk.image hit path (kuse.sh) + kkore/kimage.sh: format v1 incl. the base list (kkore's own slots), key + file-name hash, KBOOL_IMAGE_CHECK stat|dates|hash (defaults, invalid values, missing tools), KBOOL_VERSION keyed, dependency edges (header form), -ef resolution, the location chain (D4), trust checks + the one WARNING (D3), refusal rules, the subshell simulation, CR via kk._fn_text_cr (D7), the bash < 5.2 rule (D9), one checked printf write, silent rename failure, holds, end mark + undo (D8), readonly pre-check, source under if, --rebuild / --forget / --path; KBOOL_IMAGE_CHAIN parsed, only the off behaviour; writer profiled before speed work",
+      "status": "planned",
+      "review": "supervisor + critic (security, staleness, fallback)",
+      "gate": "gate.sh all + bash 5.1 VM gate; CI"
+    },
+    "I2b": {
+      "name": "chaining (D2): P in the key / file name / stamps, deltas on pre-existing slots with the base list, the base check, the fresh-process simulation, the undo of base slots, holds and pruning per (request, P, mode) with the caps, KBOOL_IMAGE_CHAIN=on default; chained tests (kk.uses tstringlist; kk.image fv.dlg)",
+      "status": "planned",
+      "review": "supervisor + critic (base-check soundness, the documented reader-side limit)",
+      "gate": "gate.sh all + bash 5.1 VM gate; CI"
+    },
+    "I3": {
+      "name": "env-diff over every unit, unchained and chained (P = tstringlist, tutil), and the fv.dlg closure (image under A, start under B == real load under B except the allow-list), round trip per bash version, lazy data, behaviour from an image start; every CI row",
+      "status": "planned",
+      "review": "critic (does the allow-list hide anything)",
+      "gate": "gate.sh all; CI 16 rows"
+    },
+    "I4": {
+      "name": "perf: image.hit / image.load / image.hit.chain / image.check / image.miss / image.alt / image.forks bench rows (CI-only targets) + a Linux row with KBOOL_IMAGE_CHECK=dates; writer speed per I2a's profile; the miss target fixed from CI; docs (kkore README Images with the flags, kcl README unit rule, kklass book Units and uses, the shared-machine note)",
+      "status": "planned",
+      "review": "supervisor",
+      "gate": "CI bench on the perf branches -> targets fixed here"
+    },
+    "I5": {
+      "name": "bin/fvdlg: kk.uses fv.dlg -> kk.image fv.dlg; dlg1.proc.<widget>.image rows (into P4 4e's fvdlg suite or a skeleton 4e extends); fv.dlg README Cost",
+      "status": "planned",
+      "review": "supervisor",
+      "gate": "fv.dlg suites; CI bench"
+    }
+  },
+  "targets": {
+    "rule": "CI bench rows only (Linux rows; Windows as ratios)",
+    "image.hit.fvdlg": "<= 0.12 s CI Linux (launch -> return)",
+    "image.hit_over_load": "<= 0.2 CI Linux",
+    "image.check": "<= 10 ms CI Linux",
+    "image.miss.fvdlg": "to be measured (set in I4 from CI after I2's writer profile)",
+    "image.alt": "after the first two starts: 0 writes, every start within image.hit",
+    "image.forks": "0 in dates mode (the Windows default); 1 named (stat / cksum) in stat / hash mode (the POSIX default stat)",
+    "dlg1.proc.<widget>.image": "first frame <= 0.3 s CI Linux; exit logged",
+    "image.hit.chain": "kk.uses tstringlist; kk.image fv.dlg: hit time minus load(tstringlist) <= 0.12 s CI Linux; ratio to the unchained hit logged",
+    "note": "Linux rows run the POSIX default (stat); a second Linux row with KBOOL_IMAGE_CHECK=dates shows the fork's share"
+  },
+  "open": [
+    "found_in_image_plan_critic (pre-existing): kcl/tpipe/tpipe.sh 909-911 declare -gr __TPIPE_RETERM_US / __TPIPE_GRACE_US / __TPIPE_HARDCAP_US without the ${X@a} != *r* guard: kk.unit --forget tpipe + reload prints 3 readonly errors and kills a set -e caller (critic reload.sh); fix + test in I1b",
+    "bash 5.1 declare -p / declare -f round trip not probed (no VM in the planning task): I2 / I3 on the alpine and Ubuntu 22.04 rows and the VM gate",
+    "Linux / macOS / FreeBSD costs are estimates (0.6-0.95 x laptop for bash-bound work, forks ~1 ms); fixed by I4's CI bench",
+    "writer: ~0.9 s per-line work left after the temp-file fix (fv.dlg, laptop) not split further; I2 profiles name iteration (compgen -v, ${!n@a}, ${n@A}) before setting the miss target",
+    "the file-name hash costs 2.8-3.2 ms over 300 chars (laptop); I2 may choose a cheaper fork-free string hash and measures it",
+    "coordination with P4 4e: who creates the fvdlg bench suite's process rows (I5 adds the .image rows)",
+    "chained reader-side limit (plan R13): the base check sees slots the delta writes, not what this call's load read from P; documented, KBOOL_IMAGE_CHAIN=off for such programs",
+    "HOME/.cache fallback on MSYS2 / Cygwin lies inside the install folder (plan 8.2, R14); kept per the owner's choice with the listed mitigations",
+    "the chained fresh-process simulation adds a load of P to a miss; its cost is measured in I2b / I4"
+  ],
+  "closed": []
+}
