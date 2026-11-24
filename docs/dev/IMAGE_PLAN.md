@@ -58,6 +58,23 @@ fv D20) — the owner's rule. Probes: `scratchpad/p4/image/` (Appendix A).
 
 ---
 
+## I2a deviations (as implemented, 2026-11-25; the sections below are updated where marked)
+
+| # | deviation | why |
+|---|---|---|
+| 1 | header: line 1 `# kbool image v1 N` (byte length of the header) and a **plain line `#P`** (wtime, size, runtime tag, `KBOOL_HOME`, prior set, mode, stat flavour, nonce, request hash, the stamped files) read **without eval** (§6.1) | one `read -N` (line-by-line was 385 ms on MSYS); the `stat` bits are checked before a byte runs; pruning and `--forget` need no eval |
+| 2 | **stamps taken after the load** (§6.2); an edit during the load caught by the reference temp (`-ot`) and, `stat`, a ctime later than the load's start | the closure is known only after the load |
+| 3 | `stat` flavours with **nanosecond times** first (`%.9Y %.9Z`, BSD `%Fm %Fc`); with whole seconds only, the **racy rule** (git's, on the mtime): a file whose mtime is the stamp's second is a miss, not stale | an edit inside the stamp's second is otherwise invisible (CI round 2: fixtures and writes in one second) |
+| 4 | **no mode bits on the Windows runtimes** (neither checked nor stamped) | the runtimes make modes up (Cygwin's ACLs report 770 for our own folders; MSYS derives them from the umask) |
+| 5 | **mode-bit rule** (critic M4, §8.1): a group/world-writable image file refused; a folder only when world-writable without sticky | a caller's `umask 002` made every self-made folder refuse `stat` mode silently |
+| 6 | **no hold** for a refused or uncreatable folder, a failed write / rename, an edit during the load | a hold cannot be written there / the next start may well succeed; an uncreatable folder is a plain `kk.uses` without the writer (L5) |
+| 7 | `--optional` goes **through the image** (the key unchanged); a failed optional unit = a load failure: no image, a hold | a load whose optional units all loaded leaves a plain load's state |
+| 8 | **a hold after a load failure** (also a failed `--optional` unit), as §6.3 lists it — a developer who fixes the unit right away gets plain loads for up to an hour (`--rebuild` clears) | the plan's rule kept; flagged |
+| 9 | after an undone start: a rewrite, or — the image under 10 minutes old — a hold **and the image removed**; the normal load after an undo is a plain call, not under `if` | a damaged image is not sourced and undone on every start; parity with `kk.uses` under `set -e` |
+| 10 | the reference file is **`NAME.NONCE.ref`** (critic L3) | two writers at once each rename their own; the image that wins finds its reference |
+| 11 | the hit path in **`kkore/kimghit.sh`** (critic M6, §2) | `source kbool.sh` stays as cheap as before images |
+| 12 | refusals added: a pre-existing variable assigned in a unit file's text (M1), readonly functions / `enable -n` / `complete -p` (L2), a stamped file with a future ctime (held, M5); negative dependency edges (M3); a caller's variable named like an image variable = a plain load (H1) | the critic round |
+
 ## 0. Summary
 
 * **API** (§3). `kk.image UNIT…` = `kk.uses UNIT…` (same rc, same units loaded), through an
@@ -122,8 +139,9 @@ fv D20) — the owner's rule. Probes: `scratchpad/p4/image/` (Appendix A).
 
 | piece | where | why |
 |---|---|---|
-| `kk.image` hit path (~180 lines) | `kkore/kuse.sh` | needs the unit tables and `kk._unit_find` |
-| writer, `--rebuild` / `--forget`, simulations (~400 lines) | new `kkore/kimage.sh`, sourced on a miss only | the slow path costs nothing on a hit |
+| `kk.image` entry and its options (~90 lines; I2a) | `kkore/kuse.sh` | `KBOOL_IMAGE=off` without sourcing anything; a `source kbool.sh` parses only this (critic M6) |
+| the hit path — prep, folder trust, key, header, stamps, holds, `--path` (~790 lines; I2a) | new `kkore/kimghit.sh`, sourced on every image start (fork-free; one more parse, ~1.4 ms on the laptop) | needs the unit tables and `kk._unit_find`; kept out of `source kbool.sh` (critic M6: +1.1 ms per source when it lived in kuse.sh) |
+| writer, `--rebuild` / `--forget`, pruning, simulations, the dump (~1600 lines; I2a) | new `kkore/kimage.sh`, sourced on a miss only | the slow path costs nothing on a hit |
 | `kk.settings`, `kk.localeDefault`, the load-order list `__KK_UNIT_ORDER` (~60 lines) | `kkore/kuse.sh` | header-level verbs; the order list keys chained images (§7.7) |
 | `KBOOL_VERSION` | `kbool.sh` | D1 |
 | `kk.settings : __kk_ft` | `kklass/kklass.sh`, 1 line | pid- and fd-bound state |
@@ -259,45 +277,70 @@ functions need no unit change (D7).
 
 ## 6. The image file and the writer
 
+
 ### 6.1 Format v1 (order matters for the undo)
 
+As implemented in I2a (the authoritative copy is the `kkore/kimage.sh` header):
+
 ```
-# kbool image v1                                    line 1: magic + format
-__kk_img_key=…                                      line 2: the full key (%q)
-__kk_img_files=(…) __kk_img_edges=(…)               line 3: stamped files + stamps; DEPDIR|NAME|FILE edges
+# kbool image v1 N                                  line 1: magic, format, N = byte length of the header below
+#P<US>WTIME<US>SIZE<US>TAG<US>HOME<US>PRIOR<US>MODE<US>FLAVOUR<US>NONCE<US>RHASH<US>N<US>FILE…
+                                                    the plain line, read WITHOUT eval: the stamped files
+                                                    (the stat bits check runs before any byte of the image),
+                                                    pruning's and --forget's data
+__kk_img_key=… __kk_img_nonce=…                     the full key (%q), the nonce
+__kk_img_edges=(…) __kk_img_reqf=(…) __kk_img_stamp=… __kk_img_stime=…
+                                                    DIR|NAME|FILE edges (FILE empty: not found — a failed
+                                                    `kk.uses --optional`); the request files; the stat /
+                                                    cksum stamps and the second they were taken in
 __kk_img_units=(…) __kk_img_classes=(…) __kk_img_vars=(…) __kk_img_fns=(…) __kk_img_ro=(…) __kk_img_wtime=…
-__kk_img_base=(…)                                   line 5: touched pre-existing slots: KIND|NAME|KEY|BEFORE
-<functions>
-<variables>                                         declare -g (no -r); arrays X=() then X[k]=v; deltas X[k]=v / unset 'X[k]'
-<final block> readonly flags, kklass tables
+__kk_img_base=(…)                                   touched pre-existing slots: KIND|NAME|KEY|FLAG|VALUE
+<functions>                                         declare -f, CR-rewritten (§6.4)
+<variables>                                         declare -g (no -r); arrays X=() then X[k]=v; an associative
+                                                    key whose %q form is not plain and has no control byte:
+                                                    two %q indexed arrays and a loop X[${k[i]}]=${v[i]}
+                                                    (bash 5.1 reads `X[@]=v` as every element)
+<final block> kklass tables, then the readonly flags
 <kkore unit tables>                                 registration LAST
-<hook list>
-__kk_img_end=<nonce of line 2>
+__kk_img_hooks=(UNIT|FN …)
+__kk_img_end=<the nonce>
 ```
 
-`BEFORE` is `%q` of the earlier value, or `-` for "absent"; a redefined function's slot holds
-a hash of its earlier `declare -f` text. Written under `LC_ALL=C`. Header lines are `read`
-before anything is sourced.
+`SIZE` = the file's byte count (12 digits, pruning's 256 MB cap); `TAG` = FNV-1a of `$BASH`
+(pruning judges only its own runtime's pids and `KBOOL_HOME` spellings); `PRIOR` empty until
+I2b; `FLAVOUR` = `gnu9` / `gnu` / `bsd9` / `bsd` in `stat` mode, else `-`; `NONCE` names the
+image's reference file `NAME.NONCE.ref` (`dates` mode); `RHASH` = FNV-1a of the request
+(`--forget`). Base entries (I2a: kkore's own registration slots only): `e|TABLE|KEY|-|` (absent
+before) or `e|TABLE|KEY|=|BEFORE`, `s|NAME||=|BEFORE` for a scalar; a redefined function's
+slot (I2b) will hold a hash of its earlier `declare -f` text. Written under `LC_ALL=C`; the
+header is read as bytes (`LC_ALL=C read -N`) before anything is sourced.
 
 ### 6.2 The writer (miss path)
 
-1. Before the load: `declare -p` into a temp file and read it (never a pipe); function names
-   and texts of existing functions; traps, options, aliases, `BASH_CMDS`, fds; P (names in
-   `__KK_UNIT_ORDER` order, files); the stamps per the check mode (`stat` output, a `.ref`
-   file created now, or `cksum` output) — taken now, so an edit during the load makes the next
-   start stale.
-2. `kk._uses CALLER …`.
+1. Before the load: the folder (made under `umask 077`; its trust walked again); in `stat`
+   mode the flavour probe over the folder levels (GNU `-c` with nanoseconds, `-c`, BSD `-f`
+   with nanoseconds, `-f`) and, on POSIX, their bits; the shell state (traps, aliases, umask,
+   options, function attributes incl. readonly ones, `enable -n`, `complete -p`, jobs); the
+   reference temp with a fresh nonce (made now: a file edited during the load is newer); every
+   variable's `declare -p` through a temp file (never a pipe); function names and texts; kkore's
+   registration tables. All the writer's files under `umask 077` (I2a critic L6); right before
+   the load an EXIT trap that removes them if the script ends inside the load, the open fds and
+   the hash table; the caller's umask for the load itself.
+2. `kk._uses CALLER [--optional] …`; then the shell state, fds and hash table again.
 3. The delta, with the base list for every touched pre-existing slot; the refusal rules
-   (§6.3); the simulated image start (§5.2).
-4. Future mtimes: the temp file is created now; any stamped file `-nt` it → no write, a hold.
+   (§6.3); **the stamps, taken after the load** (the closure is known only then; an edit
+   during the load is caught by the reference temp, `-ot`, and in `stat` mode by a ctime later
+   than the load's start) under the starts' umask; the simulated image start (§5.2).
+4. Future mtimes (and, `stat`, future ctimes): no write, a hold.
 5. The image is built in memory and written by **one** `printf '%s'` into
-   `NAME.img.tmp.$BASHPID.$SRANDOM` (`umask 077`, `set -C`), rc checked.
-6. `mv -f` the image, then the `.ref` file (`dates` mode) — image first. Pruning (§7.4).
+   `NAME.tmp.TAG.PID.RANDOM.img` (`umask 077`, `set -C`), rc checked (all temps are
+   `NAME.tmp.TAG.PID.RANDOM.KIND`).
+6. `mv -f` the image, then (`dates`) the reference temp to `NAME.NONCE.ref` — image first.
+   Pruning (§7.4); the temps, the files pruned and a cleared hold go with one `rm`.
 
-Forks on a miss: the simulation (subshell, or a fresh `bash` with a prior set), `mkdir -p`
-(first time), `mv` ×1–2, `rm` when pruning, `stat` / `cksum` per mode. Speed: M12 (the pipe
-read was ~1.8 s of 3.16 s; 1.4 s with a temp file; ~0.9 s per-line work left for I2a). The
-chained simulation adds a load of P in the child. **The miss target is to be measured** (§11).
+Forks on a miss: the simulation subshell, `mkdir -p` (first time), `mv` ×1–2, one `rm`, the
+`stat` probe (1, up to 4 on a BSD stat) and the stamp `stat` / one `cksum` per mode. The chained
+simulation (I2b) adds a load of P in the child. **The miss target is to be measured** (§11).
 
 ### 6.3 Refusal rules (no image; the units stay loaded; a hold + a debug line)
 
@@ -392,6 +435,12 @@ has a future mtime. `--rebuild` and `--forget` clear it. Cost: one `-f` on the m
 | `dates` (default on Git-bash / MSYS2 / Cygwin) | `[[ FILE -ot NAME.ref ]]` for every stamped file, the `.ref` made before the load and its nonce in line 2; **`KBOOL_VERSION`** in the key catches release archives unpacked with old dates | ~0.18 ms per file, est. ~3.9 ms for ~21 | an unreleased copy with old dates copied over kbool (`cp -p`, a zip of a branch) |
 | `hash` | one `cksum` over the stamped files | 1 fork, 29–48 ms on Windows, reads ~1.5 MB | nothing (content) |
 
+`dates` compares mtimes with the reference file the writer made: on a network `KBOOL_HOME`
+whose server clock runs ahead of this machine's, or a local clock that lags, a file edited
+after the image can still look older than its reference — a stale image hits. Use `stat` or
+`hash` there (I2a critic L7). `stat` with whole-second times only (no `%.9Y` / `%Fm`) has
+the racy rule of I2a deviation 3.
+
 A mode whose tool is missing (`stat` / `cksum` not on `PATH`, an unknown `stat` flavour) runs
 as `dates` and that effective mode is keyed; a debug line says so.
 
@@ -439,11 +488,21 @@ equals the newest `## X.Y.Z` heading of `CHANGELOG.md`, so a forgotten bump fail
 **Threat**: an image is shell code run by every start. **Model**: another local account, or
 a foreign / stale file; not the user's own account, not root.
 
-Checks before reading a byte (fork-free): the base is a directory, `-O`, not a symlink; from
-`kbool/` down every folder `-d`, `-O`, `! -L`; the image `-f`, `-O`, `! -L`. Folders made
-under `umask 077`. With `stat` mode also the modes (group / world writable → refused). `EUID`
-0 reads and writes only under `KBOOL_IMAGE_DIR`. A user whose `~/.cache` is a symlink sets
-`XDG_CACHE_HOME` / `KBOOL_IMAGE_DIR` to the real folder.
+Checks before a byte runs (fork-free; the header is read, not evaluated, before them): the base
+is a directory, `-O`, not a symlink; from `kbool/` down every folder `-d`, `-O`, `! -L`
+(`KBOOL_IMAGE_DIR` itself when set; it must be absolute); the image `-f`, `-O`, `! -L`; its
+`.ref` (`dates`) `-f`, `-O`, `! -L` too. Folders made under `umask 077`, every file the writer
+makes too. With `stat` mode on POSIX also the permission bits, in the one `stat` of the start
+(I2a critic M4): a **group- or world-writable image file** is refused; a **folder** only when
+it is **world-writable without the sticky bit** — a group-writable folder (a caller's `umask
+002`, UPG distributions) is accepted, the files in it being protected by `-O` and `! -L`; a
+sticky `1777` folder is accepted (others cannot rename or remove this user's files; a file
+they plant fails `-O`). Not checked on the Windows runtimes (modes made up, §8.2). `EUID` 0
+reads and writes only under `KBOOL_IMAGE_DIR`. A user whose `~/.cache` is a symlink sets
+`XDG_CACHE_HOME` / `KBOOL_IMAGE_DIR` to the real folder. A variable the image would create
+that already exists in the caller's view (a local, a nameref, another kind, readonly, a preset)
+makes the start a plain `kk.uses` (I2a critic H1): an image never writes into a caller's
+variable and its undo never unsets one.
 
 ### 8.2 Windows runtimes: thin checks, and the home fallback (D4)
 
@@ -475,7 +534,10 @@ set `KBOOL_IMAGE_DIR` or `KBOOL_IMAGE=off`. When the user points `KBOOL_IMAGE_DI
 | a hook fails during a start | undo, then `kk.uses` (the unit's real error and rc) |
 | the source itself | `if source "$img" 2>"$sink"; then` — errexit off inside the condition; `$sink` `/dev/null`, or a temp file printed under `VERBOSE_KKLASS=debug` |
 
-**Not detected**: a flipped byte that still parses and leaves the end mark (D8).
+**Not detected**: a flipped byte that still parses and leaves the end mark (D8) — and a
+flipped byte in an indexed subscript or an integer value can **end the caller's script** (an
+arithmetic error is fatal inside the `source`, even under `if`); there is no checksum (I2a
+critic L4: the "the script survives" of D8 holds for truncation and syntax damage only).
 
 ---
 
