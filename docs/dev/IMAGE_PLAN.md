@@ -175,7 +175,7 @@ kk.image fv.dlg || exit             # = kk.uses fv.dlg, through an image when on
 | caller-keyed entries, the name index, dependency resolutions | **never** | per start |
 | kklass tables and class variables of this call's classes | **yes**, final block | — |
 | kklass instances | runtime instances never; at-load instances as plain state (none today) | — |
-| `__kk_ft`; exports; exported functions; hook VARs; shell-owned / scratch names | **never** | — |
+| `__kk_ft`; exports; exported functions; hook VARs; shell-owned / scratch names | **never** | `__kk_ft` (kklass's hook VAR) is rewritten by every class build: exempt from the "hook VAR written outside a hook" refusal (§10) and not compared by the simulation (I1b critic M3) |
 | pids, fds (kklass's pair excepted), traps, jobs, coprocesses, options, `umask`, aliases, the hash table, function attributes | **never**; a change during the load → no image | — |
 | lazily sourced data | **never** | written right after the load |
 | `__KK_UNIT_BOT` of complete units | held | inert; allow-listed |
@@ -215,8 +215,10 @@ Internal `__` self-defaults stay at load (D6). Runtime-only facts (`OSTYPE`, `/p
     does not depend on changes the writer's script made to P between its load and `kk.image`
     (a P class modified at run time would show here).
   * Any difference → no image, a hold with the first differing name (§7.5).
-* On an image start the hooks of this call's units run after the image is sourced, in load
-  order; P's hooks ran when P loaded.
+* On an image start the hooks of this call's units run after the image is sourced, in
+  `__KK_UNIT_SETTINGS` order (the order the `kk.settings` calls ran, not `__KK_UNIT_ORDER`:
+  tfind registers before the tutil it loads, but its hook appends to tutil's registry and
+  must run after tutil's; I1b critic M2); P's hooks ran when P loaded.
 
 ### 5.3 Cost per image start
 
@@ -325,6 +327,7 @@ element lines).
 | part | read | fork-free |
 |---|---|---|
 | format `v1`; `KBOOL_HOME` as normalised; `$BASH`, `BASH_VERSION`, `OSTYPE`, `MACHTYPE`, `EUID` | variables | yes |
+| **the runtime family** on `OSTYPE` cygwin / msys: the first word of `/proc/version` (`CYGWIN_NT…` vs `MSYS_NT…`; Git-bash, MSYS2 and Cygwin all report `OSTYPE=cygwin`, and a Cygwin with cygdrive prefix `/` and the same bash version as MSYS2 would otherwise share a key; I1b critic M1) | `read < /proc/version` | yes |
 | parse options: `extglob`, `expand_aliases`, `BASH_COMPAT` | variables | yes |
 | **the effective check mode** (`stat` / `dates` / `hash`, after defaulting, §7.6) | D1 | yes |
 | **`KBOOL_VERSION`** (all modes) | kbool.sh | yes |
@@ -514,7 +517,7 @@ Forks: **0** in `dates` mode (the Windows default); **1** (`stat` / `cksum`) in 
 | holds | I2a | repeat-miss; refusal; `--rebuild` / `--forget` clear |
 | trust | I2a | symlink (POSIX) / junction (`mklink /J`, Windows), foreign or group-writable (POSIX), `EUID` 0 without `KBOOL_IMAGE_DIR`, unwritable folder; **the WARNING exactly once** (D3); the location chain on Windows: `LOCALAPPDATA` → `USERPROFILE` → `$HOME/.cache` with its debug lines |
 | damage | I2a | truncation in each section, syntax error, another key's image, empty / binary file, format `v2` — under `set -e` / `set -u`: the script survives, the state equals a normal load, no "ignored" class; a flipped byte in a value: not detected (documented) |
-| refusal | I2a | export, exported function, trap, option, alias, `hash` entry, `declare -ft`, fd, job, a hook VAR written after its hook, a CR function `kk._fn_text_cr` cannot rewrite, `&> "$f"` on bash 5.1 |
+| refusal | I2a | export, exported function, trap, option, alias, `hash` entry, `declare -ft`, fd, job, a hook VAR written outside any hook of a unit that lists it (`__kk_ft` exempt: never held, rewritten by every class build; I1b critic M3), a CR function `kk._fn_text_cr` cannot rewrite, `&> "$f"` on bash 5.1 |
 | rename / concurrency / readonly collision | I2a | as rev 2 |
 | **chained starts** (D2) | I2b | `kk.uses tstringlist; kk.image fv.dlg`: miss writes a chained image, the next start is a hit, its state equals `kk.uses tstringlist fv.dlg` loaded normally (round-trip compare); the same request without P / with another P / P in another order → other files; a P file edited → stale; `KBOOL_IMAGE_CHAIN=off` (and an invalid value → on) |
 | chained base check | I2b | the script pre-sets a slot the delta writes (a registry entry, a `_KKLASS_TAKEN` name) before `kk.image` → plain `kk.uses`, no write, correct state |

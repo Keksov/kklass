@@ -1081,9 +1081,20 @@ kk._fn_text_open() {
     return 1
 }
 # kklass.sh is (re)loaded: close this shell's descriptors when they are its
-# own; never trust a __kk_ft value that came from the environment (R14).
-if [[ ${__kk_ft[0]+${__kk_ft@a}} == a* && ${__kk_ft[0]} == "$BASHPID" ]]; then kk._fn_text_close; fi
-unset -v __kk_ft
+# own; never trust a __kk_ft value that came from the environment (R14). The
+# pid / fd state is never load image state (kklass/docs/dev/IMAGE_PLAN.md §4):
+# it lives in kklass's settings hook (kkore kk.settings), which an image start
+# runs again. Also there: the KKLASS_EXPORT_FUNCTIONS warning (see the end of
+# this file). (Named kklass._*, not kk._*: a hook is a function of the unit.)
+kklass._settings() {
+    if [[ ${__kk_ft[0]+${__kk_ft@a}} == a* && ${__kk_ft[0]} == "$BASHPID" ]]; then kk._fn_text_close; fi
+    unset -v __kk_ft
+    if [[ -n ${KKLASS_EXPORT_FUNCTIONS-} ]]; then
+        kk.warn "kklass: WARNING: KKLASS_EXPORT_FUNCTIONS is no longer supported and is ignored (nothing is exported); a child shell loads kbool itself: source kbool.sh; kk.uses kklass"
+    fi
+    return 0
+}
+kk.settings kklass._settings __kk_ft || return
 
 # ---------------------------------------------------------------------------
 # kk._fn_text_cr VAR — VAR holds a `declare -f` text (what kk._fn_text gives);
@@ -3117,7 +3128,6 @@ kk.register_static_methods() {
 # it exported the public verbs but not the internals, the class functions or
 # the registries (assoc arrays cannot be exported), so a child could not even
 # declareClass. A child shell bootstraps kbool itself: `source …/kbool.sh;
-# kk.uses kklass` (or a unit header). One warning when it is still set.
-if [[ -n ${KKLASS_EXPORT_FUNCTIONS-} ]]; then
-    kk.warn "kklass: WARNING: KKLASS_EXPORT_FUNCTIONS is no longer supported and is ignored (nothing is exported); a child shell loads kbool itself: source kbool.sh; kk.uses kklass"
-fi
+# kk.uses kklass` (or a unit header). One warning when it is still set: an
+# environment read, so it is printed by kklass._settings (the settings hook,
+# above), which an image start runs again.
