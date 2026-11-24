@@ -130,7 +130,7 @@
   "phases": {
     "I0": {
       "name": "kkore kk.settings FN [VAR...] (VARs may be shared by units), __KK_UNIT_SETTINGS / __KK_SETTINGS_VARS, kk.localeDefault, __KK_UNIT_ORDER (load order, for chained keys), KBOOL_VERSION in kbool.sh + the 'Releasing' step in CONTRIBUTING.md + the CHANGELOG test, --forget cleanup; kkore tests; kkore README section",
-      "status": "done 2026-11-24 (kkore ecb2386, kbool 6e8f582; local + perf)",
+      "status": "done 2026-11-24 (kkore ecb2386, kbool 6e8f582; local + perf; CI 45291137546 green, all 16 rows incl. alpine bash 5.1 and ubuntu 22.04)",
       "review": "supervisor + critic (kkore API): 0 HIGH; M1 a hook re-entering kk.settings / loading units -> __KK_SETTINGS_RUN mark + kk._settings_hook, refused rc 2 + taint (a kk.uses of a loaded unit stays a no-op); M2 a failed hook taints the unit; M3 hook-writing rules in the kuse.sh header + README; M4 kkore standalone CI runs kbool main -> 020 SKIP only when (KKORE_CI_STANDALONE=1 or GITHUB_REPOSITORY=Keksov/kkore) and kbool.sh has no KBOOL_VERSION (a reusable-workflow caller cannot pass env); L1-L9 fixed (replay by path, quiet kk._unit_complete, nocasematch-safe drops, kk._unit_register replaces the last u entry, KBOOL_VERSION declare -g +x +i + export -n, strict CHANGELOG heading parse, README doctest, $BASHPID subshell refusal, one stack walk kk._unit_loading). Each fix has a 019/020 test failing on the round-1 tree. Main-push order: kbool main (KBOOL_VERSION) with or before kkore.",
       "gate": "gate.sh all on Git-bash 5.3 / MSYS2 5.3 / Cygwin 5.2: 43+43+43 cells, 14044/14045/14035 tests, one FLAKY (ktests 045_StrayGuard on Cygwin 5.2, kill timing, rerun passed); bash 5.1 via the CI rows ubuntu 22.04 + alpine 5.1 (no VM, owner decision)"
     },
