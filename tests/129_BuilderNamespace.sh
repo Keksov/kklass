@@ -5,8 +5,9 @@
 # were never declared `local`, so every class definition clobbered the caller's
 # `p`, `m`, `sm`, `sp` and `wm`. kcl units define their classes at source time,
 # which means `source tlist.sh` silently overwrote a script's own `$p`/`$m`.
-# Only the documented cross-function channels (RESULT, REPLY, METHOD_BODY,
-# METHOD_WRAPPER, __kk_*) may survive a definition.
+# Only the documented cross-function channels (RESULT, REPLY, __kk_*) and the
+# class generation _KKLASS_GEN may survive a definition (METHOD_BODY and
+# METHOD_WRAPPER are the builders' locals since the image fix round F3).
 
 KTESTS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../ktests" && pwd)"
 source "$KTESTS_LIB_DIR/ktest.sh"
@@ -111,5 +112,35 @@ set_sentinels
 b1.delete
 bad="$(clobbered)"
 [[ -z "$bad" ]] && kt_test_pass "no leak" || kt_test_fail "clobbered: $bad"
+
+
+# ---------------------------------------------------------------------------
+# kkore's chained load images (docs/dev/IMAGE_PLAN.md, I2b fix round F3): the
+# builders' channels are their locals, and every change of class structure
+# bumps the generation _KKLASS_GEN (a load that builds a class makes it a base
+# slot of its image)
+kt_test_start "METHOD_BODY / METHOD_WRAPPER: locals of the builders, never left as globals [image F3]"
+unset METHOD_BODY METHOD_WRAPPER
+defineClass TBg1 "" method m1 'echo m1' function f1 'RESULT=1'
+defineMethod TBg1 m2 'echo m2'
+defineFunction TBg1 f2 'RESULT=2'
+if [[ -z ${METHOD_BODY+x} && -z ${METHOD_WRAPPER+x} ]]; then kt_test_pass "none left"; else kt_test_fail "left: ${METHOD_BODY+METHOD_BODY} ${METHOD_WRAPPER+METHOD_WRAPPER}"; fi
+
+kt_test_start "_KKLASS_GEN: +1 per class build and per defineMethod; a preset that is not a count starts again at 1 [image F3]"
+g0=$_KKLASS_GEN
+defineClass TBg2 "" method m1 'echo m1'
+g1=$_KKLASS_GEN
+defineMethod TBg2 m2 'echo m2'
+g2=$_KKLASS_GEN
+TBg2.new b4; b4.m2 >/dev/null; b4.delete
+g3=$_KKLASS_GEN
+_KKLASS_GEN='a[$(echo bad >&2)]'
+defineMethod TBg2 m3 'echo m3' 2>"$_KT_TMPDIR/gen.err"
+g4=$_KKLASS_GEN
+if [[ $g0 == +([0-9]) && $g1 == $(( g0 + 1 )) && $g2 == $(( g1 + 1 )) && $g3 == "$g2" && $g4 == 1 && ! -s $_KT_TMPDIR/gen.err ]]; then
+    kt_test_pass "ok"
+else
+    kt_test_fail "g0=$g0 g1=$g1 g2=$g2 g3=$g3 g4=$g4 err=$(< "$_KT_TMPDIR/gen.err")"
+fi
 
 kt_test_log "129_BuilderNamespace.sh completed"

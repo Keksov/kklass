@@ -3,7 +3,7 @@
 **Status: ACCEPTED rev 3 (owner answers 2026-11-23).** Rev 1 → independent critic
 (`scratchpad/p4/image_critic/`) → rev 2 (the supervisor's decisions on the findings, table
 §R) → the owner answered Q1–Q9 the same day: decisions **IMG-D1…D9** (§D), folded in here as
-rev 3. Implemented so far: I0, I1a, I1b, I2a; I2b (2026-11-25, awaiting review). Ledger: [`image_ledger.json`](image_ledger.json).
+rev 3. Implemented so far: I0, I1a, I1b, I2a; I2b (2026-11-25; fix round 1 2026-11-25, awaiting review). Ledger: [`image_ledger.json`](image_ledger.json).
 
 Origin: fv PLAN **D35** (P4 owner answer Q4 = b, 2026-11-22): kbool gets a general load
 image; `kk.image UNIT…` behaves like `kk.uses UNIT…` but sources a valid saved state of the
@@ -91,6 +91,20 @@ fv D20) — the owner's rule. Probes: `scratchpad/p4/image/` (Appendix A).
 | 10 | **I2a bug fixed**: under `VERBOSE_KKLASS=debug` the image was sourced with `2>/dev/stderr`, which reopens a caller's stderr file and truncated what the start had printed into it | found by 028's capture of the debug lines |
 | 11 | a P unit **sourced plainly** has no completion mark; a `kk.uses` of it inside this call's load sets one — a kkore delta like any other, so such an image fits only starts whose P is sourced plainly too (a start with P loaded by `kk.uses`: a plain `kk.uses`). The fresh process replays such a P unit with `source` | the mark is state; the base check keeps it exact |
 | 12 | no sort, no record parse, no `${x#*TEXT}` / `${x##*TEXT}` over a large text anywhere on the writer's chained path: bash's prefix-pattern removal is quadratic in the match position (a first `kk._img__xcmp` and a first `kk._img__fdelta` spun for minutes on 0.4–2 MB texts); positions, substrings and `${x%%TEXT*}` (linear) only | lesson for I3 / I4 |
+
+**I2b fix round 1 (2026-11-25; critic findings + CI 45564636006).** Rows 3 and 4 above are amended by 15 and 18.
+
+| # | change | why |
+|---|---|---|
+| 13 | the **read base** (`r|NAME|s/a/A|=/-|VALUE`): the fresh process word-scans this call's unit files (comments cut, `kk._img__words`: one IFS split over blanks + ASCII punctuation, ~0.5 s for fv.dlg's 11 files, which replaced the M1 scan's own text pass) and names every variable P's load made there, and every M1 candidate it has from its environment, that occurs as a word (`r NAME`); the writer records its state BEFORE the load (its `declare -p` record of before when the load changed it, else its state now) and rewrites the header (`kk._img__rbase`). Not recorded: bash's own and RESULT (`__KK_IMG_SKIP`, `__KK_IMG_BASHV` — every statement may change them; a first version refused every fv.dlg hit on RESULT), kkore's `__KK_*` / `__kk_*`, hook VARs. A CR in a value: refused (as row 7). The start compares fork-free (kind first, a count via `${#X[@]}`, the last index via the key list) | R13's reader side (critic M1): an environment preset of P's `__` default, an append after the caller removed an element, a registry key the load counts — each hit with a wrong value before |
+| 14 | kklass: **`_KKLASS_GEN`** (`kk._class_gen`), +1 in `kk._class_register` (every class built: defineClass, the DSL, a compiled cache) and `_defineMethodType`; a value that is not a count starts again at 1, no arithmetic on it. `METHOD_BODY` / `METHOD_WRAPPER` are now locals of `kk._build_class_runtime` and `_defineMethodType` (their only readers) | a load that builds a class changes the counter, so it is an `s` base slot: R13's own `defineMethod` example is refused at a start by design, no longer through the leaked scratch globals (critic M2) |
+| 15 | the base check reads `e` entries through an **eval of the table's own name** with the key in a variable, and `kk._img__vdelta` / `kk._img__eset` copy the live table the same way — no nameref anywhere on keyed access | CI 45564636006 (alpine bash 5.1, ubuntu 22.04 = bash 5.1): bash 5.1 resolves `ref[$k]` through a nameref by re-reading the text `TABLE[key]` — a key with `]` is a fatal "bad array subscript" (the child subshell died, the writer said "failed: ?"), `@` reads every element, `$(` runs. Hypothesis from the evidence: the writer's own vdelta (present keys) survived on 5.1, the child's base check of `x]y` / `@` died; I2a's eval forms with the same keys pass on 5.1 |
+| 16 | the simulated start writes `(started)` as its reason first; a child that dies before it says why is reported as "the simulated start died (rc N) before it said why"; **`__KK_IMG_KIDERR=FILE`** keeps the fresh process's stderr (a test and diagnosis seam) | a fatal error in the child said "?" (F1) |
+| 17 | **not worth an image**: a writer whose bare load (`kk._uses` alone) took under **50 ms** writes none and holds (`kk._img__worth`; `__KK_IMG_MINLOAD=MS` a seam, the suites set 0) | an image start has fixed costs that grow with the stamped files: tstopwatch on a 20-unit P hit in 59–66 ms vs its plain load 36 ms (critic M4); every real kcl chain loads in 0.3 s and more |
+| 18 | the file-name hash's P rows: `NAME` for `KBOOL_HOME/kcl/NAME/NAME.sh`, **`NAME/`** for `KBOOL_HOME/NAME/NAME.sh` (two places, two rows), else **`NAME=LENGTH:FOLDER`** (a cheap digest; the key keeps the full rows, a collision costs a rewrite). `kk._unit_lexnorm` answers an already normal absolute path as it is (one test; 21 µs vs 72 µs a path) | critic M4 / L: `kk._image_prior` on the 20-unit P 3.70 → 1.88 ms, `kk._image_key` 8.0 → 6.3 ms (hash input 333 → 230 characters; laptop, median of 9) |
+| 19 | `NAME.fnc` that is a symbolic link (refused, never followed), not a regular file of this user (a folder, another user's) or not writable: the writer writes no image and **holds**, naming the `.fnc`; a start with such a `.fnc` is a plain `kk.uses` (rc 2) naming it; a write failure (a read-only folder, bash < 5.3) is said as such, not as "f() differs" | before: "cannot write NAME…img" with no hold — the writer ran on every start (critic M3) |
+| 20 | `kk._img__chainsim` runs under umask 077 (its `.m1*` files, the rewritten temp image) | §6.2: every writer file 077 |
+| 21 | documented (no code): the fresh process replays P's loads, so load-time side effects (files, output) repeat once per chained miss; holds are shared by key (a script refused for a change it made in P holds the same key for a clean script for an hour); a calling function's local shadowing a P global that a unit sets with `declare -g` — the normal load writes the global, the image's plain delta line the local, the base check reads the local (equal) | critic L items |
 
 ## 0. Summary
 
@@ -332,7 +346,10 @@ of the request (`--forget`). Base entries (unchained: kkore's own registration s
 also P's kklass tables and registries, scalars, redefined functions): `e|TABLE|KEY|-|` (absent
 before) or `e|TABLE|KEY|=|BEFORE` (an element changed or — the image unsets it — removed),
 `s|NAME||-|` / `s|NAME||=|BEFORE` for a scalar, `f|NAME||=|TEXT` for an earlier function the call
-redefined (TEXT = its earlier `declare -f` text, I2b deviation 1). The chained deltas on
+redefined (TEXT = its earlier `declare -f` text, I2b deviation 1), and (chained, the read
+base: fix round 1, deviation 13) `r|NAME|s|-|` / `r|NAME|s|=|BEFORE` for a scalar of P's this
+call's unit files name, `r|NAME|a|=|COUNT:LAST` for an indexed array (`0:` empty),
+`r|NAME|A|=|COUNT` for an associative one. The chained deltas on
 pre-existing slots are written after the new variables, before the readonly flags. Written under
 `LC_ALL=C`; the header is read as bytes (`LC_ALL=C read -N`) before anything is sourced.
 
@@ -486,7 +503,7 @@ equals the newest `## X.Y.Z` heading of `CHANGELOG.md`, so a forgotten bump fail
   their earlier values in the base list.
 * **The base check** (hit path, before sourcing): every base-list slot must hold its recorded
   earlier value (or be absent); a redefined earlier function must still have its recorded
-  text hash. Any difference → plain `kk.uses`, no write (the delta was made against another
+  earlier text (I2b deviation 1). Any difference → plain `kk.uses`, no write (the delta was made against another
   base). Cost est. 1–2 ms for a few hundred slots (µs per `[[ … ]]`); 0 slots beyond kkore's
   without a prior set.
 * **The simulation** with a prior set runs in a fresh process (§5.2): P loaded normally, the
@@ -496,11 +513,18 @@ equals the newest `## X.Y.Z` heading of `CHANGELOG.md`, so a forgotten bump fail
 * **The repeat-miss guard and pruning** work per (request, prior set, mode) (§7.4, §7.5).
 * **`KBOOL_IMAGE_CHAIN=off`**: any prior set → plain `kk.uses`, nothing written — rev 2's
   first-load-only rule.
-* **Limit** (documented, R13): the base check sees the slots the delta *writes*, not what this
-  call's load *read* from P. A script that changes P's state the call reads (e.g.
-  `defineMethod` on a P class that a class of this call inherits) before `kk.image` gets the
-  image made against an unchanged P. The writer side is covered (its simulation refuses when
-  its own script did this); the reader side is not.
+* **Limit** (documented, R13; narrowed by the I2b fix round): an image is valid for P **as its
+  own fresh load leaves it in the writer's environment**, plus the **read-base guard**. The
+  writer side is covered (its simulation refuses when its own script changed P). The reader
+  side: the base list also holds every variable of P's that this call's unit files name as a
+  word (`r` entries: a scalar's value or unset, an indexed array's count and last index, an
+  associative one's count — I2b deviation 13), and kklass's class generation `_KKLASS_GEN`
+  is a base slot of every load that builds a class (deviation 14), so a script that changed
+  such state after the image was made (an environment preset of P's default, a list it
+  shortened, a registry key it added, `defineMethod` on a P class that a class of this call
+  inherits) gets a plain `kk.uses`. Residual: reads through P's **functions** (a unit calling a
+  P function that reads P state), and names the word scan cannot see (built by `eval` or
+  indirection), are not guarded.
 * **As built (I2b, 2026-11-25)**: P = the `u` entries of `__KK_UNIT_ORDER` that
   `kk._unit_complete` accepts (`kimghit.sh` `kk._image_prior`; a non-system unit not complete or
   not in the list, or a header-less file loaded by path → a plain `kk.uses`); key row
@@ -527,6 +551,12 @@ equals the newest `## X.Y.Z` heading of `CHANGELOG.md`, so a forgotten bump fail
   process. A separate probe process would add ~0.17 s per miss (a fresh bash, kbool.sh, P —
   measured 172 ms median of 5) and could not tell P's variables from the caller's without
   loading P anyway. Normal load of the same: ~0.7 s; the hit 0.15 s.
+  **Fix round 1**: the read base's word scan (`kk._img__words`, in the fresh process) 521 ms for
+  fv.dlg's 11 unit files (3842 distinct words; it replaced the M1 scan's own text pass: the
+  fresh process's scan step 536–572 ms, was 719), 6 ms for tfind; those two images get 0 `r`
+  entries (their unit files name no variable of P's but RESULT, which is skipped), so their
+  starts cost nothing more; the 028 fixture's pc gets 4. `kk._image_prior` on a 20-unit P
+  3.70 → 1.88 ms and `kk._image_key` 8.0 → 6.3 ms (deviation 18).
 
 ---
 
@@ -635,7 +665,7 @@ Forks: **0** in `dates` mode (the Windows default); **1** (`stat` / `cksum`) in 
 | rename / concurrency / readonly collision | I2a | as rev 2 |
 | **chained starts** (D2) | I2b | `kk.uses tstringlist; kk.image fv.dlg`: miss writes a chained image, the next start is a hit, its state equals `kk.uses tstringlist fv.dlg` loaded normally (round-trip compare); the same request without P / with another P / P in another order → other files; a P file edited → stale; `KBOOL_IMAGE_CHAIN=off` (and an invalid value → on) |
 | chained base check | I2b | the script pre-sets a slot the delta writes (a registry entry, a `_KKLASS_TAKEN` name) before `kk.image` → plain `kk.uses`, no write, correct state |
-| chained writer simulation | I2b | the writer's script changes a P class (`defineMethod`) before `kk.image` → refusal + hold; the documented reader-side limit asserted as known |
+| chained writer simulation | I2b | the writer's script changes a P class (`defineMethod`) before `kk.image` → refusal + hold; the reader side (fix round 1): a P variable a unit reads changed after the image was made, an environment preset of a P default, a shortened P list, an added registry key, `defineMethod` on a P class before the start of a clean image of a class-building load → plain `kk.uses` (read base, `_KKLASS_GEN`) |
 | chained undo | I2b | truncated chained image under `set -e`: base slots restored, state equals a normal load |
 | pruning caps | I2b | per (request, P), per request name, per folder |
 | env-diff (every unit, unchained and chained) | I3 | image under A, start under B == a real load under B, except the allow-list |
@@ -703,7 +733,7 @@ step; rev 2's I2 is split into **I2a** (unchained core, both flags parsed) and *
 | R10 | cache growth, more with chaining | caps per (request, P), per request, per folder (64 files / 256 MB), age, missing root |
 | R11 | new load-time reads later | lint, simulation, env-diff in kcl's suite; the writer refuses |
 | R12 | load-time messages hidden | environment-dependent messages in hooks |
-| **R13** | **chained reader-side limit**: a script that changes P's state the call reads (e.g. `defineMethod` on a P class a class of this call inherits) before `kk.image` gets an image made against an unchanged P | the base check covers written slots; the writer's simulation refuses its own such script; documented; `KBOOL_IMAGE_CHAIN=off` for such programs |
+| **R13** | **chained reader-side limit**: a script that changes P's state the call reads (e.g. `defineMethod` on a P class a class of this call inherits) before `kk.image` gets an image made against an unchanged P | the base check covers written slots and (fix round 1) the read base: P variables the unit files name, kklass's `_KKLASS_GEN` for class-building loads; the writer's simulation refuses its own such script; residual (reads through P functions, eval / indirection names) documented; `KBOOL_IMAGE_CHAIN=off` for such programs |
 | **R14** | **the `$HOME/.cache` fallback on MSYS2 / Cygwin** lies inside the install folder, possibly writable by other local users, and `noacl` hides it | the `USERPROFILE` step first, `umask 077`, a debug line naming it, the README's shared-machine advice (`KBOOL_IMAGE_DIR` / `KBOOL_IMAGE=off`) |
 | **R15** | `dates` (Windows default) misses an unreleased copy with old dates | `KBOOL_VERSION` for releases; `KBOOL_IMAGE_CHECK=stat` or `hash` per user; documented |
 | R16 | a forgotten `KBOOL_VERSION` bump | the CHANGELOG test fails CI |

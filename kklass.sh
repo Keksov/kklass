@@ -78,6 +78,8 @@ kk._ns_declare __kkc kklass "$KKLASS_DIR/kklass.sh" || :
 #   _KKLASS_NS_OWNER[X]      "UNIT<US>FILE" that declared the namespace X
 #   _KKLASS_SINK_NS[X]       `declare -f` text of the namespace X's functions a
 #                            swallowed verb named (sink mode n), restored at its close
+#   _KKLASS_GEN              (a scalar, not a table: never reset) the class-
+#                            definition generation, kk._class_gen
 #   __KKLASS_TABLES          ([on]=1) OWNERSHIP: the tables are this shell's.
 # A child bash never inherits assoc arrays (functions a user exports with set -a
 # or export -f do arrive): every entry point checks
@@ -479,6 +481,23 @@ kk._class_verdict() {
     return 1
 }
 
+# kk._class_gen — the class-definition generation _KKLASS_GEN (a count) + 1:
+# every change of class structure bumps it — a class built or rebuilt
+# (kk._class_register: defineClass, the declarative DSL, a compiled cache) and
+# a method defined into a built class (_defineMethodType). kkore's chained load
+# images (kklass/docs/dev/IMAGE_PLAN.md §7.7, I2b fix round F3) read it: a load
+# that builds or changes a class makes it a base slot of its image, so a start
+# in a script that changed a class after the prior set is a plain kk.uses
+# (R13). A value that is not a count (an environment preset) starts again at
+# 1 — no arithmetic on it. Fork-free; global even under a caller's local.
+kk._class_gen() {
+    if [[ ${_KKLASS_GEN-} == [0-9]* && $_KKLASS_GEN != *[!0-9]* && ${#_KKLASS_GEN} -lt 18 ]]; then
+        declare -g _KKLASS_GEN=$(( 10#$_KKLASS_GEN + 1 ))
+    else
+        declare -g _KKLASS_GEN=1
+    fi
+}
+
 # kk._class_register CLASS SITE [UNIT] — CLASS is built: remember its site, file
 # it under UNIT (a compiled cache's source unit, uses U3) or else the unit being
 # loaded (P4). rc 2 for a CLASS that is not an identifier.
@@ -492,6 +511,7 @@ kk._class_register() {
     _KKLASS_CLASS_SOURCE[$1]=${__kk_f:-(no file)}
     _KKLASS_TAKEN[$1]=class
     unset '_KKLASS_DECL_SITE[$1]' '_KKLASS_CLASS_CKK[$1]'
+    kk._class_gen
     if [[ ${__KK_LOADED[@]@a} == A ]]; then
         if [[ -n ${3-} ]]; then
             kk._unit_add_class "$3" "$1"
@@ -1196,7 +1216,8 @@ kk._fn_text_cr_try() {   # BODY REF
 }
 
 # Final form of a member body: the text as written, plus the func MARKER line
-# `kk._return "$RESULT"` for a `function`. Result in METHOD_BODY.
+# `kk._return "$RESULT"` for a `function`. Result in METHOD_BODY (a local of its
+# callers, kk._build_class_runtime and _defineMethodType: image F3).
 #
 # The marker (round 7, fv ledger K-2): up to round 6 that line was the func
 # TRAILER — it ran as the body's last command, so an explicit `return` skipped
@@ -1435,7 +1456,8 @@ kk._warn_visibility() {
 
 # Text of one per-instance method wrapper (template form, __INST__ placeholder).
 # Shared by the class build and by defineMethod (F3) so the latter can find and
-# replace the exact wrapper the build emitted. Result in METHOD_WRAPPER.
+# replace the exact wrapper the build emitted. Result in METHOD_WRAPPER (a local
+# of its callers, as METHOD_BODY).
 kk._method_wrapper_text() {
     METHOD_WRAPPER=$'\n'"__INST__.$1() { kk._exec __INST__ $1 $2 \"\$@\"; }"
 }
@@ -2321,6 +2343,10 @@ kk._build_class_runtime() {
     local class_name="$1"
     local parent_class="$2"
     shift 2
+    # (the producers' channels, kk._processMethodBody / kk._method_wrapper_text:
+    # locals of the build, never globals — a leak was a base slot of every
+    # chained load image, kklass/docs/dev/IMAGE_PLAN.md F3)
+    local METHOD_BODY="" METHOD_WRAPPER=""
 
     # SECURITY: class_name, parent_class and every member name below are
     # interpolated into eval'd metadata assignments and generated function
@@ -2953,6 +2979,9 @@ _defineMethodType() {
     local method_body="$3"
     local meth_type="${4:-method}"
     local func_name="${5:-Method}"
+    # (the producers' channels, kk._processMethodBody / kk._method_wrapper_text:
+    # locals here, never globals — image F3)
+    local METHOD_BODY="" METHOD_WRAPPER=""
     
     # Validate inputs (a 4th public argument: nofields, K-8)
     [[ -z "$class_name" || -z "$method_name" || -z "$method_body" || ( -n ${6-} && ${6-} != nofields ) ]] && {
@@ -3002,6 +3031,7 @@ _defineMethodType() {
     
     eval "${class_name}_method_body_${method_name}=\$METHOD_BODY"
     kk._body_fn "__kkm.${class_name}.${method_name}" "$METHOD_BODY"   # K1: this class now defines it
+    kk._class_gen                                                      # the class changed (image F3)
 
     # Update class methods array in global scope
     eval "${class_name}_class_methods=(\"\${meths_ref[@]}\")"
