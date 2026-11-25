@@ -3,7 +3,7 @@
 **Status: ACCEPTED rev 3 (owner answers 2026-11-23).** Rev 1 → independent critic
 (`scratchpad/p4/image_critic/`) → rev 2 (the supervisor's decisions on the findings, table
 §R) → the owner answered Q1–Q9 the same day: decisions **IMG-D1…D9** (§D), folded in here as
-rev 3. Implemented so far: I0, I1a, I1b, I2a; I2b (2026-11-25; fix rounds 1 and 2 2026-11-25, awaiting review). Ledger: [`image_ledger.json`](image_ledger.json).
+rev 3. Implemented so far: I0, I1a, I1b, I2a; I2b (2026-11-25; fix rounds 1-3 2026-11-25, awaiting review). Ledger: [`image_ledger.json`](image_ledger.json).
 
 Origin: fv PLAN **D35** (P4 owner answer Q4 = b, 2026-11-22): kbool gets a general load
 image; `kk.image UNIT…` behaves like `kk.uses UNIT…` but sources a valid saved state of the
@@ -117,6 +117,13 @@ fv D20) — the owner's rule. Probes: `scratchpad/p4/image/` (Appendix A).
 | 26 | kklass: `_KKLASS_GEN=0` when kklass loads (a value already there kept), `kk._unit_forget_class` bumps it; documented: read through dynamic scope (a calling function's local of that name shadows it) | CI 45582936380, every POSIX row: kcl/fv.views 001's stray-variable contract saw `_KKLASS_GEN` appear with the first class build (critic N3) |
 | 27 | the non-canonical file-name-hash row is `NAME=LENGTH:DIGEST`, DIGEST = each folder level's length and first character | critic N4: equal-length checkouts with one folder name shared a file name |
 | 28 | documented: a script that builds a class of its own BEFORE loading P gets no chained image (P's class tables and `_KKLASS_GEN` differ from P's own fresh load: no image, a hold; so before round 1 too) | critic note |
+
+**I2b fix round 3 (2026-11-25; critic pass 2).** CI 45605275564 GREEN 16/16 confirmed row 22 on both bash 5.1 rows.
+
+| # | change | why |
+|---|---|---|
+| 29 | the non-canonical hash row's DIGEST takes each folder level's last character too (length, first, last) | critic: `wt1` / `wt2`, `proj-v1` / `proj-v2` collided with length + first character |
+| 30 | not worth an image: a NEAR miss (the load at least half the threshold, i.e. ≥ 0.75 × the start cost) is held 10 minutes — the hold dated 50 minutes back (`kk._image_hold` TIME) —, a clear miss an hour; `__KK_IMG_LOADMS` a test seam for the measured load | the 1.5 × rule compares two single samples of two processes: one spike could hold fv.dlg plain for an hour; no hold at all would rerun the writer on every start of a load that sits at the border |
 
 ## 0. Summary
 
