@@ -3,7 +3,7 @@
 **Status: ACCEPTED rev 3 (owner answers 2026-11-23).** Rev 1 → independent critic
 (`scratchpad/p4/image_critic/`) → rev 2 (the supervisor's decisions on the findings, table
 §R) → the owner answered Q1–Q9 the same day: decisions **IMG-D1…D9** (§D), folded in here as
-rev 3. Nothing is implemented. Ledger: [`image_ledger.json`](image_ledger.json).
+rev 3. Implemented so far: I0, I1a, I1b, I2a; I2b (2026-11-25, awaiting review). Ledger: [`image_ledger.json`](image_ledger.json).
 
 Origin: fv PLAN **D35** (P4 owner answer Q4 = b, 2026-11-22): kbool gets a general load
 image; `kk.image UNIT…` behaves like `kk.uses UNIT…` but sources a valid saved state of the
@@ -74,6 +74,23 @@ fv D20) — the owner's rule. Probes: `scratchpad/p4/image/` (Appendix A).
 | 10 | the reference file is **`NAME.NONCE.ref`** (critic L3) | two writers at once each rename their own; the image that wins finds its reference |
 | 11 | the hit path in **`kkore/kimghit.sh`** (critic M6, §2) | `source kbool.sh` stays as cheap as before images |
 | 12 | refusals added: a pre-existing variable the load sets when it is absent (M1: the caller's variables and exported names that occur as a word in the unit files are probed by ONE fresh bash loading the request without them, with the shell's own settings — every `KBOOL_*` exported or not, `KBOOL_CONFIG` absolute, `VERBOSE_KKLASS`, `HOME`, `USERPROFILE`, `ProgramData`, the locale — in its `$PWD`, the calling file as the shell resolved it; fail-closed: a probe with no result, another rc or other units is a refusal with a hold. Cost: the probe runs on most first writes of a real unit set, about +1 s for fv.dlg — a note for the I4 miss target), readonly functions / `enable -n` / `complete -p` (L2), a stamped file with a future ctime (held, M5); negative dependency edges, resolved as `kk.uses` would (a header-less NAME.sh finds nothing: M3, N1); a caller's variable named like an image variable = a plain load (H1) — limit: a bare `local NAME` of an image ARRAY name in a calling function may end the script | the critic rounds |
+
+## I2b deviations (as implemented, 2026-11-25; §6.1, §7.7 updated)
+
+| # | deviation | why |
+|---|---|---|
+| 1 | a redefined earlier function's base entry `f|NAME||=|TEXT` holds its **earlier `declare -f` text**, not a hash (§6.1 reserved a hash). A start reads the current text fork-free: bash ≥ 5.3 `${ declare -f NAME; }`, older bashes through **`NAME.fnc`** in the image folder (made empty by the writer under umask 077, written over by a start, pruned and forgotten with its image; missing → a miss, written again) | the undo defines the earlier function again from it; a bash FNV costs ~10 µs per character (a 2 KB function ~20 ms per start); a string compare is exact |
+| 2 | the plain line's **PRIOR** = `HASH8:n1+n2…` (FNV of P's rows in their hash form, then the names) | pruning's (request, P) group, a readable list, no eval |
+| 3 | the **file-name hash** reads P's rows shortened: `NAME` alone when its file is `KBOOL_HOME/kcl/NAME/NAME.sh` or `KBOOL_HOME/NAME/NAME.sh`, else `NAME=FILE`; the key string keeps the full rows | FNV is ~10 µs per character on the laptop (1690 characters 17 ms); the key decides validity, the hash only names the file |
+| 4 | the **base check** binds a nameref per table and reads the table's kind from its attributes before any key is used (an associative key on a variable that is not associative would be arithmetic: R14); an indexed table takes digits only. **I2a bug fixed**: its `${!X[KEY]}` indirection expanded `$(…)` in a key, choked on `]`, read `@` as every element (kkore's own keys are names: latent) | the chained base holds P's registries, whose keys can be anything |
+| 5 | **one fresh process per chained miss** runs the simulation and the M1 probe (`kk._img__child chain` → `kk._img_kid`): P loaded by its files in `__KK_UNIT_ORDER` order, as the writer's script loaded each (`kk.uses` when its completion mark was set before this load, else a plain `source`; its `p NAME=FILE` lines compared with the key's rows), the writer's `__KK_UNIT_USED` set (a load by path records the path), the candidate image applied in a subshell exactly as a start applies it (`kk._image__fits`: clash + base; `kk._image__apply`: source, end mark, hooks in the caller's nounset / noglob / nocasematch), a hook VAR holding this process's pid given the writer's, the state dumped; then M1 on top of P: the writer's candidates minus the names P's own load made there minus the names the base list covers (the base check sees them on every start), the word scan, the probe load. The machinery is I2a's probe (settings exported or not and unexported again there, IFS, extglob / expand_aliases, `$PWD`, the calling file as resolved, the caller's umask, the `end` marker, fail-closed); unchained images keep the in-process subshell simulation and the probe (`kk._img__child m1`) | the brief asked for one process; a separate probe would load P again |
+| 6 | **L3 settled** — the cross-process compare `kk._img_cmp A B xproc`: both dumps under `LC_ALL=C`, each section a file of its own (`FILE.V .A .F .X .S`); V and F compared as text (F reading a `kk._fn_text_cr` round trip's `''<CR>''` as `<CR>`), the associative arrays' element lines **as a set** (no canonical order: an associative array's order is its table's history, and a pure-bash sort of ~10 k keys costs more than one lookup per line), X and S as a subset of the writer's lines. The writer dumps exactly the fresh process's names (`FILE.n`); names only the writer's script made are ignored. Allow-list: `__KK_UNIT_BOT / SRC / DONE / PID / IDX / CAND / IDX_OK / RES / HIT`, `__KK_FILE_PWD`, `BASH_CMDS`, `PPID`, `SHLVL`, `OLDPWD`, `SHELLOPTS`, `BASHOPTS`, `COMP_WORDBREAKS`, `OSTYPE`, `-`, `__kk_*` (kkore's scratch locals that leak to the global scope) | finding sections in a 2 MB text by pattern removal is quadratic in bash (a first version spun for minutes); a record parse (`kk._img__records`) took 2.3 s for fv.dlg's state, the set compare ~0.1–0.5 s |
+| 7 | **refused when chained**: a load that changes the hash table (the fresh process has its own), changes an exported pre-existing variable (a changed export, §6.3), removes or unsets one or changes its attributes, changes a nameref / readonly one, a CR byte in a base key or earlier value (the base list is one compound array), the removal of an element whose key holds a control byte | the base list and the undo stay exact |
+| 8 | a header-less file loaded by path before `kk.image` → a plain `kk.uses` | no prior set can hold it: not replayable by name or order |
+| 9 | dependency edges: a lookup of a P unit that this load made is an edge (a P unit shadowed later in its user's folder is found then); P's own lookups are not | P is keyed by its files |
+| 10 | **I2a bug fixed**: under `VERBOSE_KKLASS=debug` the image was sourced with `2>/dev/stderr`, which reopens a caller's stderr file and truncated what the start had printed into it | found by 028's capture of the debug lines |
+| 11 | a P unit **sourced plainly** has no completion mark; a `kk.uses` of it inside this call's load sets one — a kkore delta like any other, so such an image fits only starts whose P is sourced plainly too (a start with P loaded by `kk.uses`: a plain `kk.uses`). The fresh process replays such a P unit with `source` | the mark is state; the base check keeps it exact |
+| 12 | no sort, no record parse, no `${x#*TEXT}` / `${x##*TEXT}` over a large text anywhere on the writer's chained path: bash's prefix-pattern removal is quadratic in the match position (a first `kk._img__xcmp` and a first `kk._img__fdelta` spun for minutes on 0.4–2 MB texts); positions, substrings and `${x%%TEXT*}` (linear) only | lesson for I3 / I4 |
 
 ## 0. Summary
 
@@ -307,13 +324,17 @@ __kk_img_end=<the nonce>
 ```
 
 `SIZE` = the file's byte count (12 digits, pruning's 256 MB cap); `TAG` = FNV-1a of `$BASH`
-(pruning judges only its own runtime's pids and `KBOOL_HOME` spellings); `PRIOR` empty until
-I2b; `FLAVOUR` = `gnu9` / `gnu` / `bsd9` / `bsd` in `stat` mode, else `-`; `NONCE` names the
-image's reference file `NAME.NONCE.ref` (`dates` mode); `RHASH` = FNV-1a of the request
-(`--forget`). Base entries (I2a: kkore's own registration slots only): `e|TABLE|KEY|-|` (absent
-before) or `e|TABLE|KEY|=|BEFORE`, `s|NAME||=|BEFORE` for a scalar; a redefined function's
-slot (I2b) will hold a hash of its earlier `declare -f` text. Written under `LC_ALL=C`; the
-header is read as bytes (`LC_ALL=C read -N`) before anything is sourced.
+(pruning judges only its own runtime's pids and `KBOOL_HOME` spellings); `PRIOR` = empty
+without a prior set, else `HASH8:n1+n2…` (I2b: FNV-1a of P's rows in their file-name-hash form,
+then P's names in load order); `FLAVOUR` = `gnu9` / `gnu` / `bsd9` / `bsd` in `stat` mode, else
+`-`; `NONCE` names the image's reference file `NAME.NONCE.ref` (`dates` mode); `RHASH` = FNV-1a
+of the request (`--forget`). Base entries (unchained: kkore's own registration slots; chained
+also P's kklass tables and registries, scalars, redefined functions): `e|TABLE|KEY|-|` (absent
+before) or `e|TABLE|KEY|=|BEFORE` (an element changed or — the image unsets it — removed),
+`s|NAME||-|` / `s|NAME||=|BEFORE` for a scalar, `f|NAME||=|TEXT` for an earlier function the call
+redefined (TEXT = its earlier `declare -f` text, I2b deviation 1). The chained deltas on
+pre-existing slots are written after the new variables, before the readonly flags. Written under
+`LC_ALL=C`; the header is read as bytes (`LC_ALL=C read -N`) before anything is sourced.
 
 ### 6.2 The writer (miss path)
 
@@ -339,8 +360,10 @@ header is read as bytes (`LC_ALL=C read -N`) before anything is sourced.
    Pruning (§7.4); the temps, the files pruned and a cleared hold go with one `rm`.
 
 Forks on a miss: the simulation subshell, `mkdir -p` (first time), `mv` ×1–2, one `rm`, the
-`stat` probe (1, up to 4 on a BSD stat) and the stamp `stat` / one `cksum` per mode. The chained
-simulation (I2b) adds a load of P in the child. **The miss target is to be measured** (§11).
+`stat` probe (1, up to 4 on a BSD stat) and the stamp `stat` / one `cksum` per mode. A chained
+miss replaces the simulation subshell by ONE fresh process (`env`, then `bash`: P loaded, the image
+applied in a subshell of it and dumped, the M1 scan, the probe load when a name matched; I2b).
+**The miss target is to be measured** (§11).
 
 ### 6.3 Refusal rules (no image; the units stay loaded; a hold + a debug line)
 
@@ -478,6 +501,32 @@ equals the newest `## X.Y.Z` heading of `CHANGELOG.md`, so a forgotten bump fail
   `defineMethod` on a P class that a class of this call inherits) before `kk.image` gets the
   image made against an unchanged P. The writer side is covered (its simulation refuses when
   its own script did this); the reader side is not.
+* **As built (I2b, 2026-11-25)**: P = the `u` entries of `__KK_UNIT_ORDER` that
+  `kk._unit_complete` accepts (`kimghit.sh` `kk._image_prior`; a non-system unit not complete or
+  not in the list, or a header-less file loaded by path → a plain `kk.uses`); key row
+  `prior=NAME=FILE<US>…` (lexically normalised files), the shortened form in the file-name hash
+  (I2b deviation 3); P's files stamped with the closure. The writer (`kimage.sh`): a pre-existing
+  variable the load changed → `kk._img__vdelta` (element / scalar deltas, the earlier values from
+  its `declare -p` record of before the load), a redefined function → `kk._img__fdelta` (found by
+  the first differing byte of the before / after texts, no text parse); unchained the I2a
+  refusals stay. The base check: `kk._image__fits` (deviation 4). The simulation and M1:
+  `kk._img__chainsim` (deviations 5, 6). The undo: `kk._img_undo` puts back every `e` / `s` / `f`
+  entry (any identifier, the table's kind checked). Holds and pruning: the image file name hashes
+  P and the mode; `kk._img_prune` groups by the stem and PRIOR (8 per (request, P), 16 per
+  request, 64 / 256 MB per folder); `NAME.fnc` goes with its image. Tests: kkore
+  `028_ImageChain.sh`, kcl `009_ImageChain.sh`.
+* **Costs measured (laptop Git-bash 5.3.15, indicative)**: the base check (median of 9,
+  in-process, fork-free): `kk.uses tstringlist; kk.image fv.dlg` 214 entries 5.1 ms (the
+  unchained fv.dlg image's 139 kkore entries 3.4 ms; I2a's loop on them 3.2 ms); P = kklass
+  tutil tdictionary thashset, `kk.image tfind` 17 entries 0.8 ms. The clash check of the same
+  start (2848 image variables) costs ~25 ms more — I2a's, unchanged. A chained hit forks 0
+  times in `dates` mode, once (`stat` / `cksum`) in the others (traced). The chained miss of
+  fv.dlg on tstringlist: 4.3–4.6 s, of it the fresh process 1.6 s (P 0.16 s, the image applied +
+  dumped 0.66 s, the M1 scan 0.72 s) and the writer's dump + compare 0.8 s; with an M1 match (a
+  caller variable named like a word of the units) +0.66 s for the probe load in the same
+  process. A separate probe process would add ~0.17 s per miss (a fresh bash, kbool.sh, P —
+  measured 172 ms median of 5) and could not tell P's variables from the caller's without
+  loading P anyway. Normal load of the same: ~0.7 s; the hit 0.15 s.
 
 ---
 
@@ -555,7 +604,7 @@ critic L4: the "the script survives" of D8 holds for truncation and syntax damag
 | trust checks; header (5 lines); `.ref` read | est. 0.2 + 0.6 + 0.5 ms |
 | readonly pre-check | est. < 0.5 ms |
 | dependency edges (header form) | 1.5–2.2 ms |
-| base check | est. ~0.1 ms unchained, 1–2 ms chained |
+| base check | est. ~0.1 ms unchained, 1–2 ms chained; **measured (I2b, laptop)**: fv.dlg 3.4 ms (139 kkore entries) unchained, 5.1 ms (214 entries) on tstringlist; the clash check before it ~25 ms (2848 image variables) |
 | staleness: `dates` ~21 files / `stat` one fork | est. ~3.9 ms / 25–47 ms (Windows; Linux est. 1–2 ms) |
 | `source` the image under `if` | 77–83 ms (fv.dlg) |
 | hooks | ~1 ms |
