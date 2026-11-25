@@ -64,7 +64,7 @@ fv D20) — the owner's rule. Probes: `scratchpad/p4/image/` (Appendix A).
 |---|---|---|
 | 1 | header: line 1 `# kbool image v1 N` (byte length of the header) and a **plain line `#P`** (wtime, size, runtime tag, `KBOOL_HOME`, prior set, mode, stat flavour, nonce, request hash, the stamped files) read **without eval** (§6.1) | one `read -N` (line-by-line was 385 ms on MSYS); the `stat` bits are checked before a byte runs; pruning and `--forget` need no eval |
 | 2 | **stamps taken after the load** (§6.2); an edit during the load caught by the reference temp (`-ot`) and, `stat`, a ctime later than the load's start | the closure is known only after the load |
-| 3 | `stat` flavours with **nanosecond times** first (`%.9Y %.9Z`, BSD `%Fm %Fc`); with whole seconds only, the **racy rule** (git's, on the mtime): a file whose mtime is the stamp's second is a miss, not stale | an edit inside the stamp's second is otherwise invisible (CI round 2: fixtures and writes in one second) |
+| 3 | `stat` flavours with **nanosecond times** first (`%.9Y %.9Z`, BSD `%Fm %Fc`; the BSD mode is `%Mp%Lp`, which keeps the sticky digit); with whole seconds only — or nanosecond stamps whose fractions are all zero (FAT/exFAT, HFS+, ext3, some NFS/SMB) — the **racy rule** (git's, on the mtime): a file whose mtime is the stamp's second is a miss, not stale. The resolved `stat` / `cksum` path is **keyed** (another tool, another image) | an edit inside the stamp's second is otherwise invisible (CI round 2; critic N2); a different stat between writer and start was a stale → hold cycle (critic N3) |
 | 4 | **no mode bits on the Windows runtimes** (neither checked nor stamped) | the runtimes make modes up (Cygwin's ACLs report 770 for our own folders; MSYS derives them from the umask) |
 | 5 | **mode-bit rule** (critic M4, §8.1): a group/world-writable image file refused; a folder only when world-writable without sticky | a caller's `umask 002` made every self-made folder refuse `stat` mode silently |
 | 6 | **no hold** for a refused or uncreatable folder, a failed write / rename, an edit during the load | a hold cannot be written there / the next start may well succeed; an uncreatable folder is a plain `kk.uses` without the writer (L5) |
@@ -73,7 +73,7 @@ fv D20) — the owner's rule. Probes: `scratchpad/p4/image/` (Appendix A).
 | 9 | after an undone start: a rewrite, or — the image under 10 minutes old — a hold **and the image removed**; the normal load after an undo is a plain call, not under `if` | a damaged image is not sourced and undone on every start; parity with `kk.uses` under `set -e` |
 | 10 | the reference file is **`NAME.NONCE.ref`** (critic L3) | two writers at once each rename their own; the image that wins finds its reference |
 | 11 | the hit path in **`kkore/kimghit.sh`** (critic M6, §2) | `source kbool.sh` stays as cheap as before images |
-| 12 | refusals added: a pre-existing variable assigned in a unit file's text (M1), readonly functions / `enable -n` / `complete -p` (L2), a stamped file with a future ctime (held, M5); negative dependency edges (M3); a caller's variable named like an image variable = a plain load (H1) | the critic round |
+| 12 | refusals added: a pre-existing variable the load sets when it is absent (M1: the caller's variables and exported `_` names that occur as a word in the unit files are probed by ONE fresh bash loading the request without them), readonly functions / `enable -n` / `complete -p` (L2), a stamped file with a future ctime (held, M5); negative dependency edges, resolved as `kk.uses` would (a header-less NAME.sh finds nothing: M3, N1); a caller's variable named like an image variable = a plain load (H1) — limit: a bare `local NAME` of an image ARRAY name in a calling function may end the script | the critic rounds |
 
 ## 0. Summary
 
@@ -502,7 +502,10 @@ reads and writes only under `KBOOL_IMAGE_DIR`. A user whose `~/.cache` is a syml
 `XDG_CACHE_HOME` / `KBOOL_IMAGE_DIR` to the real folder. A variable the image would create
 that already exists in the caller's view (a local, a nameref, another kind, readonly, a preset)
 makes the start a plain `kk.uses` (I2a critic H1): an image never writes into a caller's
-variable and its undo never unsets one.
+variable and its undo never unsets one. Limit: a bare `local NAME` (neither a value nor an
+attribute) in a calling function is not seen — one `declare -p` per array name would tell
+(~25 ms per start for fv.dlg's 1335 array names, over the 2 ms budget) — and when NAME is an
+image **array** name, a start in that function may end the script.
 
 ### 8.2 Windows runtimes: thin checks, and the home fallback (D4)
 

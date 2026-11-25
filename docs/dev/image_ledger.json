@@ -193,9 +193,9 @@
     "note": "Linux rows run the POSIX default (stat); a second Linux row with KBOOL_IMAGE_CHECK=dates shows the fork's share"
   },
   "open": [
-    "I2a critic M1 (writer side, done textually): a pre-existing variable assigned in a unit file's text refuses the image; the behavioural check — a fresh-process simulation that would see a preset or a caller's local hiding a unit global directly — stays an I2b item (it comes with the chained fresh-process simulation)",
+    "I2a critic M1 (writer side, second round): candidates = the caller's variables and exported `_` names that occur as a word in the unit files (comments cut); ONE fresh bash loads the request without them and names those the load sets -> no image, a hold. The chained fresh-process simulation (I2b) can absorb this probe",
     "I2a critic -O: a foreign-owned image / folder / .ref cannot be made without root (and -O is always true on the Windows runtimes' noacl mounts); kkore 026 runs its chown case only as root on POSIX — no faked test",
-    "I2a critic H1 limit: a caller's `local X` with neither a value nor an attribute is not seen by the fork- and file-free clash check (only one `declare -p` per name would tell); documented in the kuse.sh header",
+    "I2a critic H1 limit: a bare `local NAME` (neither a value nor an attribute) in a calling function is not seen (one declare -p per array name: ~25 ms per start for fv.dlg's 1335 array names, over the 2 ms budget); when NAME is an image ARRAY name a start in that function may end the script; documented in the kuse.sh header and plan §8.1",
     "found_in_image_plan_critic (pre-existing): kcl/tpipe/tpipe.sh 909-911 declare -gr __TPIPE_RETERM_US / __TPIPE_GRACE_US / __TPIPE_HARDCAP_US without the ${X@a} != *r* guard: kk.unit --forget tpipe + reload prints 3 readonly errors and kills a set -e caller (critic reload.sh); fix + test in I1b",
     "bash 5.1 declare -p / declare -f round trip not probed (no VM in the planning task): I2 / I3 on the alpine and Ubuntu 22.04 rows and the VM gate",
     "Linux / macOS / FreeBSD costs are estimates (0.6-0.95 x laptop for bash-bound work, forks ~1 ms); fixed by I4's CI bench",
