@@ -143,4 +143,12 @@ else
     kt_test_fail "g0=$g0 g1=$g1 g2=$g2 g3=$g3 g4=$g4 err=$(< "$_KT_TMPDIR/gen.err")"
 fi
 
+kt_test_start "_KKLASS_GEN: defined (0) when kklass loads — a class build only changes it; a value already there kept; kk._unit_forget_class bumps it [image G1, G5]"
+a=$(env -u _KKLASS_GEN "$BASH" -c 'source "$1/kklass.sh" >/dev/null 2>&1; echo "${_KKLASS_GEN-unset}"' _ "$KKLASS_DIR")
+b=$(_KKLASS_GEN=7 "$BASH" -c 'source "$1/kklass.sh" >/dev/null 2>&1; echo "${_KKLASS_GEN-unset}"' _ "$KKLASS_DIR")
+g0=$_KKLASS_GEN
+kk._unit_forget_class TBg2
+g1=$_KKLASS_GEN
+if [[ $a == 0 && $b == 7 && $g1 == $(( g0 + 1 )) ]]; then kt_test_pass "ok"; else kt_test_fail "load=$a preset=$b forget $g0 -> $g1"; fi
+
 kt_test_log "129_BuilderNamespace.sh completed"

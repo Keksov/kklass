@@ -484,12 +484,15 @@ kk._class_verdict() {
 # kk._class_gen — the class-definition generation _KKLASS_GEN (a count) + 1:
 # every change of class structure bumps it — a class built or rebuilt
 # (kk._class_register: defineClass, the declarative DSL, a compiled cache) and
-# a method defined into a built class (_defineMethodType). kkore's chained load
-# images (kklass/docs/dev/IMAGE_PLAN.md §7.7, I2b fix round F3) read it: a load
+# a method defined into a built class (_defineMethodType), a class forgotten
+# (kk._unit_forget_class). kkore's chained load images
+# (kklass/docs/dev/IMAGE_PLAN.md §7.7, I2b fix rounds F3, G5) read it: a load
 # that builds or changes a class makes it a base slot of its image, so a start
 # in a script that changed a class after the prior set is a plain kk.uses
 # (R13). A value that is not a count (an environment preset) starts again at
-# 1 — no arithmetic on it. Fork-free; global even under a caller's local.
+# 1 — no arithmetic on it. Fork-free; written global even under a caller's
+# local, but READ through bash's dynamic scope like any variable (the image
+# base check too): a calling function's local named _KKLASS_GEN shadows it.
 kk._class_gen() {
     if [[ ${_KKLASS_GEN-} == [0-9]* && $_KKLASS_GEN != *[!0-9]* && ${#_KKLASS_GEN} -lt 18 ]]; then
         declare -g _KKLASS_GEN=$(( 10#$_KKLASS_GEN + 1 ))
@@ -497,6 +500,11 @@ kk._class_gen() {
         declare -g _KKLASS_GEN=1
     fi
 }
+# (defined when kklass loads, so a class build only changes it — never a new
+# variable after a load, which a unit's stray-variable contract would flag:
+# kcl/fv.views 001, CI 45582936380; a value already there is kept — a
+# re-source, an environment preset; I2b fix round 2)
+[[ -n ${_KKLASS_GEN+x} ]] || declare -g _KKLASS_GEN=0
 
 # kk._class_register CLASS SITE [UNIT] — CLASS is built: remember its site, file
 # it under UNIT (a compiled cache's source unit, uses U3) or else the unit being
@@ -532,6 +540,7 @@ kk._unit_forget_class() {
     [[ ${__KKLASS_TABLES[@]@a} == A ]] || return 0
     kk.decl._sink_close "$1"
     unset '_KKLASS_CLASS_SITE[$1]' '_KKLASS_CLASS_SOURCE[$1]' '_KKLASS_DECL_SITE[$1]' '_KKLASS_CLASS_CKK[$1]'
+    kk._class_gen                       # (the class tables changed: image G5)
     return 0
 }
 
