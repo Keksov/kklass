@@ -3,7 +3,7 @@
 **Status: ACCEPTED rev 3 (owner answers 2026-11-23).** Rev 1 → independent critic
 (`scratchpad/p4/image_critic/`) → rev 2 (the supervisor's decisions on the findings, table
 §R) → the owner answered Q1–Q9 the same day: decisions **IMG-D1…D9** (§D), folded in here as
-rev 3. Implemented so far: I0, I1a, I1b, I2a, I2b, I3; I4 (2026-11-26, implemented, awaiting the CI bench: "I4 as built" below). Ledger: [`image_ledger.json`](image_ledger.json).
+rev 3. Implemented so far: I0, I1a, I1b, I2a, I2b, I3; I4 (2026-11-26, done: "I4 as built" below); I5 (2026-11-26, implemented, awaiting review: "I5 as built" below; owner decision IMG-D10). Ledger: [`image_ledger.json`](image_ledger.json).
 
 Origin: fv PLAN **D35** (P4 owner answer Q4 = b, 2026-11-22): kbool gets a general load
 image; `kk.image UNIT…` behaves like `kk.uses UNIT…` but sources a valid saved state of the
@@ -36,6 +36,7 @@ fv D20) — the owner's rule. Probes: `scratchpad/p4/image/` (Appendix A).
 | **IMG-D7** | Q7 CR functions | **a** | the writer reuses kklass's `kk._fn_text_cr`; no unit edits |
 | **IMG-D8** | Q8 a damaged image | **a** | source under `if`, end mark, undo, normal load; a flipped byte that still parses is not detected |
 | **IMG-D9** | Q9 class bodies on bash 5.1 | **a** | raw `declare -f`; on bash < 5.2 no image when a function text holds `&> "$…` |
+| **IMG-D10** | (2026-11-26) the first `bin/fvdlg` call and the writer's 4–5 s | **a background writer** | a miss = a plain load and the dialog at once; the image is written by a detached background writer that ends by itself; the next call hits (`kk.image --background`, "I5 as built"). Rejected: a slow first call + docs; only an explicit `--warm` |
 
 ---
 
@@ -388,6 +389,58 @@ formatting a "not found" message per name; the cheap C-level listings (`${!PREFI
 `compgen -v`) do not see variables declared without a value, so none replaces it exactly. No
 other cut found that keeps every check: the CI target needs a design change (fewer names to
 check, e.g. per-class table names derived from a list of classes) — an owner question.
+
+## I5 as built (2026-11-26, implemented, awaiting review)
+
+Owner decision **IMG-D10** (table §D): `bin/fvdlg`'s first call must not wait for the writer.
+Design note `scratchpad/p4/I5/DESIGN.md`, approved by the supervisor with Q1 (refuse for a
+prior set), Q2 (10-minute hold after a killed / timed-out writer), Q3 (120 s + 10 s), Q4
+(double fork) and remarks R1–R6. As built, the note's design with no deviation except D1
+below.
+
+| piece | where | what |
+|---|---|---|
+| `kk.image --background [--optional] UNIT…` | `kkore/kuse.sh` (option, header), `kimghit.sh` `kk._image_run` | a hit as `kk.image`; a miss (after the hold, H2 and folder decisions) → `kk._imgbg_fore`: `kk._uses` now (its rc), then the writer. rc 2 with `--rebuild` / `--forget` / `--path` |
+| foreground | new `kkore/kimgbg.sh` (sourced on such a miss only, `kk._image_bglib`) | `kk._imgbg_take`: the image folder made when missing (one `mkdir`), the marker `NAME.bg` taken with `set -C` (`TIME TOKEN - TAG -`); fresh (younger than limit + 20 s and its pid answers `kill -0`; no pid yet: < 30 s) → no writer; stale but < 600 s → a 10-minute hold, no writer; older → taken over. A prior set → no writer (Q1); a failed load → the foreground writer's hold |
+| the spawn | `kk._imgbg_spawn` | ONE subshell (`$!`, jobs, traps, options of the caller untouched): ERR / DEBUG / RETURN traps and `set -eEuxf` dropped, every fd > 2 closed (`/proc/$BASHPID/fd`, else 3..255), the settings exported in the subshell only (`kk._img__child`'s list + `__KK_IMG_MINLOAD` / `_MAXN` / `_MAXB`; unexported ones named in `__KK_IMG_KUNX`; IFS, extglob / expand_aliases / nocasematch, `set -u` / `-f`), the caller's key and the marker token in the environment, `BASH_ENV` / `ENV` unset; then `setsid timeout -k 10 120 nice -n 10 "$BASH" kimgbg.sh --kbool-image-writer MODE MARKER KBOOL PROJECT CALLER ORDER ARGS… </dev/null >/dev/null 2>/dev/null &` with each tool where found (next to `$BASH` on the Windows runtimes, on PATH elsewhere) |
+| the writer | `kk._imgbg_main` (this file run as a script) | `exec </dev/null` first; the marker's pid + pgid written, mode 600; traps: EXIT removes the marker (while it holds its token), TERM / HUP / INT a 10-minute hold; the caller's settings restored; `source kbool.sh`, `kk.project`; its unit order compared with the caller's (taken BEFORE the caller's load) → else a 1-hour hold; `kk._imgbg_run` calls `kk.image` with the caller from a dynamic local (`__kk_imbg_w`, shadowed inside kk.image so a nested call sees its own) → `kk._imgbg_write`: its key equal to the caller's (else a 1-hour hold), held / valid → done, else `kk._img_write` unchanged; no image and no hold after it → a 10-minute hold |
+| no timeout tool | mode `watch` | the writer runs itself again as mode `inner` in a process substitution and waits on that pipe with `read -t`; at the limit TERM, 10 s later KILL to the inner pid, a 10-minute hold (stock macOS; children not group-killed: documented) |
+| pruning, `--forget` | `kimage.sh` | `NAME.bg` older than 600 s (or unreadable) removed; a stale one (≥ 140 s) goes with its pruned image; `--forget` takes the request's |
+| `bin/fvdlg` | step 5 + header | `kk.image --background fv.dlg`; the fork note updated (R3) |
+| tests' default | `kcl/fv.dlg/tests/fvdlg_testlib.sh` `fvdl_init` | `export KBOOL_IMAGE=off` (R1): every fv.dlg test file runs bin/fvdlg without images or writers; only 009 and 010 spawn bin/fvdlg there, nothing else in the tree runs it |
+
+**Seams** (internal, `kimgbg.sh` header): `__KK_IMG_BGSYNC=1` (the same chain without `&`),
+`__KK_IMG_BGPAUSE=S`, `__KK_IMG_BGLIMIT=S`, `__KK_IMG_BGERR=FILE`, `__KK_IMG_BGNOTOOLS=1`,
+`kk._img_bgwait PATH [S]`.
+
+**Why the writer's image is the caller's.** A start judges an image only by its key, the
+stamps, the dependency edges (resolved from the caller's folder: the calling file is passed),
+the base list and its own clash check. The writer writes only when its recomputed key equals
+the caller's byte for byte and its unit table after a fresh `kbool.sh` equals the caller's
+before its load (so the base list fits); I3's env-diff cases show an image written under one
+environment starts right under another with the same key. Pinned: 029 (the writer's image
+path = `kk.image --path` of the caller; the next start a hit; a calling file's hit equals a
+normal load's state) and kcl/fv.dlg 013 (nine hit-vs-plain compares of status, stdout,
+stderr and headless frames).
+
+**Deviation D1.** The design note proposed factoring the settings list shared with
+`kk._img__child` into one helper; the list is repeated in `kk._imgbg_spawn` instead (a
+comment names the twin), so I5 does not touch the chained / M1 child that only full suites
+cover — a review item.
+
+**Tests.** kkore `029_ImageBackground.sh` (29 cases) and kcl/fv.dlg `013_Image.sh` (18), each
+on Git-bash 5.3.15, MSYS2 5.3.9, Cygwin 5.2.21; 009 / 010 on Git-bash (the testlib change).
+Every test waits for its writers; the EXIT trap kills a leftover writer group and fails the
+file (R2). Mutations (15, scratch `p4/I5/mut.sh`): 14 caught; M13 (the writer's own `exec
+</dev/null`) survives by design — the spawn's redirection already gives /dev/null.
+
+**Bench** (tools/bench `fvdlg` suite, `fvdlgcases.sh`, a skeleton P4 4e extends): launch → exit
+of a spawned headless `bin/fvdlg` — `dlg1.proc.{msgbox,menu,inputbox}.image` (hits),
+`dlg1.proc.{…}` (`KBOOL_IMAGE=off`), `fvdlg.miss`, `fvdlg.miss.write`; derived hit / plain and
+miss / plain. Laptop smoke (Git-bash, N=1, indicative): hits 252–283 ms vs plain 934–1024 ms
+(0.27–0.28), `fvdlg.miss` 1068 ms (1.14 × the plain msgbox), writer done after 6.1 s.
+Spawn cost (DESIGN §7, laptop, median of 11): double fork 24–46 ms on the Windows runtimes,
+est. 1–2 ms on Linux.
 
 ## 0. Summary
 
@@ -1002,7 +1055,7 @@ commit; CI on the perf branches; the hygiene block in every brief.
 | **I2b** chaining | P in the key and stamps, deltas on P's slots, the base check, the fresh-process simulation, the undo of base slots, holds and pruning per (request, P), `KBOOL_IMAGE_CHAIN=on` default; tests of §10 for I2b | ~150 + ~250 tests | **critic** (base check soundness, the documented reader-side limit); gate all + VM 5.1; CI |
 | **I3** env-diff + round trip | every unit, unchained **and chained** (P = tstringlist, tutil), on every CI row | ~350 tests | **critic** (allow-list); gate all; CI 16 rows |
 | **I4** perf + docs | the `image.*` rows incl. `image.hit.chain`, `image.alt`, the `dates` Linux row; writer speed per I2a's profile; miss target from CI; docs (kkore README "Images" with the flags, kcl README unit rule, kklass book "Units and uses", the shared-machine note of §8.2) | ~150 + docs | supervisor; CI bench |
-| **I5** fvdlg | `bin/fvdlg`: `kk.uses fv.dlg` → `kk.image fv.dlg`; `dlg1.proc.<widget>.image` rows (into P4 4e's suite or a skeleton 4e extends); fv.dlg README "Cost" | ~20 + bench | supervisor; fv.dlg suites; CI bench |
+| **I5** fvdlg | `bin/fvdlg`: `kk.uses fv.dlg` → `kk.image --background fv.dlg` (IMG-D10: the background writer, `kkore/kimgbg.sh`); `dlg1.proc.<widget>.image` rows (into P4 4e's suite or a skeleton 4e extends); fv.dlg README "Cost" | ~20 + bench | supervisor; fv.dlg suites; CI bench |
 
 Rev 3 changes to the stage list: I0 gains `__KK_UNIT_ORDER`, `KBOOL_VERSION` and the release
 step; rev 2's I2 is split into **I2a** (unchained core, both flags parsed) and **I2b**
