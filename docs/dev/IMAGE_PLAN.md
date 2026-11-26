@@ -3,7 +3,7 @@
 **Status: ACCEPTED rev 3 (owner answers 2026-11-23).** Rev 1 → independent critic
 (`scratchpad/p4/image_critic/`) → rev 2 (the supervisor's decisions on the findings, table
 §R) → the owner answered Q1–Q9 the same day: decisions **IMG-D1…D9** (§D), folded in here as
-rev 3. Implemented so far: I0, I1a, I1b, I2a; I2b (2026-11-25; fix rounds 1-3 2026-11-25, awaiting review). Ledger: [`image_ledger.json`](image_ledger.json).
+rev 3. Implemented so far: I0, I1a, I1b, I2a, I2b; I3 (2026-11-26, awaiting review: "I3 as built" below). Ledger: [`image_ledger.json`](image_ledger.json).
 
 Origin: fv PLAN **D35** (P4 owner answer Q4 = b, 2026-11-22): kbool gets a general load
 image; `kk.image UNIT…` behaves like `kk.uses UNIT…` but sources a valid saved state of the
@@ -124,6 +124,97 @@ fv D20) — the owner's rule. Probes: `scratchpad/p4/image/` (Appendix A).
 |---|---|---|
 | 29 | the non-canonical hash row's DIGEST takes each folder level's last character too (length, first, last) | critic: `wt1` / `wt2`, `proj-v1` / `proj-v2` collided with length + first character |
 | 30 | not worth an image: a NEAR miss (the load at least half the threshold, i.e. ≥ 0.75 × the start cost) is held 10 minutes — the hold dated 50 minutes back (`kk._image_hold` TIME) —, a clear miss an hour; `__KK_IMG_LOADMS` a test seam for the measured load | the 1.5 × rule compares two single samples of two processes: one spike could hold fv.dlg plain for an hour; no hold at all would rerun the writer on every start of a load that sits at the border |
+
+## I3 as built (2026-11-26, awaiting review)
+
+**Tests** (kcl/tests; the harness `image_rt.sh`): ONE child script for every role (`rt.sh ROLE "P…" REQ DUMP`:
+the start's outcome read from kk.image's own debug lines — `hit`, `miss wrote`, `miss nowrite: WHY`,
+`plain: WHY` — and the number of `.img` files it added; the state dump; with `RT_REF` the compare with
+another process's dump in the same child, with `RT_LAZY` the lazy data / behaviour run after it, its
+state and output compared too) and THE allow-list (`KCLT_IMG_ALLOW`, each entry's reason in the
+file; 008 and 009 use it now). Each env-diff case writes ONE image under A (the hermetic default: no
+locale, no FV_*, the neutral folder, the script by its absolute path) and starts it under B against a
+normal load under the same B, asserting WHICH outcome the start has:
+
+| B | what differs from A | expected |
+|---|---|---|
+| B1 | `LANG=ru_RU.UTF-8`, `NO_COLOR`, `TERM`, `COLUMNS`, `FV_HISTORY_SIZE` / `FV_SCREEN_W` exported, caller globals the hooks keep (`FV_MSGBOX_TITLES`, `TUTIL_OUT_PREFIXES` + a prefix, `FV_DLG_TAGS`, `FV_DLG_CMD`), a relative caller (`./rt.sh`) after a `cd` | hit; state = normal load under B1 |
+| B2 | `LC_ALL=C` (fv.video's ASCII mode), `FV_ASCII=1`, `TERM=dumb`, `FV_KBD_LAYOUT`, a `KBOOL_CONFIG` without a merged effect | hit |
+| bp (chained) | B1 with the caller presets set BEFORE P loads (P's hooks keep them, the delta's hooks append) | hit |
+| key | a `KBOOL_CONFIG` that adds a define (merged config keyed) | miss, another image written |
+| mode / modex | `KBOOL_IMAGE_CHECK=hash` / `=bogus` (an invalid value runs as the default) | miss / hit |
+| vk | `VERBOSE_KKLASS` empty instead of debug | miss |
+| clash / clashx | a caller global / an exported preset named like a scalar the image creates | plain kk.uses ("exists in this shell already") |
+| off (chained) | `KBOOL_IMAGE_CHAIN=off` | plain kk.uses |
+
+| file | default | `KCLT_IMAGE_FULL=1` adds |
+|---|---|---|
+| 010_ImageEnvDiff | kklass + the 28 non-fv units, B1 (+ lazy data of tregex, tpath, math, tutil) | B2, key, clash per unit |
+| 011_ImageEnvDiffFv | the 12 fv units, B1 (+ lazy data and behaviour: fv.unicode's width cache, fv.video's ASCII map, fv.keyboard's layout tables, fv.dlg's usage text and headless msgbox / checklist / inputbox / yesno through fv.dlg's own test lib); B2 for fv.keyboard, fv.video, fv.dlg | B2 for the other fv units, key, clash |
+| 012_ImageEnvDiffChain | P = tstringlist: tobjectlist, tinifile, tutil, dateutils; P = tutil: tfind, tawk, tsed, thead, tpath (b1; bp / off on some) | every unit outside P's closure on both P: b1, bp, off |
+| 013_ImageEnvDiffKeys | tstringlist: key, b2, mode, modex, vk, clash, clashx; tutil + tfind: key, mode, vk, off, clash | — |
+| 014_ImageDemos | fv.app's demo.sh and fv.dialogs' widgets.sh headless (each builds its own class at run time) from an image start vs a normal load: same screen, same frames | — |
+
+Costs (laptop, each file standalone, indicative): default 010 / 011 / 012 / 013 / 014 = 117 / 90 /
+53 / 40 / 10 s on Git-bash 5.3 (310 s in all), 108 / 86 / 54 / 33 / 9 s on MSYS2 5.3 (290 s),
+74 / 71 / 36 / 25 / 10 s on Cygwin 5.2 (216 s) — above the ~4 min aim on the MSYS-family laptop
+runtimes when run one after another; in the threaded kcl suite (8 workers) the whole kcl/tests
+suite is 179 / 183 / 158 s (before I3: 103–151 / 120 / 95–119 s). `KCLT_IMAGE_FULL=1` (Git-bash):
+010 385 s, 011 231 s, 012 648 s (one run would pass the 900 s cap: run it per P with
+`KCLT_IMAGE_UNITS`). A unit costs ~4 s (writer ~1–1.5 s, start ~0.5 s, normal load + dump +
+compare ~1 s; ~2 s stalls on random processes on this laptop).
+
+**Found and fixed (kkore/kimage.sh)**: `compgen -v` does not list a variable that is declared
+but was never assigned (`declare -gA X` with no element, `declare -gi N`, `declare -g S`). The
+writer took the variables a load created from `compgen -v`, so EVERY image lacked them, and the
+state dump took its names from `compgen -v` too, so no compare (008, 009, the writer's own
+simulations) could see it. After an image start `__FV_VW_LIVE[$name]=1` made an INDEXED array
+(the key is arithmetic: 0): every fv view was a "live view", fv.dlg's widgets failed
+(`local: '0_views': invalid variable name`, status 255); kklass's `TX_computed_getters` /
+`TX_computed_setters` / `TX_lazy_inits` / `TX_method_cache` of every class were missing too. Now
+`kk._img__inv FILE ARRAY` (one full `declare -p`, the records without a value; bash's own left
+out) adds them in the dump and in the writer, which declares them again without a value
+(`declare -gA X`, never `X=()`: another state under nounset and for the dump); their attributes
+are read through `${!X[@]@a}` (`${!X@a}` is empty for such a variable); a kkore frame local without
+a value (`__kk_n` of the writer's own function) is never a unit's. Pinned: kkore 022 (fixture unit
+`iuv`: the hit declares them, the first use is associative / integer), kcl 010 / 011 (the dump
+lists them: every unit with classes failed before the fix), 011 (fv.dlg's headless widgets), 014.
+Cost: ~70 ms per writer / dump after fv.dlg's load (565 KB `declare -p`), 5–10 ms for small units.
+
+**Found and fixed (2), kkore/kimage.sh** (kcl 010 on Cygwin bash 5.2): bash 5.2's `declare -f`
+prints `1<> FILE` as `<> FILE` (and `0<> FILE` as `0<> FILE`), which reads back as fd 0 — the
+`declare -f` / source round trip changes the function. kcl tfile's `TFile.encrypt` writes its MAC
+with `printf … 1<> "$tmp"`: from an image it went to stdin. bash 5.3 prints `1<>` (and a bare `<>`
+for fd 0) and reads it back. Now `kk._img__rwbug` probes the running parser (one eval, one
+`declare -f` into a temp file; no version test) when a function text holds ` <> `, and such a
+bash writes no image (a hold naming the reason) — as IMG-D9 does for bash < 5.2's `&> "$`; a
+literal ` <> ` in a string is refused too (safe). On bash 5.2 this leaves tfile alone (the only
+kcl unit with such a redirection) without an image. Pinned: kkore 022 (fixture unit `irw`: no
+image + hold on such a bash, the image keeps `1<>` elsewhere; the file written right either
+way), kcl 010 (`KCLT_IMG_RWUNITS`). An I4 item: rewrite ` <> ` as ` 1<> ` with a re-print check
+(as `kk._fn_text_cr` does for CR) instead of refusing.
+
+**Found and fixed (3), kkore/kimage.sh** (012 under `KCLT_IMAGE_FULL=1`, Git-bash): the chained
+writer's cross-process compare (`kk._img__xcmp`) read a CR function's `''<CR>''` as `<CR>` in ONE
+pass, while every round trip of a `kk._fn_text_cr` text adds one `''` pair; kklass defines
+`tpath.__static_getGUIDFileName` from a rewritten text, so the writer printed `'''<CR>'''` and the
+fresh process's start `'''''<CR>'''''`: every chained image of tpath, tfile and tdirectory was
+refused ("the simulated image start differs") on the CR-dropping parsers — a false refusal plus
+an hour's hold, never a wrong image. Now the pairs are taken off until none is left, as
+`kk._img__explain` (the set compare) already did. Pinned: 012's default set gains `kk.uses tutil;
+kk.image tpath`.
+
+**Allow-list**: 008's entries kept; one added, `__FV_AP_SOWN` (fv.app's copy of the owner pid,
+taken when an application starts: use-time pid state, seen only in the state after the lazy /
+behaviour run, where two normal loads differ too). Nothing else.
+
+**Known limits seen (pinned, not bugs)**: fv.keyboard and fv.drivers ALONE hold a raw CR function
+and no kklass: on a CR-dropping parser (Git-bash, MSYS2) no image (§6.3), their starts plain loads
+(`image_rt.sh` `KCLT_IMG_CRUNITS`); `kk.uses tutil; kk.image tsed` is never imaged on any runtime:
+tsed names tutil's `__TUTIL_CR_SED` (`s/\r$//` with a raw CR), and the read base cannot hold a CR
+(I2b deviations 7, 13; `KCLT_IMG_CRBASE`) — an I4 item (a `%q`-encoded read-base value would lift it).
+Residual (not changed): the chained read base takes P's names from `compgen -v` in the fresh
+process, so a variable of P's declared without a value is no read-base candidate.
 
 ## 0. Summary
 
@@ -687,8 +778,8 @@ Forks: **0** in `dates` mode (the Windows default); **1** (`stat` / `cksum`) in 
 | chained writer simulation | I2b | the writer's script changes a P class (`defineMethod`) before `kk.image` → refusal + hold; the reader side (fix round 1): a P variable a unit reads changed after the image was made, an environment preset of a P default, a shortened P list, an added registry key, `defineMethod` on a P class before the start of a clean image of a class-building load → plain `kk.uses` (read base, `_KKLASS_GEN`) |
 | chained undo | I2b | truncated chained image under `set -e`: base slots restored, state equals a normal load |
 | pruning caps | I2b | per (request, P), per request name, per folder |
-| env-diff (every unit, unchained and chained) | I3 | image under A, start under B == a real load under B, except the allow-list |
-| round trip, lazy data, behaviour | I3 | per bash version; layouts load lazily; fv.dlg headless widgets and demos equal from an image start |
+| env-diff (every unit, unchained and chained) | I3 | image under A, start under B == a real load under B, except the allow-list; as built: kcl 010-013, "I3 as built" above |
+| round trip, lazy data, behaviour | I3 | per bash version; layouts load lazily; fv.dlg headless widgets and demos equal from an image start; as built: kcl 010-014 (lazy table and fv.dlg widgets in image_rt.sh, demos 014), every CI row |
 | rows | I2a–I3 | Git-bash, MSYS2, Cygwin (gate.sh); CI 16 rows; the 5.1 VM gate |
 
 ---
