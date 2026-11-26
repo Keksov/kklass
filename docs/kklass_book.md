@@ -2188,6 +2188,47 @@ taken-name tables, so loading the same files there again is harmless — and its
 classes must be built there anyway. A `( … )` or `$( … )` subshell shares the
 parent's tables.
 
+### Class Units Through a Load Image
+
+A script that loads many class units pays for building every class on every
+start. `kk.image` (kkore's load image; its full reference is in the kkore
+README) loads the same units as `kk.uses` the first time and saves what the
+load did; a later start of the script sources that saved state instead:
+
+```bash
+source /path/to/kbool/kbool.sh || exit
+kk.image fv.dlg || exit          # like kk.uses fv.dlg, through an image when one is valid
+```
+
+For a class unit this means:
+
+* **The classes are not built again.** The image holds the class functions,
+  the class tables, kklass's registries and the taken names as the load left
+  them. Methods, properties and inheritance work as after a normal load.
+* **Settings hooks run on every start.** Anything a unit computes from the
+  environment at load time (a caller's preset, the locale, a terminal test)
+  must sit in its `kk.settings` hook (kkore README, "settings hooks"); the
+  image start runs the hooks again. kklass's own hook keeps its descriptor
+  pair fresh.
+* **Units loaded before.** `kk.uses tstringlist; kk.image fv.dlg` gets its own
+  image, which holds only what the `fv.dlg` load changed. kklass's class
+  counter `_KKLASS_GEN` (one more for every class built or method defined) is
+  saved with it: a script that defines a method on an earlier unit's class
+  after the image was made gets a normal load, not a stale class.
+* **Classes built by the script itself** are not part of any image (they are
+  built after `kk.image`, as before). A script that builds a class of its own
+  BEFORE `kk.image` on top of earlier units gets no image for that call.
+* **Methods with CR bytes.** On MSYS2 and Git-bash, which drop CR bytes when
+  they read code, kklass's `kk._fn_text_cr` rewrites such a function for the
+  image, as it does for the `.ckk` cache.
+* **Changing a class unit** makes its image stale (every file of the load is
+  checked on every start, see `KBOOL_IMAGE_CHECK`); the next start loads it
+  normally and writes a new image. `kk.image --forget UNIT` removes the images
+  of a request; `KBOOL_IMAGE=off` turns images off.
+
+What a start through an image costs is in the benchmarks (`tools/bench`, the
+`image` suite).
+
 ---
 
 ## Serialization

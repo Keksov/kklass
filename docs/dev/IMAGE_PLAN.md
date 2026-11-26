@@ -3,7 +3,7 @@
 **Status: ACCEPTED rev 3 (owner answers 2026-11-23).** Rev 1 → independent critic
 (`scratchpad/p4/image_critic/`) → rev 2 (the supervisor's decisions on the findings, table
 §R) → the owner answered Q1–Q9 the same day: decisions **IMG-D1…D9** (§D), folded in here as
-rev 3. Implemented so far: I0, I1a, I1b, I2a, I2b; I3 (2026-11-26, awaiting review: "I3 as built" below). Ledger: [`image_ledger.json`](image_ledger.json).
+rev 3. Implemented so far: I0, I1a, I1b, I2a, I2b, I3; I4 (2026-11-26, implemented, awaiting the CI bench: "I4 as built" below). Ledger: [`image_ledger.json`](image_ledger.json).
 
 Origin: fv PLAN **D35** (P4 owner answer Q4 = b, 2026-11-22): kbool gets a general load
 image; `kk.image UNIT…` behaves like `kk.uses UNIT…` but sources a valid saved state of the
@@ -253,6 +253,80 @@ Cygwin 502 → 458 s. The longest file is now ~75 s instead of ~140 s, so the th
 set stays above the ~4 min aim on this laptop: 013 grew by the `local` case and the harness check,
 and 008's one-request M1 guard (a writer over every unit, ~40 s) is most of 008 now.
 
+## I4 as built (2026-11-26, implemented, awaiting the CI bench)
+
+**Bench rows** (`tools/bench`: `imgcases.sh ROOT CASE [N]`, suite `image` in `bench.sh`, README
+section "The image suite"; `prepare.sh` pins kkore too — `kkore@REF`, `.bench_rev` line 3;
+`ci.conf`: SIDES `i3=kkore@849161d… cur=pointer`, SUITES `image`). Every image of a case lives in a
+temp folder (bench.sh's `mktemp -d`, removed at the end; a case run alone makes its own): the user's
+cache is never touched, locally or on CI. A start = a fresh `bash SCRIPT ROOT`, launch → the
+script's `$EPOCHREALTIME` after the load; images warmed (≤ 3 starts) and checked with `kk.image
+--path`; a hit row checks after the timing that the image's nonce did not change.
+
+| case | rows |
+|---|---|
+| img-hit | `image.hit.fvdlg`, `image.load.fvdlg` (interleaved), `image.hit.fvdlg.dates` (POSIX: the `dates` row beside the default `stat`), references `image.bash`, `image.kbool` |
+| img-chain | `image.hit.chain`, `image.load.chain`, `image.load.tstringlist` |
+| img-check | `image.check` (the first `kk.image --path fv.dlg` in a fresh process: kimghit.sh parsed, prep, key, header, edges, staleness, clash, base — the hit path without source and hooks; `--path` is that seam, no code added), `image.check.warm` (repeated in one process), `image.check.chain`, `image.check.dates` (POSIX) |
+| img-miss | `image.miss.fvdlg`, `image.miss.chain` (an empty folder per measurement) + the writer's profile as `.PART` rows through the new seam `__KK_IMG_PROF=FILE` (kimage.sh kk._img__after appends the outcome and the profile line; no VERBOSE_KKLASS needed — it is keyed and its debug output slows the load ~30 %) |
+| img-alt | two scripts in two folders (the second holds a copy of fv.dlg.sh: another image), 10 starts: `image.alt.first` (1–2), `image.alt.start` (3–10), a note counting writes in starts 3–10 |
+| img-forks | notes `image.forks.MODE`: forks of one hit per mode from an xtrace with `$BASHPID` in PS4 (023's method) |
+
+Derived rows (bench.sh `image_derived`): hit / load, `hit.chain − load(tstringlist)` and its
+ratio to the unchained hit, `hit − hit.dates` (the stat fork). Locally (Git-bash, MSYS2, Cygwin,
+N = 1–3) every case runs; `bench.sh --rounds 1 cur=. -- image` gives the report.
+
+**Speed changes (hit path; laptop Git-bash 5.3, fv.dlg unchained, `dates`, indicative)** — the
+in-process check (`kk.image --path`) **~58–63 → ~23–27 ms** warm; the bench's `image.check` (cold, a
+fresh process) 89.8 → 36.1 ms, `image.check.warm` 77.6 → 27.2 ms (bench.sh A/B, base = the I3 tree,
+2 rounds; the laptop's numbers swing ±50 % between runs):
+
+| piece | before | after | change |
+|---|---|---|---|
+| clash check | ~26 ms (3002 names × four expansions; the loop alone 1.8 µs per name) | 7–8 ms (4–6 ms of it the one `declare -p`) | ONE `declare -p` over all names (`kk._image__clash`): bash ≥ 5.3 a `${ …; }` substitution; older bashes through `NAME.vck` (made empty by the writer under umask 077, pruned and forgotten with its image) closed by a marker line `NONCE.BASHPID.RANDOM` — a race (a start of the same image at once) leaves another marker or a NUL hole: then one `declare -p` per name. **Closes the documented limit**: a bare `local NAME` is seen (it ended the script before; kkore 027 pinned the limit, now pins the plain load) |
+| header read | 8.3 ms (`${h%%<newline>*}` over 117 KB: 5.8 ms in C, 28–31 ms under C.UTF-8) | ~3 ms | line 1 `# kbool image v1 N P V`: the plain line cut by its byte length P (`local LC_ALL=C` in kk._image__hdr); the variables leave the evaluated header: a comment line `#V<US>NAME<US>…` of V bytes after it, read as text (`__kk_img_vs`, passed split to the `declare -p`; the undo splits it, `kk._img__vsplit`); `__kk_img_fns` / `__kk_img_ro` move to the first body line (the source sets them before any function; the undo needs them only after a source) |
+| header eval | 6.5 ms (C) / 13 ms (UTF-8) | ~0.5 ms | the evaluated header is ~10 KB instead of ~117 KB |
+| file-name hash | 2.7 ms (350 characters) | 0.8 ms | bash ≥ 5.2 with `patsub_replacement`: every character a printf argument in one `${s//?/'&STX}` expansion (STX, not SOH: bash's own quoting byte), one printf → the FNV rounds, one arithmetic expansion; the same digits (kkore 021 pins it against the loop, both locales, control bytes, multibyte; image file names unchanged) |
+| base check | 4.1 ms (139 entries) | unchanged | a batched variant (whole-array field cuts, one eval per run of absent entries) was measured equal or slower — the per-entry cost is the field parsing (~2–3 µs per expansion on the laptop), not the eval; reverted |
+| staleness (`dates`) | 3.6 ms (22 × `-ot`) | unchanged | a stat syscall each on Windows; Linux runs `stat` mode (one fork) |
+
+Estimated CI Linux (0.5–0.9 × laptop for bash work, a fork ~1 ms): the check ~8–14 ms — the
+`image.check` target (≤ 10 ms) is to be read from the CI bench.
+
+**Writer / miss** — measured, not cut (no target yet; the profile rows give CI numbers): unchained
+fv.dlg miss ~3.9–4.9 s on the laptop = load 0.8 + delta 0.8–0.9 (incl. the M1 scan) + simulation
+0.8–0.9 (the full state dump ~0.5 s and its compare) + text 0.9–1.2 (`kk._img__vals` ~0.45 s over
+784 arrays) + write 0.17–0.19 + rename 0.08 s; chained on tstringlist ~5.7–6.8 s (fresh process
+1.8–2.1 s: P 0.18, sim 0.8–0.9, scan 0.6, dump 0.5, compare 0.9–1.1). The build's full `declare
+-p` cannot simply stand in for the end dump's (another frame, other locals: the reuse saves ~70 ms
+of ~4 s and needs a proof of equal records) — left as an open item.
+
+**Found and fixed (kimage.sh kk._img__rbase, pre-existing)**: `__kk_imk_was` (the records of
+before the load) exists only when the load changed a pre-existing variable; otherwise the read
+base's `${__kk_imk_was[NAME]}` was an INDEXED read — NAME evaluated as arithmetic, so a P scalar
+whose value is no expression (`s/x//`) failed the writer (no image; a value that is a number read
+a wrong index, harmlessly empty). Now read only when it is associative. Found by 028's new `pcq`.
+
+**Part C (the I3 leftovers)**:
+
+| item | change | pins | mutations caught |
+|---|---|---|---|
+| C1 tsed on tutil | the read base keeps a scalar value with a CR byte as its `%q` form under LC_ALL=C (FLAG `q`, `r<US>NAME<US>s<US>q<US>%Q`); a start compares `LC_ALL=C printf -v X %q` of the value (kk._image__fits `sq*`) | kkore 028 `pcr`/`pcq` (P's `printf -v PCR_SED 's/\r$//'`): written with the `q` entry, a hit keeps the CR, a changed value → plain kk.uses; kcl `KCLT_IMG_CRBASE` emptied: 012's `tutil|tsed` (b1, off) asserts a hit | reader always equal (028), writer refusing again (028, kcl 012) |
+| C2 bash 5.2 ` <> ` | such a bash prints fd 0 as `0<> FILE`, so its bare ` <> ` is fd 1: every function of the image with ` <> ` is rewritten to ` 1<> `, defined as a probe and printed again — it must print as before (CR bytes aside; `kk._img__rwfix`); then the whole text gets ` 1<> ` (after the CR rewrite, which keeps those tokens); a ` <> ` in a string fails the check → the I3 refusal (no image, a hold) | kkore 022: `irw` both branches (bash 5.2: written, a hit, the file written over — not stdin; the image text says `1<>`), new `irs` (also `echo " <> "`: refused on 5.2, imaged elsewhere); kcl `KCLT_IMG_RWUNITS` emptied (tfile imaged on 5.2) | no rewrite (022 irw on Cygwin 5.2), no re-print check (022 irs on Cygwin 5.2) |
+
+**Checks (laptop)**: kkore / kklass / kcl/tests green on Git-bash 5.3.15 (1149 / 1026 / 520),
+MSYS2 5.3.9 (1149 / 1026 / 520), Cygwin 5.2.21 (1150 / 1026 / 520); kcl/fv.dlg 670 on Git-bash;
+umask 002 on Git-bash kkore 1149, kcl 520; ShellCheck (`.github/ci/shellcheck.sh`) clean; 11
+mutations caught (hash, clash ×3, the `.vck` marker, the `q` reader / writer, the rbase fix,
+pruning of `.vck`, and on Cygwin 5.2 the ` 1<> ` rewrite and its re-print check); the image
+suite runs on all three runtimes (`bench.sh --rounds 1 --n 1 cur=. -- image`).
+
+**Docs**: kkore README "kk.image UNIT... — load images" (the calls, the settings, validity per
+mode, chaining, refusals, holds, trust and damage, limits, the shared-machine note, Cost → see
+benchmarks); kcl README §1.10 rule 9 (imageable units, the hook lint R1–R7); kklass book "Units and
+uses" → "Class Units Through a Load Image"; kuse.sh header (the bare-local limit closed, the 5.2
+rewrite).
+
 ## 0. Summary
 
 * **API** (§3). `kk.image UNIT…` = `kk.uses UNIT…` (same rc, same units loaded), through an
@@ -458,7 +532,10 @@ functions need no unit change (D7).
 
 ### 6.1 Format v1 (order matters for the undo)
 
-As implemented in I2a (the authoritative copy is the `kkore/kimage.sh` header):
+As implemented in I2a (the authoritative copy is the `kkore/kimage.sh` header; I4 changed line 1
+to `# kbool image v1 N P V`, moved `__kk_img_vars` out of the evaluated header into a comment line
+`#V<US>NAME<US>…` of V bytes after it, and `__kk_img_fns` / `__kk_img_ro` to the first body line —
+"I4 as built"):
 
 ```
 # kbool image v1 N                                  line 1: magic, format, N = byte length of the header below
@@ -728,10 +805,9 @@ reads and writes only under `KBOOL_IMAGE_DIR`. A user whose `~/.cache` is a syml
 `XDG_CACHE_HOME` / `KBOOL_IMAGE_DIR` to the real folder. A variable the image would create
 that already exists in the caller's view (a local, a nameref, another kind, readonly, a preset)
 makes the start a plain `kk.uses` (I2a critic H1): an image never writes into a caller's
-variable and its undo never unsets one. Limit: a bare `local NAME` (neither a value nor an
-attribute) in a calling function is not seen — one `declare -p` per array name would tell
-(~25 ms per start for fv.dlg's 1335 array names, over the 2 ms budget) — and when NAME is an
-image **array** name, a start in that function may end the script.
+variable and its undo never unsets one. ~~Limit: a bare `local NAME` (neither a value nor an
+attribute) in a calling function is not seen~~ — **closed in I4**: the check is ONE `declare -p`
+over all the image's names ("I4 as built"), which sees a bare local too.
 
 ### 8.2 Windows runtimes: thin checks, and the home fallback (D4)
 
