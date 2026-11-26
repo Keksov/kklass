@@ -193,7 +193,7 @@ with `printf … 1<> "$tmp"`: from an image it went to stdin. bash 5.3 prints `1
 for fd 0) and reads it back. Now `kk._img__rwbug` probes the running parser (one eval, one
 `declare -f` into a temp file; no version test) when a function text holds ` <> `, and such a
 bash writes no image (a hold naming the reason) — as IMG-D9 does for bash < 5.2's `&> "$`; a
-literal ` <> ` in a string is refused too (safe). On bash 5.2 this leaves tfile alone (the only
+literal ` <> ` in a string is refused too (safe). On bash 5.1 and 5.2 this left tfile alone (the only
 kcl unit with such a redirection) without an image. Pinned: kkore 022 (fixture unit `irw`: no
 image + hold on such a bash, the image keeps `1<>` elsewhere; the file written right either
 way), kcl 010 (`KCLT_IMG_RWUNITS`). An I4 item: rewrite ` <> ` as ` 1<> ` with a re-print check
@@ -326,6 +326,47 @@ mode, chaining, refusals, holds, trust and damage, limits, the shared-machine no
 benchmarks); kcl README §1.10 rule 9 (imageable units, the hook lint R1–R7); kklass book "Units and
 uses" → "Class Units Through a Load Image"; kuse.sh header (the bare-local limit closed, the 5.2
 rewrite).
+
+### I4 CI bench (run 45846542027, cur side) — the I4 measurement
+
+| row | CI | target | |
+|---|---|---|---|
+| `image.check` | 25.0 ms ubuntu host (debian 14, fedora 18, ubuntu 22.04 20, alpine 42–46, macOS 34, Windows 42–57) | ≤ 10 ms | **not met** |
+| `image.hit.fvdlg` | 127.8 ms | ≤ 0.12 s | **not met** (by 8 ms) |
+| `image.hit.fvdlg / image.load.fvdlg` | 0.21 | ≤ 0.2 | **not met** |
+| `image.hit.chain − image.load.tstringlist` | 117 ms | ≤ 0.12 s | met |
+| `image.alt` writes in starts 3–10 | 0 | 0 | met |
+| `image.forks` dates / stat / hash | 0 / 1 / 1 | 0 / 1 / 1 | met |
+| `image.miss.fvdlg`, `image.miss.chain` | 3.93 s, 3.53 s (ubuntu host) | to be set | logged |
+
+## I4 fix round 1 (2026-11-26; supervisor S1–S5, critic M1, L1–L9)
+
+| item | fix | pin | mutation (caught) |
+|---|---|---|---|
+| S1 a drive-letter KBOOL_HOME on Cygwin | pruning asks `kk._img__homeok`: the start's own KBOOL_HOME in its normalised form, a folder as spelt, or on the Windows runtimes `/x/…` as `x:/…` (Cygwin has no `/c`; every write had pruned every other image of such a tree). Audit: the stamped files, edges, `.ref`, `.fnc`, `.vck` and `--forget` use the spelt paths or the image folder; the normalised HOME is only compared (the key), and pruning was its one existence test | kkore 025 (the Windows runtimes): an image whose HOME is the fixture's drive-letter spelling survives a write, one whose HOME is gone is pruned; scratch `I4sup/alt.sh` on Cygwin with `ROOT=C:/…`: both images stay | `s1home` (Cygwin 025) |
+| M1 | the per-name fallback is ONE redirected group (a redirection per name cost ~70 ms for fv.dlg) | 027's fallback cases | — (cost) |
+| L1 | the bash 5.3 substitution is closed by the marker like NAME.vck; the declare -p and the marker sit in one redirected group (a sink that cannot be opened runs neither); the fallback group sets a flag — not run: rc 2 "the clash check could not run" | 027: `__KK_IMG_NULL` (the sink seam) a folder, both paths: a plain kk.uses, the reason named | `l1fb`, `l1mk` (027) |
+| L2 | the markers take `$SRANDOM` (no `$RANDOM` read on a hit; the writer already used SRANDOM) | — | — |
+| L3 | line 1 exactly `# kbool image v1 N P V` (`N P 9 V` hit before) | 024: four damaged line-1 forms and their reasons (`P = N`, `P − 1`, `V − 1`, an extra field) | `l3exact`, critic `hdrP` / `hdrPN` / `hdrV` (024) |
+| L5 | a header this start cannot read, whose plain line still tells its write time, of an image younger than 10 minutes: a 10-minute hold (dated 50 minutes back), not a write on every start | 024: line 1 `N P 77 V` on a fresh image: a plain load, the hold, the image not written again | `l5hold` (024) |
+| L6 | a NAME.vck result with names is emptied after the read | 027 | `l6empty` (027) |
+| S3 | the rewrite of ` <> ` only when this bash also prints fd 0 as `0<> F` (the probe defines both); else the refusal | 022 (bash 5.1 / 5.2): `__KK_IMG_RWFAKE0` (a bash printing fd 0 bare): the refusal | `s3fd0` (Cygwin 022) |
+| L9 + S5 | the dead `__kk_img_vars=()` locals removed; kk._image__fntext's NAME.fnc gets the marker discipline (text + marker in one redirected group, read to the first NUL, rc 4 without its marker) | 028: `__KK_IMG_FNCHOOK` writes ANOTHER shell's pb.f (the image's earlier text) between write and read: a plain kk.uses, no false match | `s5fnc` (028) |
+| L4 tests | — | 027: NAME.vck a link to an existing file (not written through; where real links exist), `__KK_IMG_VCKHOOK` foreign marker / NUL hole + own marker → the fallback finds the bare local; 022: a UTF-8 request path under C.UTF-8 (written, then a hit), the undo of an image variable the normal load after it does not set again (`iun`) | critic `noL` (Cygwin 027: Git-bash makes no real links), `anymark`, `readN` (027), `hdrLC`, `undo1` (022); `sqloc` (028: a read-base `s/é<CR>$//` under C.UTF-8 must hit) |
+| S2 + L8 (bench) | img-hit: each mode's nonce after its own warm, compared after the timing; img-alt: both scripts' images checked valid after start 2 (a note otherwise); `set -f` in `nonce()` | — | — |
+| L7 docs | "bash 5.1 and 5.2" for the `1<>` print; kuse.sh's CR text (changed values only; read scalars keep the %q form); `--forget` names `.fnc` / `.vck`; §6.1's block | — | — |
+
+**S4 (the check, laptop Git-bash 5.3, fv.dlg unchained, `dates`; medians of 9 in-process
+`kk.image --path`, the laptop slower this hour than in I4)**: prep 3.5–4.5 ms, header read +
+the stamped files' `-f` 4.5, header eval 0.6, request files 0.3, dependency edges 2.7, staleness
+5.1, clash 9.2, base 4.3–4.9 — total 33–35 ms. The compact form of the base list's `absent`
+entries (one key list per table, one eval each), prototyped over fv.dlg's 139 entries: 2.0–2.2 ms
+vs 4.1–4.5 ms — it saves ~2.2 ms, under the 5 ms bar: **not done** (`scratchpad/p4/I4/f1/compact.sh`).
+The clash check stays the largest piece: one `declare -p` over ~3000 names, most of it bash
+formatting a "not found" message per name; the cheap C-level listings (`${!PREFIX@}`,
+`compgen -v`) do not see variables declared without a value, so none replaces it exactly. No
+other cut found that keeps every check: the CI target needs a design change (fewer names to
+check, e.g. per-class table names derived from a list of classes) — an owner question.
 
 ## 0. Summary
 
@@ -538,7 +579,9 @@ to `# kbool image v1 N P V`, moved `__kk_img_vars` out of the evaluated header i
 "I4 as built"):
 
 ```
-# kbool image v1 N                                  line 1: magic, format, N = byte length of the header below
+# kbool image v1 N P V                              line 1, exactly so: magic, format, N = byte length of the
+                                                    header below (to the base list), P = the plain line's,
+                                                    V = the variables' line's (I4)
 #P<US>WTIME<US>SIZE<US>TAG<US>HOME<US>PRIOR<US>MODE<US>FLAVOUR<US>NONCE<US>RHASH<US>N<US>FILE…
                                                     the plain line, read WITHOUT eval: the stamped files
                                                     (the stat bits check runs before any byte of the image),
@@ -548,8 +591,12 @@ __kk_img_edges=(…) __kk_img_reqf=(…) __kk_img_stamp=… __kk_img_stime=…
                                                     DIR|NAME|FILE edges (FILE empty: not found — a failed
                                                     `kk.uses --optional`); the request files; the stat /
                                                     cksum stamps and the second they were taken in
-__kk_img_units=(…) __kk_img_classes=(…) __kk_img_vars=(…) __kk_img_fns=(…) __kk_img_ro=(…) __kk_img_wtime=…
+__kk_img_units=(…) __kk_img_classes=(…) __kk_img_wtime=…
 __kk_img_base=(…)                                   touched pre-existing slots: KIND|NAME|KEY|FLAG|VALUE
+                                                    (r: a read of P's; FLAG q: a %q value, I4)
+#V<US>NAME<US>…                                     the variables the image creates: a comment for `source`,
+                                                    read as text (the clash check, the undo; I4)
+__kk_img_fns=(…) __kk_img_ro=(…)                    the undo's lists, before any function (I4)
 <functions>                                         declare -f, CR-rewritten (§6.4)
 <variables>                                         declare -g (no -r); arrays X=() then X[k]=v; an associative
                                                     key whose %q form is not plain and has no control byte:
