@@ -138,7 +138,7 @@ normal load under the same B, asserting WHICH outcome the start has:
 
 | B | what differs from A | expected |
 |---|---|---|
-| B1 | `LANG=ru_RU.UTF-8`, `NO_COLOR`, `TERM`, `COLUMNS`, `FV_HISTORY_SIZE` / `FV_SCREEN_W` exported, caller globals the hooks keep (`FV_MSGBOX_TITLES`, `TUTIL_OUT_PREFIXES` + a prefix, `FV_DLG_TAGS`, `FV_DLG_CMD`), a relative caller (`./rt.sh`) after a `cd` | hit; state = normal load under B1 |
+| B1 | `LANG=ru_RU.UTF-8`, `NO_COLOR`, `TERM`, `COLUMNS`, `FV_HISTORY_SIZE` / `FV_SCREEN_W` exported, caller globals the hooks keep (`FV_MSGBOX_TITLES`, `TUTIL_OUT_PREFIXES` + a prefix, `FV_DLG_TAGS`, `FV_DLG_CMD`), a relative caller (`./rt.sh`) after a `cd` (the same caller folder as A, spelt relatively: another folder is the `local` case); "(locale absent)" in the title where the system lacks ru_RU.UTF-8 | hit; state = normal load under B1 |
 | B2 | `LC_ALL=C` (fv.video's ASCII mode), `FV_ASCII=1`, `TERM=dumb`, `FV_KBD_LAYOUT`, a `KBOOL_CONFIG` without a merged effect | hit |
 | bp (chained) | B1 with the caller presets set BEFORE P loads (P's hooks keep them, the delta's hooks append) | hit |
 | key | a `KBOOL_CONFIG` that adds a define (merged config keyed) | miss, another image written |
@@ -146,13 +146,14 @@ normal load under the same B, asserting WHICH outcome the start has:
 | vk | `VERBOSE_KKLASS` empty instead of debug | miss |
 | clash / clashx | a caller global / an exported preset named like a scalar the image creates | plain kk.uses ("exists in this shell already") |
 | off (chained) | `KBOOL_IMAGE_CHAIN=off` | plain kk.uses |
+| local (fix round 1) | a script in another folder that holds a copy of the request's file (the caller's folder is searched first) | miss, another image |
 
 | file | default | `KCLT_IMAGE_FULL=1` adds |
 |---|---|---|
-| 010_ImageEnvDiff | kklass + the 28 non-fv units, B1 (+ lazy data of tregex, tpath, math, tutil) | B2, key, clash per unit |
-| 011_ImageEnvDiffFv | the 12 fv units, B1 (+ lazy data and behaviour: fv.unicode's width cache, fv.video's ASCII map, fv.keyboard's layout tables, fv.dlg's usage text and headless msgbox / checklist / inputbox / yesno through fv.dlg's own test lib); B2 for fv.keyboard, fv.video, fv.dlg | B2 for the other fv units, key, clash |
+| 010_ImageEnvDiff (+ 015, fix round 1: its second half) | kklass + the 29 non-fv kcl units, B1 (+ lazy data of tregex, tpath, math, tutil) | B2, key, clash per unit |
+| 011_ImageEnvDiffFv | the fv units but those inside fv.dlg's closure (fix round 1: fv.views, fv.menus, fv.histlist, fv.dialogs, fv.msgbox under FULL), B1 (+ lazy data and behaviour: fv.unicode's width cache, fv.video's ASCII map, fv.keyboard's layout tables, fv.dlg's usage text and headless msgbox / checklist / inputbox / yesno through fv.dlg's own test lib); B2 for fv.keyboard, fv.video, fv.dlg | those five, B2 for the other fv units, key, clash |
 | 012_ImageEnvDiffChain | P = tstringlist: tobjectlist, tinifile, tutil, dateutils; P = tutil: tfind, tawk, tsed, thead, tpath (b1; bp / off on some) | every unit outside P's closure on both P: b1, bp, off |
-| 013_ImageEnvDiffKeys | tstringlist: key, b2, mode, modex, vk, clash, clashx; tutil + tfind: key, mode, vk, off, clash | — |
+| 013_ImageEnvDiffKeys | tstringlist: key, b2, mode, modex, vk, clash, clashx, local (fix round 1); tutil + tfind: key, mode, vk, off, clash | — |
 | 014_ImageDemos | fv.app's demo.sh and fv.dialogs' widgets.sh headless (each builds its own class at run time) from an image start vs a normal load: same screen, same frames | — |
 
 Costs (laptop, each file standalone, indicative): default 010 / 011 / 012 / 013 / 014 = 117 / 90 /
@@ -176,9 +177,13 @@ simulations) could see it. After an image start `__FV_VW_LIVE[$name]=1` made an 
 out) adds them in the dump and in the writer, which declares them again without a value
 (`declare -gA X`, never `X=()`: another state under nounset and for the dump); their attributes
 are read through `${!X[@]@a}` (`${!X@a}` is empty for such a variable); a kkore frame local without
-a value (`__kk_n` of the writer's own function) is never a unit's. Pinned: kkore 022 (fixture unit
-`iuv`: the hit declares them, the first use is associative / integer), kcl 010 / 011 (the dump
-lists them: every unit with classes failed before the fix), 011 (fv.dlg's headless widgets), 014.
+a value (`__kk_n` of the writer's own function) is never a unit's. Pinned: the WRITER half by
+kkore 022 (fixture unit `iuv`: the hit declares them, the first use is associative / integer), kcl
+010 / 011 (every unit with classes failed their state compare without it — with the dump half in
+place: that compare is what lists them), 011 (fv.dlg's headless widgets), 014; the DUMP half alone
+(the writer fixed, the dump blind again) is pinned by kkore 022's check that the canon dump holds
+`declare -A IUV_A`, `declare -i IUV_N`, `declare -n IUV_R` (fix round 1, critic M4 — before it
+nothing caught that mutation).
 Cost: ~70 ms per writer / dump after fv.dlg's load (565 KB `declare -p`), 5–10 ms for small units.
 
 **Found and fixed (2), kkore/kimage.sh** (kcl 010 on Cygwin bash 5.2): bash 5.2's `declare -f`
@@ -204,9 +209,10 @@ an hour's hold, never a wrong image. Now the pairs are taken off until none is l
 `kk._img__explain` (the set compare) already did. Pinned: 012's default set gains `kk.uses tutil;
 kk.image tpath`.
 
-**Allow-list**: 008's entries kept; one added, `__FV_AP_SOWN` (fv.app's copy of the owner pid,
-taken when an application starts: use-time pid state, seen only in the state after the lazy /
-behaviour run, where two normal loads differ too). Nothing else.
+**Allow-list**: 008's entries, without `__FV_VW_OWNER` (fix round 1, critic M3: a by-name entry
+hid a pid the image HELD); instead the pid rule — every scalar record of a child's dump whose value
+is that child's own pid reads `<pid>`, so pid state the hooks set compares equal and a held pid
+differs (`image_rt.sh`, `pid.sh`). `__FV_AP_SOWN` (I3) went the same way. Nothing else.
 
 **Known limits seen (pinned, not bugs)**: fv.keyboard and fv.drivers ALONE hold a raw CR function
 and no kklass: on a CR-dropping parser (Git-bash, MSYS2) no image (§6.3), their starts plain loads
@@ -215,6 +221,34 @@ tsed names tutil's `__TUTIL_CR_SED` (`s/\r$//` with a raw CR), and the read base
 (I2b deviations 7, 13; `KCLT_IMG_CRBASE`) — an I4 item (a `%q`-encoded read-base value would lift it).
 Residual (not changed): the chained read base takes P's names from `compgen -v` in the fresh
 process, so a variable of P's declared without a value is no read-base candidate.
+
+**I3 fix round 1 (2026-11-26; CI 45760665404 + critic `I3_critic/NOTES.md`).**
+
+| # | change | why |
+|---|---|---|
+| L1 | `kk._image_stamp` runs `stat` / `cksum` under `LC_ALL=C` (a prefix assignment: no fork more); kkore 023: a stand-in stat printing commas unless its locale is C — written under `LANG=C`, started under `LANG=ru_RU.UTF-8`: a hit; 023's fork count skips the prefix assignment's own trace line | HIGH, CI (4 glibc rows with ru_RU installed): GNU stat prints `%.9Y` with LC_NUMERIC's decimal comma — every start under another locale than the writer's was "stale" with an hour's hold, and a writer under such a locale probed `gnu9` as failed. No other external command's output is parsed in kkore's image code |
+| M1 | the M1 probe child also reads `${!X[@]@a}` (a value-less variable has no `${!X@a}`); kkore 027 `zvl`: a caller's `local -A ZVL_A` / `local -A ZVL_A=()` hiding the unit's `declare -gA ZVL_A` → no image | the image was written without ZVL_A; a later start made `ZVL_A[k]=1` indexed |
+| M2 | `kk._img__inv FILE ARRAY FLAGS` returns each value-less name's attribute letters from its record; the writer's checks and its text use them (`declare -gn R` stays a nameref); 022's `iuv` gains `declare -gn IUV_R` | `[[ -R ]]` and `${!X[@]@a}` both miss a value-less nameref: it came back as `declare -- R` |
+| M3 | the writer refuses (a hold, the variable named) to hold a non-hook scalar whose value is its own pid (`$BASHPID` / `$$`) — 026 `ipid`; the harness's pid rule replaces the by-name allow-list entries | dropping `__FV_VW_OWNER` from fv.views' VAR list made images hold the writer's pid and fv.views' subshell guard refuse every call after a start; the by-name entry hid it |
+| M4 | 022's `uv` case checks the canon dump itself | the dump half of the I3 fix was unpinned |
+| L1b | bash 5.1 (`kk._img_oldbash`): `kk._img__inv` follows a scalar `"…"` record over its lines (quotes counted after `\\` and `\"` are dropped); 022's `iuv` gains a scalar whose value holds `declare -a IUV_FAKE` | 5.1 prints scalars with sh_double_quote (real newlines): a value line could pass for a record |
+| L2 | the lazy-output compare reads line by line (an empty line counts) | `for l in $s` dropped empty lines |
+| L3 | case `local` (013, tstringlist): another caller folder with a copy of the request's file — a miss, another image; B1's wording: the same folder spelt relatively | `@rel` changed no caller folder |
+| L4 | B1 titles say "(locale absent)" where ru_RU.UTF-8 is missing (`kclt_ruloc`) | B1's locale was inert there, silently |
+| L5 | allow-list wording for `__KK_UNIT_BOT` (read by `kk._unit_check`'s cycle test) | truthful reason |
+| L6 | docs: 29 non-fv kcl units; §10 "every CI row" pending CI; the Windows runtimes check no permission bits (so their umask 002 runs prove only the POSIX-independent part) | — |
+| L7 | the clash case takes the image's path from `kk.image --path` (`path.sh`) | not from a debug line's text |
+| L8 | note only: the lazy texts run in the child's main shell; a `set -e` caller is not modelled there | — |
+| cost | 008 keeps the damage and M1 cases (the plain round trips are 010 / 011's B1); 011's default leaves out fv.views, fv.menus, fv.histlist, fv.dialogs, fv.msgbox (FULL runs them); 010 split into 010 + 015 (halves, run side by side by the threaded runner) | the ~4 min aim per runtime |
+
+Costs after fix round 1 (laptop, each file standalone, the I3 tree and the fix-1 tree side by side
+in one scratch folder — slower than the repo's own folder, so compare the pairs, not with the I3
+numbers above): Git-bash 008 / 009 / 010 (+015) / 011 / 012 / 013 / 014 = 85 → 71, 43 → 45,
+138 → 69 + 72, 93 → 70, 70 → 75, 41 → 53, 16 → 14 s (486 → 469 s in all); MSYS2 457 → 436 s;
+Cygwin 502 → 458 s. The longest file is now ~75 s instead of ~140 s, so the threaded kcl suite
+(8 workers) takes 130 / 131 / 126 s (Git-bash / MSYS2 / Cygwin). Run one after another the default
+set stays above the ~4 min aim on this laptop: 013 grew by the `local` case and the harness check,
+and 008's one-request M1 guard (a writer over every unit, ~40 s) is most of 008 now.
 
 ## 0. Summary
 
@@ -778,8 +812,8 @@ Forks: **0** in `dates` mode (the Windows default); **1** (`stat` / `cksum`) in 
 | chained writer simulation | I2b | the writer's script changes a P class (`defineMethod`) before `kk.image` → refusal + hold; the reader side (fix round 1): a P variable a unit reads changed after the image was made, an environment preset of a P default, a shortened P list, an added registry key, `defineMethod` on a P class before the start of a clean image of a class-building load → plain `kk.uses` (read base, `_KKLASS_GEN`) |
 | chained undo | I2b | truncated chained image under `set -e`: base slots restored, state equals a normal load |
 | pruning caps | I2b | per (request, P), per request name, per folder |
-| env-diff (every unit, unchained and chained) | I3 | image under A, start under B == a real load under B, except the allow-list; as built: kcl 010-013, "I3 as built" above |
-| round trip, lazy data, behaviour | I3 | per bash version; layouts load lazily; fv.dlg headless widgets and demos equal from an image start; as built: kcl 010-014 (lazy table and fv.dlg widgets in image_rt.sh, demos 014), every CI row |
+| env-diff (every unit, unchained and chained) | I3 | image under A, start under B == a real load under B, except the allow-list; as built: kcl 010-013 and 015, "I3 as built" above |
+| round trip, lazy data, behaviour | I3 | per bash version; layouts load lazily; fv.dlg headless widgets and demos equal from an image start; as built: kcl 010-014 (lazy table and fv.dlg widgets in image_rt.sh, demos 014); every CI row pending CI (the laptop's three runtimes green) |
 | rows | I2a–I3 | Git-bash, MSYS2, Cygwin (gate.sh); CI 16 rows; the 5.1 VM gate |
 
 ---
