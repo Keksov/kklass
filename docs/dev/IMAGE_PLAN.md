@@ -253,7 +253,7 @@ Cygwin 502 → 458 s. The longest file is now ~75 s instead of ~140 s, so the th
 set stays above the ~4 min aim on this laptop: 013 grew by the `local` case and the harness check,
 and 008's one-request M1 guard (a writer over every unit, ~40 s) is most of 008 now.
 
-## I4 as built (2026-11-26, implemented, awaiting the CI bench)
+## I4 as built (2026-11-26; DONE, see "I4 targets revised")
 
 **Bench rows** (`tools/bench`: `imgcases.sh ROOT CASE [N]`, suite `image` in `bench.sh`, README
 section "The image suite"; `prepare.sh` pins kkore too — `kkore@REF`, `.bench_rev` line 3;
@@ -338,6 +338,27 @@ rewrite).
 | `image.alt` writes in starts 3–10 | 0 | 0 | met |
 | `image.forks` dates / stat / hash | 0 / 1 / 1 | 0 / 1 / 1 | met |
 | `image.miss.fvdlg`, `image.miss.chain` | 3.93 s, 3.53 s (ubuntu host) | to be set | logged |
+
+### I4 targets revised (2026-11-26, option A)
+
+The second bench run (45875802937, fix round 1) ran the same code on another CPU (ubuntu host:
+Intel 8370C → AMD 9V74) and moved every absolute time — `image.hit.fvdlg` 128 → 147 ms,
+`hit.chain − load(tstringlist)` 117 → 135 ms (over its old 0.12 s target with no code change) —
+while the ratios held: cur/i3 within ±0.04 on every row, `hit / load` 0.21 / 0.22, `check / hit`
+0.195 / 0.195, `(hit.chain − load(tstringlist)) / hit` 0.92 / 0.92. §11 now states ratios, with
+loose absolute ceilings. `image.check ≤ 10 ms` is dropped: the remaining cost is the exact clash
+check over ~3000 names (fix round 1 S4 profile); fewer names to check (a class's table names
+derived from the class list) is the open option B, deferred.
+
+| row | run 1 / run 2 (ubuntu host) | new target | |
+|---|---|---|---|
+| `image.hit.fvdlg` | 127.8 / 147.2 ms | ceiling ≤ 0.16 s | met |
+| `hit / load` | 0.21 / 0.22 | ≤ 0.22 | met |
+| `image.check / image.hit.fvdlg` | 0.195 / 0.195 (25.0 / 28.7 ms) | ≤ 0.25 | met |
+| `(hit.chain − load(tstringlist)) / hit` | 0.92 / 0.92 (117 / 135 ms) | ≤ 1.0 | met |
+| `image.miss.fvdlg`, `image.miss.chain` | 3.93 / 4.31 s, 3.53 / 3.96 s | ceiling ≤ 5 s | met |
+| `image.alt` writes in starts 3–10 | 0 / 0 | 0 | met |
+| `image.forks` dates / stat / hash | 0/1/1, 0/1/1 | 0 / 1 / 1 | met |
 
 ## I4 fix round 1 (2026-11-26; supervisor S1–S5, critic M1, L1–L9)
 
@@ -948,14 +969,17 @@ Forks: **0** in `dates` mode (the Windows default); **1** (`stat` / `cksum`) in 
 
 | row | what | target (CI Linux unless said) |
 |---|---|---|
-| `image.hit.fvdlg` | fresh process: `source kbool.sh; kk.image fv.dlg`, launch → return | **≤ 0.12 s**; Windows rows as ratios |
-| `image.load.fvdlg` | the same with `KBOOL_IMAGE=off`, interleaved | logged; `hit / load` **≤ 0.2** |
-| `image.hit.chain` | `source kbool.sh; kk.uses tstringlist; kk.image fv.dlg` (image hit) vs the same with `KBOOL_IMAGE=off` | `hit.chain − load(tstringlist)` **≤ 0.12 s**; ratio to the unchained hit logged |
-| `image.check` | in-process: §9 without the source and the hooks | **≤ 10 ms** |
-| `image.miss.fvdlg` | first start, folder emptied | **to be measured** (set in I4 from CI) |
+| `image.hit.fvdlg` | fresh process: `source kbool.sh; kk.image fv.dlg`, launch → return | ceiling **≤ 0.16 s** (ubuntu host); Windows rows as ratios |
+| `image.load.fvdlg` | the same with `KBOOL_IMAGE=off`, interleaved | logged; `hit / load` **≤ 0.22** |
+| `image.hit.chain` | `source kbool.sh; kk.uses tstringlist; kk.image fv.dlg` (image hit) vs the same with `KBOOL_IMAGE=off` | `(hit.chain − load(tstringlist)) / image.hit.fvdlg` **≤ 1.0**; the ms logged |
+| `image.check` | in-process: §9 without the source and the hooks | `image.check / image.hit.fvdlg` **≤ 0.25**; the ms logged |
+| `image.miss.fvdlg` | first start, folder emptied | ceiling **≤ 5 s** (ubuntu host); `image.miss.chain` the same |
 | `image.alt` | alternating callers, 10 starts | after the first two: **0 writes**, each within `image.hit` |
 | `image.forks` | forks on the hit path | **0** in `dates` mode; **1, named**, in `stat` / `hash` |
 | `dlg1.proc.<widget>.image` | spawned `bin/fvdlg` through the image | **first frame ≤ 0.3 s**; exit logged |
+
+Revised after I4 (2026-11-26, "I4 targets revised"): ratios within one bench run, absolute
+times only as loose ceilings — the runner's CPU alone moves them ~15%.
 
 The Linux rows run the POSIX default (`stat`); a second Linux row with
 `KBOOL_IMAGE_CHECK=dates` shows the fork's share. Process rows use P4 §6.2's method. Perf runs
