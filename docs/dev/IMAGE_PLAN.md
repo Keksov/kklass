@@ -407,7 +407,7 @@ below.
 | no timeout tool | mode `watch` | the writer runs itself again as mode `inner` in a process substitution and waits on that pipe with `read -t`; at the limit TERM, 10 s later KILL to the inner pid, a 10-minute hold (stock macOS; children not group-killed: documented) |
 | pruning, `--forget` | `kimage.sh` | `NAME.bg` older than 600 s (or unreadable) removed; a stale one (≥ 140 s) goes with its pruned image; `--forget` takes the request's |
 | `bin/fvdlg` | step 5 + header | `kk.image --background fv.dlg`; the fork note updated (R3) |
-| tests' default | `kcl/fv.dlg/tests/fvdlg_testlib.sh` `fvdl_init` | `export KBOOL_IMAGE=off` (R1): every fv.dlg test file runs bin/fvdlg without images or writers; only 009 and 010 spawn bin/fvdlg there, nothing else in the tree runs it |
+| tests' default | `kcl/fv.dlg/tests/fvdlg_testlib.sh` `fvdl_init` | `export KBOOL_IMAGE=off` (R1): every fv.dlg test file runs bin/fvdlg without images or writers; of the files that use the testlib only 009 and 010 spawn bin/fvdlg; the image test kcl/fv.dlg 013 and the bench's tools/bench/fvdlgcases.sh run it with images on, each with its own temp image folder (corrected in fix round 1) |
 
 **Seams** (internal, `kimgbg.sh` header): `__KK_IMG_BGSYNC=1` (the same chain without `&`),
 `__KK_IMG_BGPAUSE=S`, `__KK_IMG_BGLIMIT=S`, `__KK_IMG_BGERR=FILE`, `__KK_IMG_BGNOTOOLS=1`,
@@ -426,7 +426,7 @@ stderr and headless frames).
 **Deviation D1.** The design note proposed factoring the settings list shared with
 `kk._img__child` into one helper; the list is repeated in `kk._imgbg_spawn` instead (a
 comment names the twin), so I5 does not touch the chained / M1 child that only full suites
-cover — a review item.
+cover — a review item. **Resolved in fix round 1** (one helper, `kimghit.sh` `kk._image_kenv`).
 
 **Tests.** kkore `029_ImageBackground.sh` (29 cases) and kcl/fv.dlg `013_Image.sh` (18), each
 on Git-bash 5.3.15, MSYS2 5.3.9, Cygwin 5.2.21; 009 / 010 on Git-bash (the testlib change).
@@ -441,6 +441,35 @@ miss / plain. Laptop smoke (Git-bash, N=1, indicative): hits 252–283 ms vs pla
 (0.27–0.28), `fvdlg.miss` 1068 ms (1.14 × the plain msgbox), writer done after 6.1 s.
 Spawn cost (DESIGN §7, laptop, median of 11): double fork 24–46 ms on the Windows runtimes,
 est. 1–2 ms on Linux.
+
+## I5 fix round 1 (2026-11-27, implemented, awaiting review)
+
+Base: kkore ce85356, kcl 38a4e2c, kklass 35d0237, kbool e92b1f1 (CI: 021's usage pin red on
+every row). Critic reproducers `scratchpad/p4/I5_critic/`.
+
+| # | finding | fix | pin |
+|---|---|---|---|
+| CI | kkore 021:114 pinned the usage line without `, --background` | pin updated; every test file of the tree searched for the other changed texts (usage line, kuse.sh messages, README examples): only 021 and 029 pin them; 015 (README examples) run once | 021, 015 |
+| M1 | watch mode: the writer is in the caller's process group and recorded it; the tests' guard then signalled `-PGID` = the test itself | product: the caller passes its group (`__KK_IMG_BGCPG`, /proc), the writer records a group only when it is not the caller's (else `-`: watch mode, busybox, no /proc); tests: `bg_kill` never signals the test's own group | 029 watch mode: PGID `-`, the guard stops the leftover and the test survives; a `bg_kill` call with the test's group |
+| M2 | a nested `kk.image` in a unit's load inside the writer took the writer's caller (the shadowing `local __kk_imbg_w=""` was unpinned) | — (the code was right) | 029 `iin` (calls `kk.image ib` in its load): the image hits, `ib.f`, `IB_V=7`, equal to a plain load |
+| L1 | `kk._imgbg_take` / `_spawn` changed the caller's RESULT | `local RESULT` in both (and in `kk._imgbg_unstale`) | 029 RESULT kept as by a plain load |
+| L2 | a signal to the watch-mode watcher left the inner writer running | `__KK_IMG_BGSP` = the inner pid right after the process substitution (the TERM trap stops it) | 029 guard case: no writer process left after the watcher's TERM |
+| L3 | without /proc only fds 3..255 were closed | the list of `/dev/fd` first, else 3..`ulimit -n` (at most 4096); seam `__KK_IMG_BGNOPROC=1 / 2` | 029 both seams with fd 300 = the pipe: `$(…)` returns at once |
+| L4 | docs | fv.dlg README: the clash is a caller variable named like one the LOAD CREATES (presets hit); kimgbg.sh / kuse.sh / kkore README: GNU timeout kills the group, busybox and FreeBSD signal the writer alone; watch mode in kuse.sh's header; the writer's own TERM trap signals no group (it leads none; documented, not changed); this plan: 013 and fvdlgcases.sh run bin/fvdlg too | — |
+| L5 | tests | X1 a `set -f` caller and a `set -euo pipefail` + ERR / DEBUG trap caller with an extra fd; X2 a BASH_ENV that sets a unit variable; X4b five parallel first calls: one writer, the image, no hold; X8 the guard also scans /proc for any process with a writer's command line (a detached grandchild, a watchdog's inner writer) | 029 (and 013's guard) |
+| L6 | a stale marker survived `--rebuild` | `kk._image_run`'s rebuild branch: `kk._imgbg_unstale` removes a marker that is not fresh | 029 |
+| X4b race | (found while pinning) a writer that removes its marker and exits between a start's read and its `kill -0`: a false "did not finish" hold | `kk._imgbg_take` reads again before holding (same marker? else a new round), an empty read (a marker being written) read again, at most 4 rounds; the writer rewrites its marker in place (`1<>`: the line only grows, no truncated read) | 029 X4b |
+| D1 | the settings list twice | ONE helper `kimghit.sh` `kk._image_kenv MODE` (m1 / chain / bg) for `kk._img__child` and `kk._imgbg_spawn` | kkore 026 / 027 / 028, kcl tests/012 (the child), 029 |
+| X3 | the EXIT trap's token check unpinned | documented: negligible (another writer's marker removed only when a writer outlives a takeover) | — |
+
+**Tests.** kkore 029 now 43 cases and kcl/fv.dlg 013 18 cases, each on Git-bash 5.3.15, MSYS2
+5.3.9 and Cygwin 5.2.21; kkore 021, 015, 026, 027, 028 and kcl tests/012 (the child of D1) once
+on Git-bash. All pass. **Mutations** (28, scratch `p4/I5/mut.sh`, Git-bash): 26 caught
+(the 15 of I5, the critic's X1 / X2 / X4b / X6, F1 the group rule, F2 `local RESULT`, F3 the
+watcher's inner pid, F4a / F4b the /dev/fd and ulimit branches, F5 `--rebuild`'s marker, F7 the
+test's own-group rule, F8 the shared list); M13 and X3 survive (documented). Found while
+pinning: a `$(…)` in a `uf_check` title resets `$?` — the L3 case passed under its mutations
+until its title was computed first.
 
 ## 0. Summary
 
