@@ -472,6 +472,10 @@ test's own-group rule, F8 the shared list); M13 and X3 survive (documented). Fou
 pinning: a `$(…)` in a `uf_check` title resets `$?` — the L3 case passed under its mutations
 until its title was computed first.
 
+## I5 done (2026-11-27)
+
+Full CI 45910578939 GREEN 16/16 (debian 13 rerun once: kcl/tpipe 006 orphan, unrelated). The plan's stages I0–I5 are all done; next in the fv plan: P4 4d, then 4e (the fvdlg bench suite extends the I5 skeleton).
+
 ## 0. Summary
 
 * **API** (§3). `kk.image UNIT…` = `kk.uses UNIT…` (same rc, same units loaded), through an
